@@ -1,0 +1,11 @@
+.next
+node_modules
+out
+dist
+*.log
+.env*
+*.tsbuildinfo
+.local-db
+Backups
+.obsidian
+무제.md
