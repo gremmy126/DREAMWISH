@@ -1,7 +1,7 @@
 import type { ExecutionPlan, ExecutionPlanStep, ExecutionRisk } from "./agent.types";
 
 export async function planAgentExecution(request: string): Promise<ExecutionPlan> {
-  const goal = request.trim() || "사용자 요청 처리";
+  const goal = request.trim() || "Handle user request";
   const steps = buildSteps(goal);
 
   return {
@@ -9,7 +9,7 @@ export async function planAgentExecution(request: string): Promise<ExecutionPlan
     goal,
     steps,
     risk: inferRisk(goal, steps),
-    estimatedTime: `${Math.max(3, steps.length * 2)}분`,
+    estimatedTime: `${Math.max(3, steps.length * 2)} min`,
     requiredApproval: true,
     createdAt: new Date().toISOString()
   };
@@ -22,8 +22,8 @@ function buildSteps(goal: string): ExecutionPlanStep[] {
   if (/(고객|customer|crm|계약|견적|리드|lead)/iu.test(normalized)) {
     steps.push({
       type: "crm_search",
-      title: "CRM 검색",
-      description: "고객, 회사, 연락처, 과거 활동, AI Memory를 조회합니다.",
+      title: "CRM search",
+      description: "Look up customers, companies, contacts, past activity, and AI memory.",
       target: "crm",
       requiresApproval: false
     });
@@ -31,77 +31,77 @@ function buildSteps(goal: string): ExecutionPlanStep[] {
 
   steps.push({
     type: "knowledge_search",
-    title: "Knowledge 검색",
-    description: "SecondBrain 문서와 최근 대화 맥락에서 근거를 찾습니다.",
+    title: "Knowledge search",
+    description: "Find grounding context from SecondBrain, memory, chat history, and recent documents.",
     target: "knowledge",
     requiresApproval: false
   });
 
-  if (/(프로젝트|project|파일|문서|견적)/iu.test(normalized)) {
+  if (/(프로젝트|project|파일|문서|견적|file|document)/iu.test(normalized)) {
     steps.push({
       type: "project_lookup",
-      title: "관련 프로젝트 확인",
-      description: "요청과 연결된 프로젝트, 파일, 결정 기록을 확인합니다.",
+      title: "Project context check",
+      description: "Check related projects, files, and decision records before proposing changes.",
       target: "projects",
       requiresApproval: false
     });
   }
 
-  if (/(회의|미팅|일정|calendar|예약|다음 주|내일|오늘)/iu.test(normalized)) {
+  if (/(회의|미팅|일정|calendar|예약|다음 주|내일|오늘|予定|カレンダー)/iu.test(normalized)) {
     steps.push({
       type: "calendar_check",
-      title: "일정 확인",
-      description: "로컬 캘린더 구조에서 가능한 일정 후보를 만들고 충돌 가능성을 표시합니다.",
+      title: "Calendar check",
+      description: "Review available schedule context and prepare event changes only as a preview.",
       target: "calendar",
       requiresApproval: false
     });
   }
 
-  if (/(gmail|구글메일|메일|답장|calendar|캘린더|slack|슬랙|외부 데이터|동기화|승인 대기)/iu.test(normalized)) {
+  if (needsExternalAppPlan(normalized)) {
     steps.push(
       {
         type: "permission_check",
-        title: "Permission Check",
-        description: "Gmail, Google Calendar, Slack 권한과 OAuth 연결 상태를 확인합니다.",
+        title: "Permission check",
+        description: "Check OAuth/API connection status for Gmail, Calendar, Slack, GitHub, Notion, and Firebase.",
         target: "integration_permission",
         requiresApproval: false
       },
       {
         type: "external_execution_preview",
-        title: "Execution Preview",
-        description: "읽을 데이터, 생성/수정/전송될 데이터, 위험도, 저장 위치를 미리보기로 만듭니다.",
+        title: "Execution preview",
+        description: "Prepare a read/write/edit/send/delete preview with risk and required permissions.",
         target: "execution_preview",
         requiresApproval: true
       },
       {
         type: "user_approval",
-        title: "User Approval",
-        description: "메일 발송, 초안 생성, 일정 생성/수정, Slack 전송, CRM/Knowledge 반영은 승인 전까지 차단합니다.",
+        title: "User approval",
+        description: "Block external edits, sends, deletes, CRM writes, and knowledge updates until approval.",
         target: "approval",
         requiresApproval: true
       },
       {
         type: "connector_execute",
-        title: "Connector Execute",
-        description: "승인된 작업만 Connector가 실행하고, 읽기 작업은 최근 30일 범위로 제한합니다.",
+        title: "Connector execute",
+        description: "Execute only the approved connector action and record the result in execution history.",
         target: "connector",
         requiresApproval: true
       },
       {
         type: "execution_history",
-        title: "Execution History",
-        description: "외부 API 호출 결과, 승인 링크, 오류, Sync History를 기록합니다.",
+        title: "Execution history",
+        description: "Record API result, approval link, errors, and sync history.",
         target: "history",
         requiresApproval: false
       }
     );
   }
 
-  if (/(자동화|workflow|automation|반복)/iu.test(normalized)) {
+  if (/(자동화|workflow|automation|반복|自動化)/iu.test(normalized)) {
     steps.push({
       type: "workflow_prepare",
-      title: "Workflow 초안 생성",
-      description: "Trigger, Condition, Action, Approval 흐름을 가진 자동화 초안을 준비합니다.",
+      title: "Workflow draft",
+      description: "Prepare trigger, condition, action, approval, and execution history steps.",
       target: "automation",
       requiresApproval: true
     });
@@ -110,22 +110,22 @@ function buildSteps(goal: string): ExecutionPlanStep[] {
   steps.push(
     {
       type: "draft",
-      title: "실행 초안 작성",
-      description: "AI가 바로 수정하지 않고 사용자가 검토할 수 있는 실행 미리보기를 작성합니다.",
+      title: "Draft execution preview",
+      description: "Prepare a reviewable preview instead of modifying data immediately.",
       target: "execution_preview",
       requiresApproval: true
     },
     {
       type: "approval",
-      title: "사용자 승인 요청",
-      description: "CRM, Knowledge, Automation, 파일 변경은 승인 전까지 실행하지 않습니다.",
+      title: "Request user approval",
+      description: "Do not change CRM, Knowledge, Automation, files, or connected apps until approval.",
       target: "approval",
       requiresApproval: true
     },
     {
       type: "memory_update",
-      title: "Memory 업데이트",
-      description: "승인 후 실행 결과와 다음 행동을 Agent Memory에 기록합니다.",
+      title: "Memory update",
+      description: "After approval and execution, record useful outcomes for future agent behavior.",
       target: "memory",
       requiresApproval: true
     }
@@ -138,8 +138,12 @@ function buildSteps(goal: string): ExecutionPlanStep[] {
   }));
 }
 
+function needsExternalAppPlan(goal: string) {
+  return /(gmail|google\s*mail|메일|초안|calendar|캘린더|slack|슬랙|github|깃허브|notion|노션|firebase|파이어베이스|외부\s*앱|동기화|승인\s*대기|send|edit|update|delete|create)/iu.test(goal);
+}
+
 function inferRisk(goal: string, steps: ExecutionPlanStep[]): ExecutionRisk {
-  if (/(계약|결제|송금|삭제|발송|메일 보내|send)/iu.test(goal)) return "high";
+  if (/(계약|결제|송금|삭제|delete|send|발송|메일 보내|전송)/iu.test(goal)) return "high";
   if (steps.some((step) => step.requiresApproval)) return "medium";
   return "low";
 }

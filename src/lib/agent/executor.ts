@@ -8,7 +8,7 @@ export async function executeApprovedPlan(
     return {
       planId: plan.id,
       status: "blocked",
-      message: "사용자 승인 전에는 실행하지 않습니다.",
+      message: "Execution is blocked until the user approves it.",
       executedAt: new Date().toISOString()
     };
   }
@@ -16,7 +16,7 @@ export async function executeApprovedPlan(
   return {
     planId: plan.id,
     status: "completed",
-    message: "승인된 실행 계획을 로컬 실행 기록에 반영할 준비가 완료되었습니다.",
+    message: "Approved execution plan is ready to be recorded in local execution history.",
     executedAt: new Date().toISOString()
   };
 }

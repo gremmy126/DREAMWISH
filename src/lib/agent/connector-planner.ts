@@ -22,29 +22,40 @@ export async function planConnectorAction(command: string) {
 }
 
 function inferConnectorId(command: string) {
-  if (/slack/iu.test(command)) return "slack";
-  if (/calendar|캘린더|일정/iu.test(command)) return "calendar";
-  if (/github|이슈|repo|pr/iu.test(command)) return "github";
-  if (/notion/iu.test(command)) return "notion";
-  if (/파일|local/iu.test(command)) return "local-files";
+  if (/slack|슬랙/iu.test(command)) return "slack";
+  if (/calendar|캘린더|일정|예약|予定|カレンダー/iu.test(command)) return "calendar";
+  if (/github|깃허브|repo|repository|issue|pr|pull request/iu.test(command)) return "github";
+  if (/notion|노션/iu.test(command)) return "notion";
+  if (/firebase|파이어베이스|firestore|auth|hosting/iu.test(command)) return "firebase";
+  if (/파일|local|file/iu.test(command)) return "local-files";
   if (/webhook/iu.test(command)) return "webhook";
   return "gmail";
 }
 
 function inferActionType(command: string) {
-  if (/초안|draft/iu.test(command)) return "draft_email";
-  if (/동기화|sync/iu.test(command)) return "mock_sync";
-  if (/상태|status/iu.test(command)) return "status_check";
+  if (/draft|초안|下書き/iu.test(command)) return "draft_email";
+  if (/send|보내|전송|送信/iu.test(command)) return "send_message";
+  if (/create|만들|생성|作成/iu.test(command)) return "create";
+  if (/update|수정|편집|変更|編集/iu.test(command)) return "update";
+  if (/delete|삭제|削除/iu.test(command)) return "delete";
+  if (/sync|동기화|同期/iu.test(command)) return "sync";
+  if (/status|상태|状態/iu.test(command)) return "status_check";
   return "capability_check";
 }
 
 function inferPermissionKeys(connectorId: string, command: string) {
-  if (connectorId === "gmail" && /초안|draft/iu.test(command)) return ["gmail.draft.create"];
-  if (connectorId === "gmail") return ["gmail.read"];
-  if (connectorId === "calendar") return ["calendar.read"];
-  if (connectorId === "slack") return ["slack.messages.read"];
+  if (connectorId === "gmail" && /draft|초안|下書き/iu.test(command)) return ["gmail.draft.create"];
+  if (connectorId === "gmail" && /send|보내|전송/iu.test(command)) return ["gmail.send"];
+  if (connectorId === "gmail") return ["gmail.readonly"];
+  if (connectorId === "calendar" && /create|만들|생성|作成/iu.test(command)) return ["calendar.events"];
+  if (connectorId === "calendar") return ["calendar.readonly"];
+  if (connectorId === "slack" && /send|write|보내|전송/iu.test(command)) return ["chat.write"];
+  if (connectorId === "slack") return ["channels.read", "channels.history"];
+  if (connectorId === "github" && /issue|write|create|만들|생성/iu.test(command)) return ["github.issue.write"];
   if (connectorId === "github") return ["github.repo.read"];
+  if (connectorId === "notion" && /create|만들|생성|作成/iu.test(command)) return ["notion.page.create"];
   if (connectorId === "notion") return ["notion.page.read"];
+  if (connectorId === "firebase") return ["firebase.config.read"];
   if (connectorId === "local-files") return ["files.read"];
   return ["webhook.receive"];
 }

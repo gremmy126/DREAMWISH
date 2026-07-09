@@ -11,14 +11,15 @@ import {
   Info,
   MessageSquareText,
   ScrollText,
-  Settings,
+  Settings
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { StorageStatus } from "@/components/Common/StorageStatus";
-import { LanguageSwitcher } from "@/components/layout/LanguageSwitcher";
 import type { ViewId } from "@/components/layout/types";
 import { AUTH_SESSION_KEY, type AccessState } from "@/src/lib/auth/access-control";
+import { useAppLanguage } from "@/src/lib/i18n/use-app-language";
+import { getNavLabel } from "@/src/lib/i18n/translations";
 import { PAYMENT_STATUS_KEY, buildPaymentButtonState } from "@/src/lib/payments/payment-state";
 
 type SidebarProps = {
@@ -28,23 +29,23 @@ type SidebarProps = {
 
 const primaryItems: Array<{
   id: ViewId;
-  label: string;
   icon: typeof Home;
 }> = [
-  { id: "chat", label: "AI Chat", icon: MessageSquareText },
-  { id: "memory", label: "Memory", icon: Brain },
-  { id: "crm", label: "CRM", icon: DatabaseZap },
-  { id: "automation", label: "Automation", icon: ScrollText },
-  { id: "calendar", label: "Calendar", icon: CalendarDays },
-  { id: "files", label: "Files", icon: File },
-  { id: "integrations", label: "Integrations", icon: Cable },
-  { id: "settings", label: "Settings", icon: Settings }
+  { id: "chat", icon: MessageSquareText },
+  { id: "memory", icon: Brain },
+  { id: "crm", icon: DatabaseZap },
+  { id: "automation", icon: ScrollText },
+  { id: "calendar", icon: CalendarDays },
+  { id: "files", icon: File },
+  { id: "integrations", icon: Cable },
+  { id: "settings", icon: Settings }
 ];
 
 export function Sidebar({ activeView, onViewChange }: SidebarProps) {
   const [companyOpen, setCompanyOpen] = useState(false);
   const [paymentComplete, setPaymentComplete] = useState(false);
   const paymentButton = buildPaymentButtonState(paymentComplete);
+  const { language, t } = useAppLanguage();
 
   useEffect(() => {
     const readPaymentState = () => {
@@ -71,7 +72,7 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
         </div>
         <div>
           <p className="text-sm font-semibold text-app-text">DREAMWISH</p>
-          <p className="text-xs text-app-muted">Agentic AI OS</p>
+          <p className="text-xs text-app-muted">{t("sidebar.productSubtitle")}</p>
         </div>
       </button>
 
@@ -93,14 +94,13 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
               }`}
             >
               <Icon size={18} strokeWidth={active ? 2 : 1.8} />
-              <span>{item.label}</span>
+              <span>{getNavLabel(item.id, language)}</span>
             </motion.button>
           );
         })}
       </nav>
 
       <div className="mt-auto space-y-3">
-        <LanguageSwitcher compact />
         {!paymentButton.hidden ? (
           <button
             type="button"
@@ -108,10 +108,10 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
               window.location.href = paymentButton.checkoutPath;
             }}
             className="flex w-full items-center justify-center gap-2 rounded-app bg-app-primary px-3 py-3 text-xs font-semibold text-white shadow-soft transition hover:brightness-105"
-            title={paymentButton.description}
+            title={t("sidebar.upgradeDescription")}
           >
             <CreditCard size={14} />
-            {paymentButton.label}
+            {t("sidebar.upgrade")}
           </button>
         ) : null}
         <div className="rounded-app border border-app-border bg-white p-4 shadow-soft">
@@ -123,7 +123,7 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
           className="flex w-full items-center justify-center gap-2 rounded-app border border-app-border bg-white px-3 py-3 text-xs font-semibold text-app-text shadow-soft transition hover:bg-app-hover hover:text-app-primary"
         >
           <Info size={14} />
-          사업자 정보
+          {t("sidebar.company")}
         </button>
       </div>
 
@@ -131,21 +131,21 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 px-4">
           <div className="w-[360px] rounded-app border border-app-border bg-white p-5 shadow-app">
             <div className="mb-4 flex items-center justify-between gap-3">
-              <h2 className="text-base font-semibold text-app-text">사업자 정보</h2>
+              <h2 className="text-base font-semibold text-app-text">{t("sidebar.company")}</h2>
               <button
                 type="button"
                 onClick={() => setCompanyOpen(false)}
                 className="rounded-2xl border border-app-border px-3 py-1 text-xs font-semibold text-app-muted transition hover:bg-app-hover hover:text-app-primary"
               >
-                닫기
+                {t("common.close")}
               </button>
             </div>
             <dl className="space-y-3 text-sm">
-              <InfoRow label="사업자 번호" value="147-07-03187" />
-              <InfoRow label="통신판매업신고번호" value="제2026-부산사상구-0185" />
-              <InfoRow label="상호명" value="드림위시" />
-              <InfoRow label="대표전화" value="051-916-1222" />
-              <InfoRow label="주소" value="부산 사상구 덕상로 8-37, 202동 2504호" />
+              <InfoRow label={t("sidebar.businessNumber")} value="147-07-03187" />
+              <InfoRow label={t("sidebar.commerceNumber")} value="2026-부산사상구-0185" />
+              <InfoRow label={t("sidebar.companyName")} value="드림위시" />
+              <InfoRow label={t("sidebar.phone")} value="051-916-1222" />
+              <InfoRow label={t("sidebar.address")} value="부산 사상구 학장로 8-37, 202동 2504호" />
             </dl>
           </div>
         </div>

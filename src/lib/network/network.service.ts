@@ -8,13 +8,16 @@ export async function buildContextNetwork(
   extraResults: SearchResult[] = [],
   baseResults?: SearchResult[]
 ): Promise<KnowledgeNetwork> {
-  const results = [...(baseResults || (await hybridSearchResults(query, 10))), ...extraResults].slice(0, 14);
+  const results = dedupeResults([
+    ...(baseResults || (await hybridSearchResults(query, 10))),
+    ...extraResults
+  ]).slice(0, 16);
   const documents = await loadMarkdownDocuments();
   const byPath = new Map(documents.map((document) => [document.relativePath, document]));
   const nodes: KnowledgeNode[] = [
     {
       id: "query",
-      label: query.trim() || "현재 질문",
+      label: query.trim() || "Current question",
       type: "query",
       score: 1
     }
@@ -30,9 +33,9 @@ export async function buildContextNetwork(
       id: `query-${node.id}`,
       sourceId: "query",
       targetId: node.id,
-      relationType: "rag_relation",
+      relationType: result.sourceType === "web" ? "ai_suggested_relation" : "rag_relation",
       strength: result.score,
-      reason: `${result.matchedBy} 검색으로 현재 질문과 연결됨`
+      reason: relationReason(result)
     });
 
     for (const tag of document?.tags.slice(0, 4) || []) {
@@ -51,7 +54,7 @@ export async function buildContextNetwork(
         targetId: tagId,
         relationType: "tag_relation",
         strength: 0.58,
-        reason: `같은 태그 ${tag}로 연결됨`
+        reason: `Connected by shared tag: ${tag}`
       });
     }
 
@@ -66,20 +69,20 @@ export async function buildContextNetwork(
         targetId: node.id,
         relationType: "folder_relation",
         strength: 0.45,
-        reason: `같은 폴더 ${folderNode.label}에 속함`
+        reason: `Included in folder: ${folderNode.label}`
       });
     }
   }
 
   nodes.push(...tagNodes.values());
-  return { nodes: dedupeNodes(nodes).slice(0, 18), edges: dedupeEdges(edges).slice(0, 28) };
+  return { nodes: dedupeNodes(nodes).slice(0, 20), edges: dedupeEdges(edges).slice(0, 32) };
 }
 
 function resultToNode(result: SearchResult): KnowledgeNode {
   return {
     id: result.documentId,
     label: result.title,
-    type: result.sourceType === "web" ? "web" : inferNodeType(result.path),
+    type: result.sourceType === "web" ? "web" : result.sourceType === "chat" ? "chat" : inferNodeType(result.path),
     path: result.path,
     url: result.url,
     score: result.score,
@@ -87,9 +90,16 @@ function resultToNode(result: SearchResult): KnowledgeNode {
   };
 }
 
+function relationReason(result: SearchResult) {
+  if (result.sourceType === "chat") return "Related to previous conversation history.";
+  if (result.sourceType === "web") return "Related to the current web search results.";
+  return `Related through ${result.matchedBy} search.`;
+}
+
 function inferNodeType(path: string): KnowledgeNode["type"] {
-  if (path.includes("02_Projects")) return "project";
+  if (path.startsWith("chat://")) return "chat";
   if (path.startsWith("http")) return "web";
+  if (path.includes("02_Projects")) return "project";
   if (path.includes("07_Logs/decisions")) return "decision";
   if (path.includes("tasks")) return "task";
   if (path.includes("Notes") || path.includes("note")) return "note";
@@ -98,7 +108,7 @@ function inferNodeType(path: string): KnowledgeNode["type"] {
 }
 
 function folderNodeForPath(path: string): KnowledgeNode | null {
-  if (path.startsWith("http")) return null;
+  if (path.startsWith("http") || path.startsWith("chat://")) return null;
   const folder = path.split("/")[0];
   if (!folder) return null;
   return {
@@ -107,6 +117,15 @@ function folderNodeForPath(path: string): KnowledgeNode | null {
     type: "document",
     score: 0.35
   };
+}
+
+function dedupeResults(results: SearchResult[]) {
+  const seen = new Map<string, SearchResult>();
+  for (const result of results) {
+    const existing = seen.get(result.documentId);
+    if (!existing || result.score > existing.score) seen.set(result.documentId, result);
+  }
+  return [...seen.values()].sort((a, b) => b.score - a.score);
 }
 
 function dedupeNodes(nodes: KnowledgeNode[]) {

@@ -1,6 +1,7 @@
 "use client";
 
 import type { LucideIcon } from "lucide-react";
+import { useAppLanguage } from "@/src/lib/i18n/use-app-language";
 import type { Integration } from "@/src/lib/integrations/types";
 import { IntegrationStatusBadge } from "./IntegrationStatusBadge";
 
@@ -15,6 +16,8 @@ export function IntegrationCard({
   active: boolean;
   onSelect: () => void;
 }) {
+  const { t } = useAppLanguage();
+
   return (
     <button
       type="button"
@@ -36,8 +39,8 @@ export function IntegrationCard({
         {integration.description}
       </p>
       <div className="mt-3 flex items-center justify-between text-[11px] text-app-muted">
-        <span>{integration.connectedAccount || "계정 없음"}</span>
-        <span>{integration.syncEnabled ? "sync on" : "sync off"}</span>
+        <span>{integration.connectedAccount || t("common.noAccount")}</span>
+        <span>{integration.syncEnabled ? t("common.syncOn") : t("common.syncOff")}</span>
       </div>
     </button>
   );

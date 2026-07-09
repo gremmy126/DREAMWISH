@@ -7,6 +7,7 @@ import {
   stringifyUnknownError,
   type AccessState
 } from "@/src/lib/auth/access-control";
+import { useAppLanguage } from "@/src/lib/i18n/use-app-language";
 
 type StoredSession = {
   email: string;
@@ -23,6 +24,7 @@ export function AuthGate({ children }: AuthGateProps) {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { t } = useAppLanguage();
 
   useEffect(() => {
     void restoreSession();
@@ -38,7 +40,7 @@ export function AuthGate({ children }: AuthGateProps) {
         setAccess(null);
         return;
       }
-      const nextAccess = await fetchAccess(session.email);
+      const nextAccess = await fetchAccess(session.email, t("auth.sessionFailed"));
       setAccess(nextAccess);
       setEmail(nextAccess.email);
     } catch (caught) {
@@ -63,7 +65,7 @@ export function AuthGate({ children }: AuthGateProps) {
         error?: string;
       };
       if (!response.ok || !data.access) {
-        throw new Error(data.error || "로그인하지 못했습니다.");
+        throw new Error(data.error || t("auth.failed"));
       }
       window.localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify({ email: data.access.email }));
       setAccess(data.access);
@@ -91,7 +93,7 @@ export function AuthGate({ children }: AuthGateProps) {
       });
       const data = (await response.json()) as { checkoutUrl?: string; error?: string };
       if (!response.ok || !data.checkoutUrl) {
-        throw new Error(data.error || "결제를 시작하지 못했습니다.");
+        throw new Error(data.error || t("auth.checkoutFailed"));
       }
       window.location.href = data.checkoutUrl;
     } catch (caught) {
@@ -162,6 +164,8 @@ export function LoginShell({
   onNameChange: (value: string) => void;
   onSubmit: () => void;
 }) {
+  const { t } = useAppLanguage();
+
   return (
     <main className="flex min-h-screen items-center justify-center bg-app-bg px-6">
       <section className="w-full max-w-md rounded-app border border-app-border bg-white p-7 shadow-soft">
@@ -170,14 +174,14 @@ export function LoginShell({
             <LogIn size={20} />
           </div>
           <div>
-            <h1 className="text-xl font-semibold text-app-text">DREAMWISH 로그인</h1>
-            <p className="mt-1 text-sm text-app-muted">이메일로 앱 접근 권한을 확인합니다.</p>
+            <h1 className="text-xl font-semibold text-app-text">{t("auth.title")}</h1>
+            <p className="mt-1 text-sm text-app-muted">{t("auth.subtitle")}</p>
           </div>
         </div>
 
         <div className="mt-6 space-y-4">
           <label className="block">
-            <span className="text-xs font-semibold text-app-muted">Email</span>
+            <span className="text-xs font-semibold text-app-muted">{t("auth.email")}</span>
             <input
               value={email}
               onChange={(event) => onEmailChange(event.target.value)}
@@ -187,12 +191,12 @@ export function LoginShell({
             />
           </label>
           <label className="block">
-            <span className="text-xs font-semibold text-app-muted">Name</span>
+            <span className="text-xs font-semibold text-app-muted">{t("auth.name")}</span>
             <input
               value={name}
               onChange={(event) => onNameChange(event.target.value)}
               className="mt-2 h-11 w-full rounded-app border border-app-border bg-app-bg px-4 text-sm font-semibold text-app-text outline-none focus:border-app-primary"
-              placeholder="선택 사항"
+              placeholder={t("auth.namePlaceholder")}
             />
           </label>
         </div>
@@ -210,7 +214,7 @@ export function LoginShell({
           className="mt-5 flex h-11 w-full items-center justify-center gap-2 rounded-app bg-app-primary px-4 text-sm font-semibold text-white disabled:bg-slate-200"
         >
           {submitting ? <Loader2 size={16} className="animate-spin" /> : <ShieldCheck size={16} />}
-          로그인
+          {t("auth.submit")}
         </button>
       </section>
     </main>
@@ -232,26 +236,27 @@ function PaymentRequiredShell({
   onRefresh: () => void;
   onLogout: () => void;
 }) {
+  const { t } = useAppLanguage();
+
   return (
     <main className="flex min-h-screen items-center justify-center bg-app-bg px-6">
       <section className="w-full max-w-lg rounded-app border border-app-border bg-white p-7 text-center shadow-soft">
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-[22px] bg-app-hover text-app-primary">
           <CreditCard size={26} />
         </div>
-        <h1 className="mt-5 text-2xl font-semibold text-app-text">결제가 필요합니다</h1>
+        <h1 className="mt-5 text-2xl font-semibold text-app-text">{t("auth.paymentTitle")}</h1>
         <p className="mt-2 text-sm leading-6 text-app-muted">
-          {access.email} 계정은 DREAMWISH Pro 결제 후 사용할 수 있습니다. 관리자 계정만
-          결제 없이 전체 기능을 사용할 수 있습니다.
+          {t("auth.paymentBody", { email: access.email })}
         </p>
 
         <div className="mt-5 rounded-app border border-app-border bg-app-bg p-4 text-left text-xs">
           <div className="flex items-center justify-between">
-            <span className="font-semibold text-app-muted">Access</span>
-            <span className="font-semibold text-app-text">payment required</span>
+            <span className="font-semibold text-app-muted">{t("auth.access")}</span>
+            <span className="font-semibold text-app-text">{t("auth.paymentRequired")}</span>
           </div>
           <div className="mt-2 flex items-center justify-between">
-            <span className="font-semibold text-app-muted">Admin bypass</span>
-            <span className="font-semibold text-app-text">off</span>
+            <span className="font-semibold text-app-muted">{t("auth.adminBypass")}</span>
+            <span className="font-semibold text-app-text">{t("auth.off")}</span>
           </div>
         </div>
 
@@ -269,14 +274,14 @@ function PaymentRequiredShell({
             className="flex h-11 items-center justify-center gap-2 rounded-app bg-app-primary px-4 text-sm font-semibold text-white disabled:bg-slate-200"
           >
             {submitting ? <Loader2 size={16} className="animate-spin" /> : <CreditCard size={16} />}
-            결제하기
+            {t("auth.pay")}
           </button>
           <button
             type="button"
             onClick={onRefresh}
             className="h-11 rounded-app border border-app-border bg-white px-4 text-sm font-semibold text-app-muted hover:bg-app-hover"
           >
-            새로고침
+            {t("common.refresh")}
           </button>
         </div>
         <button
@@ -284,7 +289,7 @@ function PaymentRequiredShell({
           onClick={onLogout}
           className="mt-4 text-xs font-semibold text-app-muted hover:text-app-primary"
         >
-          다른 이메일로 로그인
+          {t("auth.otherEmail")}
         </button>
       </section>
     </main>
@@ -301,7 +306,7 @@ export function AccessBadge({ access }: { access: AccessState }) {
   );
 }
 
-async function fetchAccess(email: string) {
+async function fetchAccess(email: string, fallback: string) {
   const response = await fetch("/api/auth/session", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -309,7 +314,7 @@ async function fetchAccess(email: string) {
   });
   const data = (await response.json()) as { access?: AccessState; error?: string };
   if (!response.ok || !data.access) {
-    throw new Error(data.error || "세션을 확인하지 못했습니다.");
+    throw new Error(data.error || fallback);
   }
   return data.access;
 }

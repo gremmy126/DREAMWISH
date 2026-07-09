@@ -23,12 +23,16 @@ export function buildRelevantContextPayload(input: ContextRelevanceInput) {
     ...webResults.map((result) => result.documentId),
     ...suggestions.map((suggestion) => suggestion.targetId)
   ]);
+  const allowedNetworkNodeIds = new Set(
+    input.network.nodes
+      .filter((node) => allowedNodeIds.has(node.id) || node.type === "tag")
+      .map((node) => node.id)
+  );
   const network = {
-    nodes: input.network.nodes.filter(
-      (node) => allowedNodeIds.has(node.id) || node.type === "tag"
-    ),
+    nodes: input.network.nodes.filter((node) => allowedNetworkNodeIds.has(node.id)),
     edges: input.network.edges.filter(
-      (edge) => allowedNodeIds.has(edge.sourceId) && allowedNodeIds.has(edge.targetId)
+      (edge) =>
+        allowedNetworkNodeIds.has(edge.sourceId) && allowedNetworkNodeIds.has(edge.targetId)
     )
   };
 
@@ -89,7 +93,7 @@ export function filterRelevantSuggestions(
 }
 
 export function shouldUseExternalWebContext(query: string) {
-  return /(?:웹|검색|사이트|뉴스|github|slack|google|firebase|http|www\.)/iu.test(query);
+  return /(?:웹|검색|사이트|뉴스|web|search|site|news|github|slack|google|firebase|notion|http|www\.)/iu.test(query);
 }
 
 function overlapsQuery(terms: string[], result: SearchResult) {

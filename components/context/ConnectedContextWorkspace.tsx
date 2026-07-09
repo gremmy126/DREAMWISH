@@ -12,12 +12,14 @@ import { RelatedNotesPanel } from "@/components/context/RelatedNotesPanel";
 import { RelatedProjectsPanel } from "@/components/context/RelatedProjectsPanel";
 import { SuggestedConnectionsPanel } from "@/components/context/SuggestedConnectionsPanel";
 import type { ContextPayload } from "@/components/context/types";
+import { useAppLanguage } from "@/src/lib/i18n/use-app-language";
 import type { SearchResult } from "@/src/lib/search/search.types";
 
 export function ConnectedContextWorkspace({ query }: { query: string }) {
   const [payload, setPayload] = useState<ContextPayload | null>(null);
   const [preview, setPreview] = useState<SearchResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const { t } = useAppLanguage();
 
   useEffect(() => {
     if (!query.trim()) {
@@ -38,7 +40,7 @@ export function ConnectedContextWorkspace({ query }: { query: string }) {
       .then((response) => response.json())
       .then((data: ContextPayload) => {
         setPayload(data);
-        setPreview(data.results?.[0] || null);
+        setPreview(data.results?.[0] || data.conversationMatches?.[0] || data.webResults?.[0] || null);
       })
       .catch(() => {
         if (!controller.signal.aborted) setPayload(null);
@@ -51,7 +53,9 @@ export function ConnectedContextWorkspace({ query }: { query: string }) {
   }, [query]);
 
   function previewByPath(path: string) {
-    const found = payload?.results.find((result) => result.path === path);
+    const found = payload?.results.find((result) => result.path === path) ||
+      payload?.conversationMatches.find((result) => result.path === path) ||
+      payload?.webResults.find((result) => result.path === path);
     if (found) setPreview(found);
   }
 
@@ -59,20 +63,20 @@ export function ConnectedContextWorkspace({ query }: { query: string }) {
     <SurfaceCard className="min-h-0 overflow-hidden p-5">
       <SectionHeader
         icon={Sparkles}
-        title="연결된 맥락"
-        description="현재 질문과 이어진 문서, 프로젝트, 노트, 파일을 정리합니다."
+        title={t("context.title")}
+        description={t("context.description")}
       />
 
       <div className="h-[calc(100vh-185px)] overflow-auto pr-1 app-scrollbar">
         {loading ? (
           <p className="rounded-app border border-app-border bg-app-bg p-4 text-sm text-app-muted">
-            관련 맥락을 찾는 중입니다.
+            {t("context.loading")}
           </p>
         ) : null}
 
         {!payload ? (
           <p className="rounded-app border border-dashed border-app-border bg-app-bg p-6 text-center text-sm leading-6 text-app-muted">
-            질문을 입력하면 관련 맥락이 이곳에 나타납니다.
+            {t("context.empty")}
           </p>
         ) : (
           <div className="space-y-4">
@@ -124,16 +128,17 @@ export function ConnectedContextWorkspace({ query }: { query: string }) {
 }
 
 function PlannerHistoryPanel() {
+  const { t } = useAppLanguage();
   const steps = ["Planner", "Permission", "Approval", "Execute", "History"];
   return (
     <section className="rounded-app border border-app-border bg-white p-4 shadow-soft">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Clock3 size={15} className="text-app-primary" />
-          <h3 className="text-sm font-semibold text-app-text">Planner - History</h3>
+          <h3 className="text-sm font-semibold text-app-text">{t("context.plannerHistory")}</h3>
         </div>
         <span className="rounded-2xl border border-app-border bg-app-bg px-2 py-1 text-[11px] font-semibold text-app-muted">
-          approval-first
+          {t("context.approvalFirst")}
         </span>
       </div>
       <div className="grid grid-cols-5 gap-2">

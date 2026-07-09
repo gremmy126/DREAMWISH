@@ -21,7 +21,12 @@ export async function POST(request: Request) {
   ]);
   const webResults = webResultsToSearchResults(query, webRaw);
   const relevantResults = filterRelevantResults(query, results, 10);
-  const network = await buildContextNetwork(query, webResults, relevantResults);
+  const relevantConversationMatches = filterRelevantResults(query, conversationMatches, 8);
+  const network = await buildContextNetwork(
+    query,
+    [...relevantConversationMatches, ...webResults],
+    relevantResults
+  );
 
   return NextResponse.json(buildRelevantContextPayload({
     query,

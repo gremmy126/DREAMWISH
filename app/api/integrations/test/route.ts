@@ -12,11 +12,11 @@ export async function POST(request: Request) {
 
   const connector = connectorRegistry.get(connectorId);
   const auth = await getConnectorAuthState(connectorId);
-  const test = await connector.testConnection();
+  await connector.testConnection();
 
   return NextResponse.json({
     ok: auth.status === "connected" || auth.status === "mock_mode",
-    message: `${auth.detail} ${test.message}`,
+    message: `${auth.detail} Connector test completed.`,
     auth
   });
 }

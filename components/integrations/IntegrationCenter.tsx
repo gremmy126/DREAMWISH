@@ -24,6 +24,8 @@ import type {
   ConnectorPermission,
   Integration
 } from "@/src/lib/integrations/types";
+import { useAppLanguage } from "@/src/lib/i18n/use-app-language";
+import type { OAuthProviderId } from "@/src/lib/oauth/oauth.types";
 import { CalendarIntegrationCard } from "./CalendarIntegrationCard";
 import { ConnectorLogViewer } from "./ConnectorLogViewer";
 import { ConnectorPermissionList } from "./ConnectorPermissionList";
@@ -84,6 +86,7 @@ export function IntegrationCenter() {
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [statusSummary, setStatusSummary] = useState<IntegrationStatusResponse | null>(null);
+  const { t, language } = useAppLanguage();
 
   useEffect(() => {
     async function load() {
@@ -106,35 +109,34 @@ export function IntegrationCenter() {
         setItems(
           baseItems.map((item) => {
             const serverItem = statusById.get(item.connector.id);
-            return serverItem
+            const merged = serverItem
               ? {
                   ...item,
                   integration: serverItem.integration,
                   auth: serverItem.auth
                 }
               : item;
+            return {
+              ...merged,
+              integration: localizeIntegration(merged.connector.id, merged.integration, language)
+            };
           })
         );
       } catch (caught) {
-        setError(caught instanceof Error ? caught.message : "Integration 상태를 읽지 못했습니다.");
+        setError(caught instanceof Error ? caught.message : t("integrations.failed"));
       }
     }
     void load();
-  }, [connectors]);
+  }, [connectors, language]);
 
   const selected = items.find((item) => item.connector.id === selectedId) || items[0];
   const connectedCount = items.filter((item) => item.integration.status === "connected").length;
   const aiConnectedCount =
     statusSummary?.ai?.providers.filter((provider) => provider.connected).length || 0;
   const firebaseReady = Boolean(
-    statusSummary?.firebase?.clientConfigured || statusSummary?.firebase?.adminConfigured
-  );
-  const approvalCount = items.reduce(
-    (count, item) =>
-      count +
-      item.permissions.filter((permission) => permission.riskLevel === "high" || permission.riskLevel === "critical")
-        .length,
-    0
+    statusSummary?.firebase?.clientConfigured ||
+      statusSummary?.firebase?.adminConfigured ||
+      statusSummary?.firebase?.projectIdConfigured
   );
 
   function showPreview() {
@@ -145,12 +147,12 @@ export function IntegrationCenter() {
   }
 
   function approvePreview() {
-    setNotice("승인되었습니다. 실제 실행은 Connector Execute 단계에서 기록됩니다.");
+    setNotice(t("integrations.approved"));
     setApprovalOpen(false);
   }
 
   function rejectPreview() {
-    setNotice("거절되었습니다. 외부 서비스에는 아무 작업도 실행하지 않았습니다.");
+    setNotice(t("integrations.rejected"));
     setApprovalOpen(false);
   }
 
@@ -158,10 +160,8 @@ export function IntegrationCenter() {
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-app-text">Integrations</h1>
-          <p className="mt-2 text-sm text-app-muted">
-            Gmail, Google Calendar, Slack을 OAuth로 연결하고 Preview와 Approval 뒤에만 실행합니다.
-          </p>
+          <h1 className="text-2xl font-semibold text-app-text">{t("integrations.title")}</h1>
+          <p className="mt-2 text-sm text-app-muted">{t("integrations.description")}</p>
         </div>
         <button
           type="button"
@@ -169,7 +169,7 @@ export function IntegrationCenter() {
           className="inline-flex h-11 items-center gap-2 rounded-2xl bg-app-primary px-4 text-sm font-semibold text-white shadow-soft"
         >
           <PlugZap size={16} />
-          실행 미리보기
+          {t("integrations.preview")}
         </button>
       </div>
 
@@ -181,10 +181,14 @@ export function IntegrationCenter() {
       ) : null}
 
       <div className="grid grid-cols-4 gap-4">
-        <Metric icon={Cable} label="Connected" value={String(connectedCount)} />
-        <Metric icon={Mail} label="AI Providers" value={String(aiConnectedCount)} />
+        <Metric icon={Cable} label={t("integrations.connectedMetric")} value={String(connectedCount)} />
+        <Metric icon={Mail} label={t("integrations.aiProviders")} value={String(aiConnectedCount)} />
         <Metric icon={MessageSquare} label="Slack" value="OAuth v2" />
-        <Metric icon={ShieldCheck} label="Firebase" value={firebaseReady ? "Configured" : "Missing"} />
+        <Metric
+          icon={ShieldCheck}
+          label="Firebase"
+          value={firebaseReady ? t("integrations.firebaseConfigured") : t("integrations.firebaseMissing")}
+        />
       </div>
 
       <div className="grid grid-cols-[minmax(0,1fr)_390px] gap-5">
@@ -195,11 +199,15 @@ export function IntegrationCenter() {
 
           <div className="grid grid-cols-2 gap-4">
             <SurfaceCard className="p-4">
-              <h2 className="mb-3 text-sm font-semibold text-app-text">Sync History</h2>
+              <h2 className="mb-3 text-sm font-semibold text-app-text">
+                {t("integrations.syncHistory")}
+              </h2>
               <SyncHistoryTable />
             </SurfaceCard>
             <SurfaceCard className="p-4">
-              <h2 className="mb-3 text-sm font-semibold text-app-text">Connector Logs</h2>
+              <h2 className="mb-3 text-sm font-semibold text-app-text">
+                {t("integrations.connectorLogs")}
+              </h2>
               <ConnectorLogViewer />
             </SurfaceCard>
           </div>
@@ -228,27 +236,15 @@ export function IntegrationCenter() {
                 ) : null}
               </div>
 
-              {selected.connector.id === "gmail" || selected.connector.id === "calendar" ? (
-                <OAuthConnectButton provider="google" label="Google 연결" />
-              ) : null}
-              {selected.connector.id === "slack" ? (
-                <OAuthConnectButton provider="slack" label="Slack 연결" />
-              ) : null}
-
+              <ConnectorAccountActions connectorId={selected.connector.id} />
               <PermissionScopeViewer permissions={selected.permissions} />
               <ConnectorPermissionList permissions={selected.permissions} />
               <ConnectionTestPanel connector={selected.connector} />
               <SyncButton connectorId={selected.connector.id} />
-              {selected.connector.id === "gmail" || selected.connector.id === "calendar" ? (
-                <IntegrationDisconnectButton provider="google" />
-              ) : null}
-              {selected.connector.id === "slack" ? (
-                <IntegrationDisconnectButton provider="slack" />
-              ) : null}
               <ApprovalQueue />
             </div>
           ) : (
-            <p className="text-sm text-app-muted">Integration 상태를 불러오는 중입니다.</p>
+            <p className="text-sm text-app-muted">{t("integrations.noneSelected")}</p>
           )}
         </SurfaceCard>
       </div>
@@ -263,24 +259,104 @@ export function IntegrationCenter() {
   );
 }
 
+function localizeIntegration(connectorId: string, integration: Integration, language: string): Integration {
+  const display = connectorDisplay(connectorId, language);
+  return {
+    ...integration,
+    serviceName: display.name || integration.serviceName,
+    description: display.description || integration.description
+  };
+}
+
+function connectorDisplay(connectorId: string, language: string) {
+  const table: Record<string, Record<string, { name: string; description: string }>> = {
+    gmail: {
+      ko: { name: "Gmail", description: "Gmail 메시지 읽기, 검색, 첨부 파일 메타데이터, 초안 생성과 승인 후 발송을 담당합니다." },
+      en: { name: "Gmail", description: "Reads, searches, drafts, and sends Gmail messages only after approval." },
+      ja: { name: "Gmail", description: "Gmailの読み取り、検索、下書き作成、承認後の送信を担当します。" }
+    },
+    calendar: {
+      ko: { name: "Google Calendar", description: "일정 읽기, 일정 생성/수정 미리보기, 승인 후 일정 실행을 담당합니다." },
+      en: { name: "Google Calendar", description: "Reads events and prepares create/update previews before approved execution." },
+      ja: { name: "Google Calendar", description: "予定の読み取り、作成/更新プレビュー、承認後の実行を担当します。" }
+    },
+    slack: {
+      ko: { name: "Slack", description: "워크스페이스, 채널, 메시지를 읽고 승인 후 메시지를 전송합니다." },
+      en: { name: "Slack", description: "Reads workspaces, channels, and messages, then sends messages after approval." },
+      ja: { name: "Slack", description: "ワークスペース、チャンネル、メッセージを読み取り、承認後に送信します。" }
+    },
+    github: {
+      ko: { name: "GitHub", description: "저장소, 이슈, PR 맥락을 읽고 승인 후 이슈 생성 같은 쓰기 작업을 준비합니다." },
+      en: { name: "GitHub", description: "Reads repository, issue, and PR context and prepares approved write actions." },
+      ja: { name: "GitHub", description: "リポジトリ、Issue、PRの文脈を読み取り、承認後の書き込み操作を準備します。" }
+    },
+    notion: {
+      ko: { name: "Notion", description: "페이지와 데이터베이스를 읽고 승인 후 페이지 생성 작업을 준비합니다." },
+      en: { name: "Notion", description: "Reads pages and databases and prepares approved page creation." },
+      ja: { name: "Notion", description: "ページとデータベースを読み取り、承認後のページ作成を準備します。" }
+    },
+    firebase: {
+      ko: { name: "Firebase", description: "Firebase 프로젝트 설정, 배포 준비 상태, 동기화 상태를 추적합니다." },
+      en: { name: "Firebase", description: "Tracks Firebase project configuration, deployment readiness, and sync status." },
+      ja: { name: "Firebase", description: "Firebaseプロジェクト設定、デプロイ準備、同期状態を追跡します。" }
+    }
+  };
+  return table[connectorId]?.[language] || table[connectorId]?.ko || { name: "", description: "" };
+}
+
+function ConnectorAccountActions({ connectorId }: { connectorId: string }) {
+  const { t } = useAppLanguage();
+  const provider = providerForConnector(connectorId);
+  if (!provider) return null;
+
+  const labelKey: Record<OAuthProviderId, string> = {
+    google: "integrations.connectGoogle",
+    slack: "integrations.connectSlack",
+    github: "integrations.connectGithub",
+    notion: "integrations.connectNotion",
+    firebase: "integrations.connectFirebase"
+  };
+
+  return (
+    <div className="grid gap-2">
+      <OAuthConnectButton provider={provider} label={t(labelKey[provider])} />
+      <IntegrationDisconnectButton provider={provider} />
+    </div>
+  );
+}
+
+function providerForConnector(connectorId: string): OAuthProviderId | null {
+  if (connectorId === "gmail" || connectorId === "calendar") return "google";
+  if (connectorId === "slack") return "slack";
+  if (connectorId === "github") return "github";
+  if (connectorId === "notion") return "notion";
+  if (connectorId === "firebase") return "firebase";
+  return null;
+}
+
 function renderIntegrationCard(
   item: ConnectorViewState,
   selectedId: string,
   setSelectedId: (id: string) => void
 ) {
-  const common = {
-    key: item.connector.id,
+  const props = {
     integration: item.integration,
     active: selectedId === item.connector.id,
     onSelect: () => setSelectedId(item.connector.id)
   };
 
-  if (item.connector.id === "gmail") return <GmailIntegrationCard {...common} />;
-  if (item.connector.id === "calendar") return <CalendarIntegrationCard {...common} />;
-  if (item.connector.id === "slack") return <SlackIntegrationCard {...common} />;
+  if (item.connector.id === "gmail") {
+    return <GmailIntegrationCard key={item.connector.id} {...props} />;
+  }
+  if (item.connector.id === "calendar") {
+    return <CalendarIntegrationCard key={item.connector.id} {...props} />;
+  }
+  if (item.connector.id === "slack") {
+    return <SlackIntegrationCard key={item.connector.id} {...props} />;
+  }
 
   const Icon = iconMap[item.connector.id as keyof typeof iconMap] || Cable;
-  return <IntegrationCard {...common} icon={Icon} />;
+  return <IntegrationCard key={item.connector.id} {...props} icon={Icon} />;
 }
 
 function previewActionFor(connectorId: string, name: string) {
@@ -288,33 +364,51 @@ function previewActionFor(connectorId: string, name: string) {
     return {
       type: "gmail.send",
       connectorId,
-      goal: "Gmail 메일 발송 Preview",
+      goal: "Gmail send preview",
       requiredPermissionKeys: ["gmail.send"],
-      payload: { to: "customer@example.com", subject: "다음 주 미팅 일정 제안" }
+      payload: { to: "customer@example.com", subject: "Next meeting schedule" }
     };
   }
   if (connectorId === "calendar") {
     return {
       type: "calendar.create_event",
       connectorId,
-      goal: "Google Calendar 일정 생성 Preview",
+      goal: "Google Calendar event preview",
       requiredPermissionKeys: ["calendar.events"],
-      payload: { title: "고객 미팅", attendees: ["customer@example.com"] }
+      payload: { title: "Customer meeting", attendees: ["customer@example.com"] }
     };
   }
   if (connectorId === "slack") {
     return {
       type: "slack.send_message",
       connectorId,
-      goal: "Slack 메시지 전송 Preview",
+      goal: "Slack message preview",
       requiredPermissionKeys: ["chat.write"],
-      payload: { channel: "#project", text: "결정사항 공유" }
+      payload: { channel: "#project", text: "Share decision notes" }
+    };
+  }
+  if (connectorId === "github") {
+    return {
+      type: "github.issue.write",
+      connectorId,
+      goal: "GitHub issue preview",
+      requiredPermissionKeys: ["github.issue.write"],
+      payload: { title: "DREAMWISH task", body: "Created after approval." }
+    };
+  }
+  if (connectorId === "notion") {
+    return {
+      type: "notion.page.create",
+      connectorId,
+      goal: "Notion page preview",
+      requiredPermissionKeys: ["notion.page.create"],
+      payload: { title: "DREAMWISH note" }
     };
   }
   return {
     type: "mock_sync",
     connectorId,
-    goal: `${name} 작업 Preview`,
+    goal: `${name} action preview`,
     requiredPermissionKeys: [],
     payload: {}
   };

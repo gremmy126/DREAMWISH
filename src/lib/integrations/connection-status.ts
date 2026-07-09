@@ -1,7 +1,8 @@
 import type { AIProviderName } from "@/src/lib/ai/ai-provider";
 import { SUPPORTED_PROVIDER_NAMES } from "@/src/lib/ai/provider-options";
-import type { IntegrationStatus } from "./types";
+import type { OAuthProviderId } from "@/src/lib/oauth/oauth.types";
 import { getOAuthConnectionStatus } from "@/src/lib/oauth/token.service";
+import type { IntegrationStatus } from "./types";
 
 export type ConnectorAuthState = {
   connectorId: string;
@@ -29,26 +30,14 @@ export async function getConnectorAuthState(
   connectorId: string
 ): Promise<ConnectorAuthState> {
   if (connectorId === "gmail" || connectorId === "calendar" || connectorId === "google") {
-    const oauth = await getOAuthConnectionStatus("google");
-    const configured = oauth.connected || hasAllEnv(["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"]);
-    return {
-      connectorId,
-      status: configured ? "connected" : "not_connected",
-      configured,
-      accountLabel: oauth.accountEmail || (configured ? "Google OAuth app configured" : null),
-      detail: oauth.connected
-        ? "Google OAuth token is active."
-        : configured
-          ? "Google OAuth client configuration is present. Account OAuth can be completed from Connect."
-          : "Google OAuth client configuration is missing."
-    };
+    return oauthStateForConnector(connectorId, "google", ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"], "Google");
   }
 
   if (connectorId === "slack") {
     const oauth = await getOAuthConnectionStatus("slack");
     const configured =
       oauth.connected ||
-      hasAnyEnv(["SLACK_BOT_TOKEN"]) ||
+      hasAnyEnv(["SLACK_BOT_TOKEN", "SLACK_ACCESS_TOKEN"]) ||
       hasAllEnv(["SLACK_CLIENT_ID", "SLACK_CLIENT_SECRET"]);
     return {
       connectorId,
@@ -62,28 +51,33 @@ export async function getConnectorAuthState(
   }
 
   if (connectorId === "github") {
-    const configured = hasAnyEnv(["GITHUB_TOKEN", "GITHUB_OAUTH_TOKEN"]);
-    return {
+    return oauthStateForConnector(
       connectorId,
-      status: configured ? "connected" : "mock_mode",
-      configured,
-      accountLabel: configured ? "GitHub token configured" : "GitHub mock connector",
-      detail: configured
-        ? "GitHub token configuration is present."
-        : "GitHub is available in mock mode until a token is configured."
-    };
+      "github",
+      ["GITHUB_TOKEN", "GITHUB_OAUTH_TOKEN"],
+      "GitHub"
+    );
+  }
+
+  if (connectorId === "notion") {
+    return oauthStateForConnector(
+      connectorId,
+      "notion",
+      ["NOTION_CLIENT_ID", "NOTION_CLIENT_SECRET", "NOTION_ACCESS_TOKEN", "NOTION_TOKEN"],
+      "Notion"
+    );
   }
 
   if (connectorId === "firebase") {
     const firebase = getFirebaseConnectionState();
-    const configured = firebase.clientConfigured || firebase.adminConfigured;
+    const configured = firebase.clientConfigured || firebase.adminConfigured || firebase.projectIdConfigured;
     return {
       connectorId,
       status: configured ? "connected" : "not_connected",
       configured,
       accountLabel: configured ? "Firebase project configured" : null,
       detail: configured
-        ? "Firebase client/server configuration is present."
+        ? "Firebase project configuration is present."
         : "Firebase configuration is missing."
     };
   }
@@ -141,6 +135,25 @@ export function getFirebaseConnectionState(): FirebaseConnectionState {
       "FIREBASE_PRIVATE_KEY"
     ]),
     projectIdConfigured: hasAnyEnv(["FIREBASE_PROJECT_ID", "NEXT_PUBLIC_FIREBASE_PROJECT_ID"])
+  };
+}
+
+async function oauthStateForConnector(
+  connectorId: string,
+  provider: OAuthProviderId,
+  envKeys: string[],
+  label: string
+): Promise<ConnectorAuthState> {
+  const oauth = await getOAuthConnectionStatus(provider);
+  const configured = oauth.connected || hasAnyEnv(envKeys);
+  return {
+    connectorId,
+    status: configured ? "connected" : "not_connected",
+    configured,
+    accountLabel: oauth.accountEmail || (configured ? `${label} account configured` : null),
+    detail: configured
+      ? `${label} account/API configuration is present.`
+      : `${label} account/API configuration is missing.`
   };
 }
 

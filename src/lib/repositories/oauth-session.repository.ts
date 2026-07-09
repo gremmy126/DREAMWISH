@@ -47,6 +47,11 @@ export async function completeOAuthSession(state: string) {
   return session;
 }
 
+export async function findOAuthSession(state: string) {
+  const db = await readDb();
+  return db.sessions.find((item) => item.state === state) || null;
+}
+
 export async function listOAuthSessions() {
   return (await readDb()).sessions;
 }

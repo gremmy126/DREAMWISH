@@ -2,18 +2,21 @@
 
 import { Unplug } from "lucide-react";
 import { useState } from "react";
+import { useAppLanguage } from "@/src/lib/i18n/use-app-language";
+import type { OAuthProviderId } from "@/src/lib/oauth/oauth.types";
 
 export function IntegrationDisconnectButton({
   provider
 }: {
-  provider: "google" | "slack";
+  provider: OAuthProviderId;
 }) {
   const [message, setMessage] = useState<string | null>(null);
+  const { t } = useAppLanguage();
 
   async function disconnect() {
     const response = await fetch(`/api/oauth/${provider}/disconnect`, { method: "POST" });
     const data = (await response.json()) as { revoked?: boolean };
-    setMessage(data.revoked ? "연결을 해제했습니다." : "저장된 연결이 없습니다.");
+    setMessage(data.revoked ? t("integrations.disconnected") : t("integrations.noStoredConnection"));
   }
 
   return (
@@ -24,7 +27,7 @@ export function IntegrationDisconnectButton({
         className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-2xl border border-app-border bg-white px-4 text-xs font-semibold text-app-muted hover:bg-red-50 hover:text-red-600"
       >
         <Unplug size={14} />
-        연결 해제
+        {t("integrations.disconnect")}
       </button>
       {message ? <p className="mt-2 text-xs leading-5 text-app-muted">{message}</p> : null}
     </div>

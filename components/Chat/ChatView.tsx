@@ -43,6 +43,10 @@ import {
 } from "@/src/lib/chat/chat-mode-policy";
 import { stringifyUnknownError } from "@/src/lib/auth/access-control";
 import type { AIProviderName } from "@/src/lib/ai/ai-provider";
+import {
+  getChatQuickActionText
+} from "@/src/lib/i18n/translations";
+import { useAppLanguage } from "@/src/lib/i18n/use-app-language";
 import type { WebSearchResult } from "@/src/lib/web-search/web-search.types";
 
 type UiMessage = {
@@ -149,6 +153,7 @@ export function ChatView() {
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const { language, t } = useAppLanguage();
 
   useEffect(() => {
     void loadSessions();
@@ -167,6 +172,7 @@ export function ChatView() {
   }, [messages]);
 
   const currentProject = projects.find((project) => project.id === activeProjectId) || null;
+  const fileLabels = chatFileLabels(language);
   const contextQuery = input.trim() || lastQuery;
   const visibleSessions = sessions.filter((session) => {
     const link = sessionLinks.find((item) => item.sessionId === session.id);
@@ -319,7 +325,7 @@ export function ChatView() {
       });
 
       if (!response.ok || !response.body) {
-        throw new Error("AI 응답을 시작하지 못했습니다.");
+        throw new Error(t("chat.answerFailed"));
       }
 
       await readEventStream(response, {
@@ -419,8 +425,8 @@ export function ChatView() {
     addLocalExchange(
       userContent,
       action.type === "todo"
-        ? `할 일을 만들었습니다.\n\n- ${action.title}`
-        : `예약 항목을 만들었습니다.\n\n- ${action.title}`
+        ? `${t("chat.actions.todoCreated")}\n\n- ${action.title}`
+        : `${t("chat.actions.scheduleCreated")}\n\n- ${action.title}`
     );
   }
 
@@ -440,20 +446,20 @@ export function ChatView() {
           "",
           behavior.description,
           "",
-          `목표: ${preview.goal}`,
-          `위험도: ${preview.risk}`,
+          `${t("chat.mode.goal")}: ${preview.goal}`,
+          `${t("chat.mode.risk")}: ${preview.risk}`,
           preview.summary,
           "",
           ...preview.steps.map(
             (step) =>
               `${step.order}. ${step.title}\n   ${step.description}${
-                step.requiresApproval ? "\n   승인 필요" : ""
+                step.requiresApproval ? `\n   ${t("chat.mode.approvalRequired")}` : ""
               }`
           ),
           "",
           mode === "plan"
-            ? "계획 모드에서는 실행하지 않고 다음 단계만 정리합니다."
-            : "승인 전에는 CRM, Knowledge, Automation, 파일을 수정하지 않습니다."
+            ? t("chat.mode.planOnly")
+            : t("chat.mode.approvalFirst")
         ].join("\n")
       );
     } catch (caught) {
@@ -489,7 +495,7 @@ export function ChatView() {
     setInput("");
     setError(null);
     setIsLoading(true);
-    setLastQuery(query);
+    setLastQuery(originalMessage);
 
     try {
       const response = await fetch("/api/tools/web-search", {
@@ -501,7 +507,7 @@ export function ChatView() {
         results?: WebSearchResult[];
         error?: string;
       };
-      if (!response.ok) throw new Error(data.error || "웹 검색에 실패했습니다.");
+      if (!response.ok) throw new Error(data.error || t("chat.webFailed"));
 
       const lines = (data.results || [])
         .map(
@@ -509,7 +515,7 @@ export function ChatView() {
             `${index + 1}. ${result.title}\n${result.snippet}\n${result.url}`
         )
         .join("\n\n");
-      addLocalExchange(originalMessage, lines || "웹 검색 결과가 없습니다.");
+      addLocalExchange(originalMessage, lines || t("chat.webNoResults"));
     } catch (caught) {
       setError(stringifyUnknownError(caught));
     } finally {
@@ -529,14 +535,14 @@ export function ChatView() {
         body: JSON.stringify({ code })
       });
       const data = (await response.json()) as CodeRunResult;
-      if (!response.ok) throw new Error(data.error || "코드 실행에 실패했습니다.");
+      if (!response.ok) throw new Error(data.error || t("chat.codeFailed"));
 
       addLocalExchange(
         `코드:\n${code}`,
         [
-          "실행 결과",
-          data.result !== null ? String(data.result) : "(반환값 없음)",
-          data.logs?.length ? "\n로그\n" + data.logs.join("\n") : ""
+          t("chat.runResult"),
+          data.result !== null ? String(data.result) : `(${t("chat.noReturnValue")})`,
+          data.logs?.length ? `\n${t("chat.logs")}\n` + data.logs.join("\n") : ""
         ]
           .filter(Boolean)
           .join("\n")
@@ -558,16 +564,16 @@ export function ChatView() {
 
     if (!textLike) {
       addLocalExchange(
-        `파일 첨부: ${file.name}`,
-        `파일을 첨부했습니다.\n\n이름: ${file.name}\n형식: ${
-          file.type || "알 수 없음"
-        }\n크기: ${formatBytes(file.size)}`
+        `${fileLabels.fileAttached}: ${file.name}`,
+        `${t("chat.fileAttached")}\n\n${fileLabels.name}: ${file.name}\n${fileLabels.type}: ${
+          file.type || fileLabels.unknown
+        }\n${fileLabels.size}: ${formatBytes(file.size)}`
       );
       return;
     }
 
     setInput((prev) =>
-      `${prev}${prev ? "\n\n" : ""}첨부 파일: ${file.name}\n\n${textPreview.slice(0, 8000)}`
+      `${prev}${prev ? "\n\n" : ""}${fileLabels.attachedFile}: ${file.name}\n\n${textPreview.slice(0, 8000)}`
     );
   }
 
@@ -578,19 +584,19 @@ export function ChatView() {
       const bitmap = await createImageBitmap(file);
       const color = averageImageColor(bitmap);
       addLocalExchange(
-        `이미지 첨부: ${file.name}`,
+        `${fileLabels.imageAttached}: ${file.name}`,
         [
-          "이미지를 첨부했습니다.",
-          `- 파일명: ${file.name}`,
-          `- 크기: ${formatBytes(file.size)}`,
-          `- 해상도: ${bitmap.width} x ${bitmap.height}`,
-          `- 형식: ${file.type || "알 수 없음"}`,
-          `- 평균 색상: ${color}`
+          t("chat.imageAttached"),
+          `- ${fileLabels.fileName}: ${file.name}`,
+          `- ${fileLabels.size}: ${formatBytes(file.size)}`,
+          `- ${fileLabels.resolution}: ${bitmap.width} x ${bitmap.height}`,
+          `- ${fileLabels.type}: ${file.type || fileLabels.unknown}`,
+          `- ${fileLabels.averageColor}: ${color}`
         ].join("\n")
       );
       bitmap.close();
     } catch {
-      setError("이미지를 분석하지 못했습니다.");
+      setError(fileLabels.imageFailed);
     }
   }
 
@@ -615,18 +621,18 @@ export function ChatView() {
       speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
-      setError("이 브라우저는 음성 입력을 지원하지 않습니다.");
+      setError(t("chat.browserVoiceUnsupported"));
       return;
     }
 
     const recognition = new SpeechRecognition();
-    recognition.lang = "ko-KR";
+    recognition.lang = language === "en" ? "en-US" : language === "ja" ? "ja-JP" : "ko-KR";
     recognition.interimResults = false;
     recognition.onresult = (event) => {
       const transcript = event.results?.[0]?.[0]?.transcript;
       if (transcript) setInput((prev) => `${prev}${prev ? " " : ""}${transcript}`);
     };
-    recognition.onerror = () => setError("음성 입력을 완료하지 못했습니다.");
+    recognition.onerror = () => setError(t("chat.voiceFailed"));
     recognition.start();
   }
 
@@ -655,7 +661,7 @@ export function ChatView() {
       <SurfaceCard className="flex min-h-0 flex-col p-4">
         <SectionHeader
           icon={MessageSquareText}
-          title="대화 목록"
+          title={t("chat.sessions")}
         />
 
         <div className="mb-3 space-y-2 rounded-app border border-app-border bg-app-bg p-3">
@@ -669,7 +675,7 @@ export function ChatView() {
               activeProjectId === null ? "bg-white text-app-primary" : "text-app-muted"
             }`}
           >
-            프로젝트 없음
+            {t("chat.noProject")}
           </button>
           {projects.map((project) => (
             <button
@@ -693,8 +699,8 @@ export function ChatView() {
             <EmptyState
               compact
               icon={MessageSquareText}
-              title="대화 없음"
-              description="질문을 입력하면 로컬 대화가 저장됩니다."
+              title={t("chat.noSessionsTitle")}
+              description={t("chat.noSessionsDescription")}
             />
           ) : (
             visibleSessions.map((session) => (
@@ -715,15 +721,17 @@ export function ChatView() {
                     {session.title}
                   </p>
                   <p className="mt-1 text-xs text-app-muted">
-                    {new Date(session.updated_at).toLocaleString("ko-KR")}
+                    {new Date(session.updated_at).toLocaleString(
+                      language === "en" ? "en-US" : language === "ja" ? "ja-JP" : "ko-KR"
+                    )}
                   </p>
                 </button>
                 <button
                   type="button"
                   onClick={() => void deleteSession(session.id)}
                   className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-xl text-slate-400 opacity-0 transition hover:bg-white hover:text-red-500 group-hover:opacity-100"
-                  aria-label="대화 삭제"
-                  title="대화 삭제"
+                  aria-label={t("common.delete")}
+                  title={t("common.delete")}
                 >
                   <Trash2 size={14} />
                 </button>
@@ -739,51 +747,62 @@ export function ChatView() {
             className="flex w-full items-center justify-center gap-2 rounded-app border border-app-border bg-white px-3 py-3 text-xs font-semibold text-app-text shadow-soft transition hover:bg-app-hover hover:text-app-primary"
           >
             <FolderPlus size={14} />
-            프로젝트 만들기
+            {t("chat.createProject")}
           </button>
 
           <div className="rounded-app border border-app-border bg-app-bg p-3">
             <div className="mb-2 flex items-center justify-between">
-              <p className="text-xs font-semibold text-app-text">채팅 액션</p>
+              <p className="text-xs font-semibold text-app-text">{t("chat.actions.title")}</p>
               <span className="text-xs font-medium text-app-muted">{actions.length}</span>
             </div>
             {actions.length === 0 ? (
-              <p className="text-xs leading-5 text-app-muted">할 일과 예약 항목이 없습니다.</p>
+              <p className="text-xs leading-5 text-app-muted">{t("chat.actions.empty")}</p>
             ) : (
               <div className="space-y-2">
                 {actions.slice(0, 3).map((action) => (
-                  <label key={action.id} className="flex items-start gap-2 text-xs">
-                    <input
-                      type="checkbox"
-                      checked={action.done}
-                      onChange={(event) =>
-                        setActions((prev) =>
-                          prev.map((item) =>
-                            item.id === action.id
-                              ? { ...item, done: event.target.checked }
-                              : item
+                  <div key={action.id} className="flex items-start gap-2 text-xs">
+                    <label className="flex min-w-0 flex-1 items-start gap-2">
+                      <input
+                        type="checkbox"
+                        checked={action.done}
+                        onChange={(event) =>
+                          setActions((prev) =>
+                            prev.map((item) =>
+                              item.id === action.id
+                                ? { ...item, done: event.target.checked }
+                                : item
+                            )
                           )
-                        )
-                      }
-                      className="mt-0.5 accent-app-primary"
-                    />
-                    <span className="min-w-0">
-                      <span className="font-semibold text-app-text">
-                        {action.type === "todo" ? "할 일" : "예약"}
+                        }
+                        className="mt-0.5 accent-app-primary"
+                      />
+                      <span className="min-w-0">
+                        <span className="font-semibold text-app-text">
+                          {action.type === "todo" ? t("chat.actions.todo") : t("chat.actions.schedule")}
+                        </span>
+                        <span className="block truncate text-app-muted">{action.title}</span>
                       </span>
-                      <span className="block truncate text-app-muted">{action.title}</span>
-                    </span>
-                  </label>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setActions((prev) => prev.filter((item) => item.id !== action.id))}
+                      className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-white hover:text-red-500"
+                      aria-label={t("chat.actions.delete")}
+                      title={t("chat.actions.delete")}
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
                 ))}
               </div>
             )}
           </div>
 
           <div className="rounded-app border border-app-border bg-app-bg p-3">
-            <p className="mb-2 text-xs font-semibold text-app-text">프로젝트</p>
+            <p className="mb-2 text-xs font-semibold text-app-text">{t("chat.project")}</p>
             {projects.length === 0 ? (
               <p className="text-xs leading-5 text-app-muted">
-                대화 목록에서 만든 프로젝트가 여기에 표시됩니다.
+                {t("chat.noProjectItems")}
               </p>
             ) : (
               <div className="space-y-2">
@@ -802,9 +821,11 @@ export function ChatView() {
         <div className="border-b border-app-border p-5">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <h1 className="text-lg font-semibold text-app-text">AI Chat</h1>
+              <h1 className="text-lg font-semibold text-app-text">{t("chat.title")}</h1>
               <p className="mt-1 text-sm text-app-muted">
-                {currentProject ? `${currentProject.name} 프로젝트에 채팅이 저장됩니다.` : "프로젝트 없이 채팅합니다."}
+                {currentProject
+                  ? t("chat.subtitleProject", { project: currentProject.name })
+                  : t("chat.subtitleNoProject")}
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -818,7 +839,7 @@ export function ChatView() {
                       chatMode === mode ? "bg-app-primary text-white" : "text-app-muted"
                     }`}
                   >
-                    {mode}
+                    {t(`chat.mode.${mode}`)}
                   </button>
                 ))}
               </div>
@@ -826,7 +847,7 @@ export function ChatView() {
                 value={selectedModel}
                 onChange={(event) => setSelectedModel(event.target.value as ChatModel)}
                 className="h-9 rounded-2xl border border-app-border bg-white px-3 text-xs font-semibold text-app-text outline-none"
-                title="AI 모델 선택"
+                title={t("chat.modelTitle")}
               >
                 {providerOptions.map((provider) => (
                   <option key={provider.value} value={provider.value}>
@@ -851,10 +872,10 @@ export function ChatView() {
                   <Sparkles size={24} />
                 </div>
                 <h2 className="mt-5 text-xl font-semibold text-app-text">
-                  DREAMWISH Command Center
+                  {t("chat.emptyTitle")}
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-app-muted">
-                  질문, 웹 검색, 파일 첨부, 코드 실행, CRM/Automation 실행 계획을 한 곳에서 시작하세요.
+                  {t("chat.emptyDescription")}
                 </p>
               </div>
             </div>
@@ -876,7 +897,7 @@ export function ChatView() {
                       {message.content || (
                         <span className="inline-flex items-center gap-2 text-app-muted">
                           <Loader2 size={15} className="animate-spin" />
-                          응답 생성 중
+                          {t("chat.generating")}
                         </span>
                       )}
                     </div>
@@ -919,10 +940,11 @@ export function ChatView() {
           <div className="mb-3 flex flex-wrap gap-2">
             {CHAT_QUICK_ACTIONS.map((action) => {
               const Icon = quickActionIcons[action.id];
+              const text = getChatQuickActionText(action.id, language);
               return (
-                <ToolButton key={action.id} onClick={() => setInput(action.prompt)}>
+                <ToolButton key={action.id} onClick={() => setInput(text.prompt)}>
                   <Icon size={13} />
-                  {action.label}
+                  {text.label}
                 </ToolButton>
               );
             })}
@@ -958,8 +980,8 @@ export function ChatView() {
                 setAttachmentMenuOpen((open) => !open);
               }}
               className="mb-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-app-border bg-white text-app-muted transition hover:bg-app-hover hover:text-app-primary"
-              aria-label="첨부 메뉴"
-              title="첨부"
+              aria-label={t("chat.attachmentMenu")}
+              title={t("chat.attach")}
             >
               <Plus size={17} />
             </button>
@@ -972,7 +994,7 @@ export function ChatView() {
                   className="flex w-full items-center gap-2 rounded-2xl px-3 py-2 text-left text-xs font-semibold text-app-text transition hover:bg-app-hover"
                 >
                   <Paperclip size={14} />
-                  파일 첨부
+                  {t("chat.attachFile")}
                 </button>
                 <button
                   type="button"
@@ -980,7 +1002,7 @@ export function ChatView() {
                   className="flex w-full items-center gap-2 rounded-2xl px-3 py-2 text-left text-xs font-semibold text-app-text transition hover:bg-app-hover"
                 >
                   <ImageIcon size={14} />
-                  이미지 첨부
+                  {t("chat.attachImage")}
                 </button>
                 {integrationApps.length > 0 ? (
                   <div className="my-2 border-t border-app-border" />
@@ -1013,14 +1035,14 @@ export function ChatView() {
               }}
               rows={1}
               className="max-h-32 min-h-8 flex-1 resize-none bg-transparent text-sm leading-6 text-app-text outline-none placeholder:text-slate-400"
-              placeholder="질문하거나 '웹 검색:', '코드:', '할 일:', '고객 만들어'처럼 입력하세요."
+              placeholder={t("chat.inputPlaceholder")}
             />
             <button
               type="button"
               onClick={startVoiceInput}
               className="mb-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-app-border bg-white text-app-muted transition hover:bg-app-hover hover:text-app-primary"
-              aria-label="음성 입력"
-              title="음성 입력"
+              aria-label={t("chat.voice")}
+              title={t("chat.voice")}
             >
               <Mic size={16} />
             </button>
@@ -1029,7 +1051,7 @@ export function ChatView() {
               onClick={() => void sendMessage()}
               disabled={isLoading || input.trim().length === 0}
               className="mb-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-app-primary text-white transition hover:brightness-105 disabled:bg-slate-200 disabled:text-slate-400"
-              aria-label="전송"
+              aria-label={t("chat.send")}
             >
               {isLoading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
             </button>
@@ -1042,27 +1064,27 @@ export function ChatView() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 px-4">
           <div className="w-[420px] rounded-app border border-app-border bg-white p-5 shadow-app">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-base font-semibold text-app-text">프로젝트 만들기</h2>
+              <h2 className="text-base font-semibold text-app-text">{t("chat.createProjectTitle")}</h2>
               <button
                 type="button"
                 onClick={() => setProjectModalOpen(false)}
                 className="rounded-2xl border border-app-border px-3 py-1 text-xs font-semibold text-app-muted"
               >
-                닫기
+                {t("common.close")}
               </button>
             </div>
             <input
               value={projectName}
               onChange={(event) => setProjectName(event.target.value)}
               className="w-full rounded-app border border-app-border bg-app-bg px-4 py-3 text-sm outline-none focus:border-app-primary"
-              placeholder="프로젝트 이름"
+              placeholder={t("chat.projectName")}
             />
             <button
               type="button"
               onClick={() => void saveProject()}
               className="mt-3 h-11 w-full rounded-app bg-app-primary text-sm font-semibold text-white"
             >
-              저장
+              {t("common.save")}
             </button>
           </div>
         </div>
@@ -1089,10 +1111,56 @@ function ToolButton({
   );
 }
 
+function chatFileLabels(language: string) {
+  if (language === "en") {
+    return {
+      fileAttached: "File attachment",
+      imageAttached: "Image attachment",
+      attachedFile: "Attached file",
+      name: "Name",
+      fileName: "File name",
+      type: "Type",
+      size: "Size",
+      resolution: "Resolution",
+      averageColor: "Average color",
+      unknown: "Unknown",
+      imageFailed: "Could not analyze the image."
+    };
+  }
+  if (language === "ja") {
+    return {
+      fileAttached: "ファイル添付",
+      imageAttached: "画像添付",
+      attachedFile: "添付ファイル",
+      name: "名前",
+      fileName: "ファイル名",
+      type: "形式",
+      size: "サイズ",
+      resolution: "解像度",
+      averageColor: "平均色",
+      unknown: "不明",
+      imageFailed: "画像を分析できませんでした。"
+    };
+  }
+  return {
+    fileAttached: "파일 첨부",
+    imageAttached: "이미지 첨부",
+    attachedFile: "첨부 파일",
+    name: "이름",
+    fileName: "파일명",
+    type: "형식",
+    size: "크기",
+    resolution: "해상도",
+    averageColor: "평균 색상",
+    unknown: "알 수 없음",
+    imageFailed: "이미지를 분석하지 못했습니다."
+  };
+}
+
 function parsePrefixedCommand(message: string, prefixes: string[]) {
   for (const prefix of prefixes) {
     const escaped = prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const match = message.match(new RegExp(`^${escaped}\\s*[:：\\-]?\\s*([\\s\\S]+)$`, "iu"));
+    const match = message.match(new RegExp(`^${escaped}\\s*[:：→\\-]?\\s*([\\s\\S]+)$`, "iu"));
     if (match?.[1]?.trim()) return match[1].trim();
   }
 
@@ -1100,23 +1168,23 @@ function parsePrefixedCommand(message: string, prefixes: string[]) {
 }
 
 function extractWebSearchQuery(message: string) {
-  const prefixed = parsePrefixedCommand(message, ["웹 검색", "웹검색", "web search", "web"]);
+  const prefixed = parsePrefixedCommand(message, ["웹 검색", "웹검색", "web search", "web", "web検索", "ウェブ検索"]);
   if (prefixed) return prefixed;
 
-  if (/(찾아줘|검색해줘|검색해|조사해줘|알아봐|웹에서)/iu.test(message)) {
-    return message.replace(/(찾아줘|검색해줘|검색해|조사해줘|알아봐|웹에서)/giu, "").trim() || message;
+  if (/(찾아줘|검색해줘|검색해|조사해줘|알아봐|웹에서|search for|look up|調べて|検索して)/iu.test(message)) {
+    return message.replace(/(찾아줘|검색해줘|검색해|조사해줘|알아봐|웹에서|search for|look up|調べて|検索して)/giu, "").trim() || message;
   }
 
   return null;
 }
 
 function parseLocalAction(message: string): Pick<ChatAction, "type" | "title"> | null {
-  const todo = message.match(/^(할 일|할일|todo|to do)\s*[:：\-]?\s*(.+)$/iu);
+  const todo = message.match(/^(할 일|할일|todo|to do|TODO|タスク)\s*[:：→\-]?\s*(.+)$/iu);
   if (todo?.[2]?.trim()) {
     return { type: "todo", title: todo[2].trim() };
   }
 
-  const schedule = message.match(/^(예약|일정|schedule)\s*[:：\-]?\s*(.+)$/iu);
+  const schedule = message.match(/^(예약|일정|schedule|予約|予定)\s*[:：→\-]?\s*(.+)$/iu);
   if (schedule?.[2]?.trim()) {
     return { type: "schedule", title: schedule[2].trim() };
   }
@@ -1144,7 +1212,7 @@ async function readEventStream(
   }
 ) {
   const reader = response.body?.getReader();
-  if (!reader) throw new Error("Streaming 응답을 읽을 수 없습니다.");
+  if (!reader) throw new Error("Streaming response could not be read.");
 
   const decoder = new TextDecoder();
   let buffer = "";
@@ -1193,7 +1261,7 @@ function handleSseEvent(
   try {
     data = JSON.parse(dataRaw) as typeof data;
   } catch {
-    handlers.onError("Streaming 이벤트를 읽지 못했습니다.");
+    handlers.onError("Streaming event could not be parsed.");
     return;
   }
 
@@ -1218,7 +1286,7 @@ function handleSseEvent(
       sessionId: data.sessionId
     });
   }
-  if (event === "error") handlers.onError(data.error || "Streaming 중단");
+  if (event === "error") handlers.onError(data.error || "Streaming interrupted");
 }
 
 function averageImageColor(bitmap: ImageBitmap) {

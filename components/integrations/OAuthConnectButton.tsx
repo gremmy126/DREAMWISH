@@ -1,12 +1,13 @@
 "use client";
 
 import { LogIn } from "lucide-react";
+import type { OAuthProviderId } from "@/src/lib/oauth/oauth.types";
 
 export function OAuthConnectButton({
   provider,
   label
 }: {
-  provider: "google" | "slack";
+  provider: OAuthProviderId;
   label: string;
 }) {
   return (

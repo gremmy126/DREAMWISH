@@ -8,17 +8,17 @@ export const CHAT_MODE_BEHAVIOR = {
   ask: {
     intent: "ask",
     title: "AI Answer",
-    description: "질문에 답하고 필요한 경우 근거와 연결된 맥락을 함께 표시합니다."
+    description: "Answers the question and shows connected context when useful."
   },
   plan: {
     intent: "plan",
     title: "Plan Preview",
-    description: "실행하지 않고 단계별 계획만 만듭니다."
+    description: "Prepares a step-by-step plan without executing external changes."
   },
   agent: {
     intent: "agent",
     title: "Agent Execution Preview",
-    description: "승인 전 실행 미리보기와 권한 단계를 만듭니다."
+    description: "Builds an approval-first execution preview with permissions and risk."
   }
 } as const;
 
@@ -32,11 +32,12 @@ export function shouldRouteToAgentPreview(
 }
 
 export function isExplicitAgentPreviewCommand(message: string) {
-  return /^(agent|에이전트|plan|계획)\s*[:：-]/iu.test(message) || isExternalServiceCommand(message);
+  return /^(agent|에이전트|plan|계획|計画|エージェント)\s*[:：→-]/iu.test(message) ||
+    isExternalServiceCommand(message);
 }
 
 export function isExternalServiceCommand(message: string) {
-  return /(?:Gmail|구글메일|메일\s*보내|답장\s*보내|Calendar|캘린더|Slack|슬랙|외부 데이터|동기화|승인 대기)/iu.test(
+  return /(?:gmail|google\s*mail|메일\s*보내|초안\s*만들|calendar|캘린더|일정\s*(?:만들|수정|삭제)|slack|슬랙|github|깃허브|notion|노션|firebase|파이어베이스|외부\s*앱|승인\s*대기)/iu.test(
     message
   );
 }

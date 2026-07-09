@@ -10,7 +10,8 @@ export type KnowledgeNode = {
     | "tag"
     | "task"
     | "decision"
-    | "web";
+    | "web"
+    | "chat";
   path?: string;
   url?: string;
   score?: number;

@@ -1,4 +1,4 @@
-export type OAuthProviderId = "google" | "slack";
+export type OAuthProviderId = "google" | "slack" | "github" | "notion" | "firebase";
 
 export type OAuthTokenScope = string;
 

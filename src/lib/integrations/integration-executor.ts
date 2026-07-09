@@ -31,7 +31,7 @@ export async function executeApprovedConnectorAction(
     });
     return {
       ok: false,
-      message: "사용자 승인 전에는 외부 작업을 실행하지 않습니다.",
+      message: "External connector actions are blocked until the user approves them.",
       audit
     } as const;
   }

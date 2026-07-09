@@ -1,34 +1,46 @@
 import { NextResponse } from "next/server";
 import { handleOAuthCallback } from "@/src/lib/oauth/oauth-callback";
+import { getOAuthRedirectUri } from "@/src/lib/oauth/oauth-redirect";
 import { assertOAuthProvider } from "@/src/lib/oauth/oauth.service";
-import { completeOAuthSession } from "@/src/lib/repositories/oauth-session.repository";
+import {
+  completeOAuthSession,
+  findOAuthSession
+} from "@/src/lib/repositories/oauth-session.repository";
 
 type RouteContext = {
   params: Promise<{ provider: string }>;
 };
 
 export async function GET(request: Request, context: RouteContext) {
+  const url = new URL(request.url);
+
   try {
     const { provider: rawProvider } = await context.params;
     const provider = assertOAuthProvider(rawProvider);
-    const url = new URL(request.url);
+    if (provider === "firebase") {
+      return NextResponse.redirect(`${url.origin}/?view=integrations&provider=firebase`);
+    }
+
     const code = url.searchParams.get("code");
     const state = url.searchParams.get("state");
-    if (!code) throw new Error("OAuth code가 없습니다.");
+    if (!code) throw new Error("OAuth code is missing.");
+
+    const session = state ? await findOAuthSession(state) : null;
+    const redirectUri = session?.redirectUri || getOAuthRedirectUri(provider, request.url);
 
     await handleOAuthCallback({
       provider,
       code,
-      redirectUri: `${url.origin}/api/oauth/${provider}/callback`
+      redirectUri
     });
     if (state) await completeOAuthSession(state);
 
-    return NextResponse.redirect(`${url.origin}/?view=integrations`);
+    return NextResponse.redirect(`${url.origin}/?view=integrations&provider=${provider}&connected=1`);
   } catch (error) {
     return NextResponse.json(
       {
         ok: false,
-        error: error instanceof Error ? error.message : "OAuth 연결에 실패했습니다."
+        error: error instanceof Error ? error.message : "OAuth connection failed."
       },
       { status: 400 }
     );

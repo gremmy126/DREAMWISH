@@ -88,7 +88,7 @@ async function assertOAuthAndPolarContracts() {
   });
   const tokens = await listOAuthTokens();
   tokens[0].accessTokenEncrypted satisfies string;
-  tokens[0].provider satisfies "google" | "slack";
+  tokens[0].provider satisfies "google" | "slack" | "github" | "notion" | "firebase";
 
   const googleUrl = createOAuthAuthorizationUrl({
     provider: "google",

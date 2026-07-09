@@ -1,3 +1,6 @@
+"use client";
+
+import { useAppLanguage } from "@/src/lib/i18n/use-app-language";
 import type { ConnectorPermission } from "@/src/lib/integrations/types";
 
 export function PermissionScopeViewer({
@@ -5,9 +8,17 @@ export function PermissionScopeViewer({
 }: {
   permissions: ConnectorPermission[];
 }) {
+  const { language } = useAppLanguage();
+  const title =
+    language === "ko"
+      ? "OAuth Scope / 권한"
+      : language === "ja"
+        ? "OAuth Scope / 権限"
+        : "OAuth Scope / Permissions";
+
   return (
     <div className="rounded-app border border-app-border bg-app-bg p-3">
-      <p className="mb-2 text-xs font-semibold text-app-text">OAuth Scope / 권한</p>
+      <p className="mb-2 text-xs font-semibold text-app-text">{title}</p>
       <div className="flex flex-wrap gap-2">
         {permissions.map((permission) => (
           <span

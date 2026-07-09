@@ -20,7 +20,7 @@ export async function POST(request: Request) {
   if (targetType === "app" || targetType === "website" || externalTargetId) {
     const target = findExternalConnectionTarget(externalTargetId || targetPath);
     if (!target) {
-      return NextResponse.json({ error: "External connection target not found" }, { status: 404 });
+      return NextResponse.json({ error: "External connection target not found." }, { status: 404 });
     }
 
     const plan = buildExternalConnectionPlan(target);
@@ -46,14 +46,14 @@ export async function POST(request: Request) {
   }
 
   if (!sourcePath || !targetPath) {
-    return NextResponse.json({ error: "sourcePath와 targetPath가 필요합니다." }, { status: 400 });
+    return NextResponse.json({ error: "sourcePath and targetPath are required." }, { status: 400 });
   }
 
   if (!approved) {
     const plan = await buildConnectionAcceptancePlan({ sourcePath, targetPath });
     return NextResponse.json({
       requiresApproval: true,
-      message: "승인 전에는 Markdown 파일을 수정하지 않습니다.",
+      message: "Preview created. Markdown files are not modified until approval.",
       plan: {
         sourcePath: plan.sourcePath,
         targetPath: plan.targetPath,
