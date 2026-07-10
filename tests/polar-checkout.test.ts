@@ -47,6 +47,61 @@ test("getPolarCheckoutRequestConfig validates required server-side Polar setting
   );
 });
 
+test("getPolarCheckoutRequestConfig uses server-only APP_URL before public app url", () => {
+  withEnv(
+    {
+      APP_URL: "https://dreamwish.co.kr/",
+      NEXT_PUBLIC_APP_URL: "https://wrong-public.example.com",
+      POLAR_ACCESS_TOKEN: "token-value",
+      POLAR_PRODUCT_ID: "123e4567-e89b-12d3-a456-426614174000"
+    },
+    () => {
+      const config = getPolarCheckoutRequestConfig();
+
+      assert.deepEqual(config.payload, {
+        products: ["123e4567-e89b-12d3-a456-426614174000"],
+        success_url: "https://dreamwish.co.kr/payment/success?checkout_id={CHECKOUT_ID}",
+        return_url: "https://dreamwish.co.kr/settings/billing"
+      });
+    }
+  );
+});
+
+test("getPolarCheckoutRequestConfig rejects protocol-less app urls", () => {
+  withEnv(
+    {
+      APP_URL: "dreamwish.co.kr",
+      NEXT_PUBLIC_APP_URL: undefined,
+      POLAR_ACCESS_TOKEN: "token-value",
+      POLAR_PRODUCT_ID: "123e4567-e89b-12d3-a456-426614174000"
+    },
+    () => {
+      assert.throws(
+        () => getPolarCheckoutRequestConfig(),
+        /APP_URL must be an absolute http or https URL/u
+      );
+    }
+  );
+});
+
+test("getPolarCheckoutRequestConfig rejects localhost app urls on Railway", () => {
+  withEnv(
+    {
+      APP_URL: "http://127.0.0.1:3100",
+      NEXT_PUBLIC_APP_URL: undefined,
+      RAILWAY_ENVIRONMENT: "production",
+      POLAR_ACCESS_TOKEN: "token-value",
+      POLAR_PRODUCT_ID: "123e4567-e89b-12d3-a456-426614174000"
+    },
+    () => {
+      assert.throws(
+        () => getPolarCheckoutRequestConfig(),
+        /APP_URL must be a public URL in hosted deployments/u
+      );
+    }
+  );
+});
+
 test("getPolarCheckoutRequestConfig rejects product urls before calling Polar", () => {
   withEnv(
     {
@@ -63,12 +118,15 @@ test("getPolarCheckoutRequestConfig rejects product urls before calling Polar", 
   );
 });
 
-function withEnv(values: Record<string, string>, run: () => void) {
+function withEnv(values: Record<string, string | undefined>, run: () => void) {
   const original = { ...process.env };
   process.env = {
-    ...original,
-    ...values
+    ...original
   };
+  for (const [key, value] of Object.entries(values)) {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
   try {
     run();
   } finally {

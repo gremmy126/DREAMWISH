@@ -30,6 +30,11 @@ export type PolarWebhookEvent = {
   receivedAt: string;
 };
 
+type AppUrlConfig = {
+  origin: string;
+  source: string;
+};
+
 export class PolarCheckoutError extends Error {
   code: string;
   status: number;
@@ -47,18 +52,19 @@ export class PolarCheckoutError extends Error {
 export function buildPolarCheckoutPayload(input: PolarCheckoutInput = {}): PolarCheckoutPayload {
   void input;
   const productId = getPolarProductId();
-  const appUrl = getAppBaseUrl();
+  const appUrl = getAppUrlConfig().origin;
+  const urls = buildCheckoutUrls(appUrl);
   return {
     products: productId ? [productId] : [],
-    success_url: `${appUrl}/payment/success?checkout_id={CHECKOUT_ID}`,
-    return_url: `${appUrl}/settings/billing`
+    success_url: urls.successUrl,
+    return_url: urls.returnUrl
   };
 }
 
 export function getPolarCheckoutRequestConfig(input: PolarCheckoutInput = {}): PolarCheckoutRequestConfig {
   const accessToken = getPolarAccessToken();
   const productId = getPolarProductId();
-  const appUrl = getAppBaseUrl();
+  getAppUrlConfig();
 
   if (!accessToken) {
     throw new PolarCheckoutError({
@@ -87,15 +93,6 @@ export function getPolarCheckoutRequestConfig(input: PolarCheckoutInput = {}): P
     });
   }
 
-  if (!appUrl) {
-    throw new PolarCheckoutError({
-      code: "POLAR_CHECKOUT_CONFIG_ERROR",
-      message: "NEXT_PUBLIC_APP_URL is not configured.",
-      status: 500,
-      clientMessage: "결제 반환 URL 설정이 올바르지 않습니다."
-    });
-  }
-
   return {
     accessToken,
     endpoint: `${getPolarApiBaseUrl()}/checkouts/`,
@@ -105,6 +102,7 @@ export function getPolarCheckoutRequestConfig(input: PolarCheckoutInput = {}): P
 
 export async function createPolarCheckoutSession(input: PolarCheckoutInput = {}) {
   const config = getPolarCheckoutRequestConfig(input);
+  logPolarCheckoutUrls(config.payload);
   const response = await fetch(config.endpoint, {
     method: "POST",
     headers: {
@@ -157,8 +155,124 @@ function getPolarAccessToken() {
   return (process.env.POLAR_ACCESS_TOKEN || process.env.POLAR_API_KEY || "").trim();
 }
 
-function getAppBaseUrl() {
-  return (process.env.NEXT_PUBLIC_APP_URL || "").trim().replace(/\/+$/u, "");
+function getAppUrlConfig(): AppUrlConfig {
+  const configured = getConfiguredAppUrl();
+  if (!configured) {
+    throw new PolarCheckoutError({
+      code: "INVALID_CHECKOUT_RETURN_URL",
+      message: "APP_URL is not configured. Set APP_URL or NEXT_PUBLIC_APP_URL.",
+      status: 500,
+      clientMessage: "결제 반환 URL 설정이 올바르지 않습니다."
+    });
+  }
+
+  const origin = normalizeAppOrigin(configured.value, configured.source);
+  const hostname = new URL(origin).hostname;
+  if (isHostedRuntime() && isLocalHostname(hostname)) {
+    throw new PolarCheckoutError({
+      code: "INVALID_CHECKOUT_RETURN_URL",
+      message: `${configured.source} must be a public URL in hosted deployments.`,
+      status: 500,
+      clientMessage: "결제 반환 URL 설정이 올바르지 않습니다."
+    });
+  }
+
+  return {
+    origin,
+    source: configured.source
+  };
+}
+
+function getConfiguredAppUrl() {
+  for (const source of [
+    "APP_URL",
+    "NEXT_PUBLIC_APP_URL",
+    "PUBLIC_APP_URL",
+    "NEXT_PUBLIC_SITE_URL",
+    "SITE_URL"
+  ]) {
+    const value = process.env[source]?.trim();
+    if (value) return { source, value };
+  }
+
+  const railwayDomain = process.env.RAILWAY_PUBLIC_DOMAIN?.trim();
+  if (railwayDomain) {
+    return {
+      source: "RAILWAY_PUBLIC_DOMAIN",
+      value: railwayDomain.startsWith("http") ? railwayDomain : `https://${railwayDomain}`
+    };
+  }
+
+  return null;
+}
+
+function normalizeAppOrigin(value: string, source: string) {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw invalidAppUrlError(source);
+  }
+
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw invalidAppUrlError(source);
+  }
+
+  return parsed.origin;
+}
+
+function buildCheckoutUrls(appOrigin: string) {
+  const successUrl = `${appOrigin}/payment/success?checkout_id={CHECKOUT_ID}`;
+  const returnUrl = `${appOrigin}/settings/billing`;
+  validateCheckoutUrl(successUrl, "success_url");
+  validateCheckoutUrl(returnUrl, "return_url");
+  return { successUrl, returnUrl };
+}
+
+function validateCheckoutUrl(value: string, fieldName: string) {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new PolarCheckoutError({
+      code: "INVALID_CHECKOUT_RETURN_URL",
+      message: `${fieldName} must be an absolute URL.`,
+      status: 500,
+      clientMessage: "결제 반환 URL 설정이 올바르지 않습니다."
+    });
+  }
+
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new PolarCheckoutError({
+      code: "INVALID_CHECKOUT_RETURN_URL",
+      message: `${fieldName} must be an http or https URL.`,
+      status: 500,
+      clientMessage: "결제 반환 URL 설정이 올바르지 않습니다."
+    });
+  }
+}
+
+function invalidAppUrlError(source: string) {
+  return new PolarCheckoutError({
+    code: "INVALID_CHECKOUT_RETURN_URL",
+    message: `${source} must be an absolute http or https URL.`,
+    status: 500,
+    clientMessage: "결제 반환 URL 설정이 올바르지 않습니다."
+  });
+}
+
+function isHostedRuntime() {
+  return Boolean(
+    process.env.RAILWAY_ENVIRONMENT ||
+      process.env.RAILWAY_SERVICE_ID ||
+      process.env.VERCEL ||
+      process.env.RENDER ||
+      process.env.FLY_APP_NAME
+  );
+}
+
+function isLocalHostname(hostname: string) {
+  return ["localhost", "127.0.0.1", "0.0.0.0", "::1"].includes(hostname.toLowerCase());
 }
 
 export function getPolarApiBaseUrl() {
@@ -196,6 +310,15 @@ function logPolarCheckoutError(
     statusText: response.statusText,
     response: data,
     request: payload
+  });
+}
+
+function logPolarCheckoutUrls(payload: PolarCheckoutPayload) {
+  if (process.env.NODE_ENV === "production") return;
+  console.log("[Polar Checkout URLs]", {
+    successUrl: payload.success_url,
+    returnUrl: payload.return_url,
+    appUrl: new URL(payload.return_url).origin
   });
 }
 
