@@ -1,6 +1,7 @@
 "use client";
 
 import { AnimatePresence } from "framer-motion";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { AutomationView } from "@/components/Automation/AutomationView";
 import { CalendarView } from "@/components/Calendar/CalendarView";
@@ -14,6 +15,7 @@ import { SettingsView } from "@/components/Settings/SettingsView";
 import { WorkflowView } from "@/components/Workflow/WorkflowView";
 import { AuthGate } from "@/components/auth/AuthGate";
 import { PageTransition } from "@/components/Common/PageTransition";
+import { openCookieSettings } from "@/components/consent/consent";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Topbar } from "@/components/layout/Topbar";
 import type { ViewId } from "@/components/layout/types";
@@ -67,9 +69,35 @@ export function AppShell() {
               </PageTransition>
             </AnimatePresence>
           </main>
+          <AppFooter />
         </div>
       </div>
     </AuthGate>
+  );
+}
+
+function AppFooter() {
+  return (
+    <footer className="px-6 pb-8 text-xs text-app-muted">
+      <div className="flex flex-wrap items-center gap-3 border-t border-app-border pt-5">
+        <Link className="font-medium transition hover:text-app-text" href="/privacy">
+          Privacy Policy
+        </Link>
+        <Link className="font-medium transition hover:text-app-text" href="/cookies">
+          Cookie Policy
+        </Link>
+        <Link className="font-medium transition hover:text-app-text" href="/terms">
+          Terms
+        </Link>
+        <button
+          type="button"
+          onClick={openCookieSettings}
+          className="font-medium text-app-primary transition hover:text-app-text"
+        >
+          Cookie settings
+        </button>
+      </div>
+    </footer>
   );
 }
 

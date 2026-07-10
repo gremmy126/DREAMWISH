@@ -16,6 +16,7 @@
     "@langchain/langgraph": "^1.4.7",
     "firebase": "^12.16.0",
     "framer-motion": "^12.23.0",
+    "js-cookie": "^3.0.8",
     "langchain": "^1.5.3",
     "lucide-react": "^0.468.0",
     "next": "^15.3.4",
@@ -24,6 +25,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@types/js-cookie": "^3.0.6",
     "@types/node": "^22.10.2",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",

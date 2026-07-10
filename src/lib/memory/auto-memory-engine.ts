@@ -278,6 +278,7 @@ function createApprovedAutoMemory(extraction: AutoMemoryExtraction, now: string)
 function shouldStoreConversation(userMessage: string, assistantAnswer: string) {
   const normalizedUser = normalizeForMatching(userMessage);
   if (!normalizedUser) return false;
+  if (assistantAnswer.trim().length > 0) return true;
   if (isTrivialMessage(normalizedUser)) return false;
 
   const combined = `${userMessage}\n${assistantAnswer}`;

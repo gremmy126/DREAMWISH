@@ -9,7 +9,7 @@ export function calculateStoragePercent(usageBytes: number, quotaBytes: number |
 
   const rawPercent = (usageBytes / quotaBytes) * 100;
   if (rawPercent > 0 && rawPercent < 1) {
-    return { label: "<1%", widthPercent: 1 };
+    return { label: `${formatSmallPercent(rawPercent)}%`, widthPercent: 1 };
   }
 
   const rounded = Math.min(100, Math.round(rawPercent));
@@ -17,4 +17,10 @@ export function calculateStoragePercent(usageBytes: number, quotaBytes: number |
     label: `${rounded}%`,
     widthPercent: rounded
   };
+}
+
+function formatSmallPercent(rawPercent: number) {
+  const decimals = rawPercent < 0.01 ? 3 : 2;
+  const rounded = rawPercent.toFixed(decimals);
+  return rounded.replace(/\.?0+$/u, "") || "0";
 }

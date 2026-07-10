@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { calculateStoragePercent } from "../src/lib/storage/storage-metrics";
 
-test("calculateStoragePercent shows non-zero usage below one percent accurately", () => {
+test("calculateStoragePercent shows non-zero usage below one percent without a less-than marker", () => {
   assert.deepEqual(calculateStoragePercent(512, 1024 * 1024), {
-    label: "<1%",
+    label: "0.05%",
     widthPercent: 1
   });
 });

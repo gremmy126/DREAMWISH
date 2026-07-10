@@ -32,12 +32,11 @@ export function shouldRouteToAgentPreview(
 }
 
 export function isExplicitAgentPreviewCommand(message: string) {
-  return /^(agent|에이전트|plan|계획)\s*[:：>\-]/iu.test(message) ||
-    isExternalServiceCommand(message);
+  return /^(agent|에이전트|plan|계획)\s*[:：\-]/iu.test(message.trim());
 }
 
 export function isExternalServiceCommand(message: string) {
-  return /(?:drive|google\s*drive|gmail|google\s*mail|calendar|slack|github|notion|discord|firebase|browser|local\s*files?|files?|webhook|메일|일정|캘린더|깃허브|노션|디스코드|파이어베이스|브라우저|파일|웹훅|자동화)/iu.test(
+  return /(?:drive|google\s*drive|gmail|google\s*mail|calendar|slack|github|notion|discord|firebase|browser|local\s*files?|files?|webhook)/iu.test(
     message
   );
 }
@@ -46,7 +45,9 @@ export function matchesIntegrationAppCommand(
   message: string,
   apps: IntegrationCommandApp[]
 ) {
-  return apps.some((app) =>
-    message.toLowerCase().startsWith(app.commandPrefix.toLowerCase())
-  );
+  const normalized = message.trim().toLowerCase();
+  return apps.some((app) => {
+    const prefix = app.commandPrefix.trim().toLowerCase();
+    return normalized.startsWith(`${prefix}:`) || normalized.startsWith(`${prefix}：`);
+  });
 }

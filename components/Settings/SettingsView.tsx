@@ -21,6 +21,7 @@ import {
 import { useEffect, useState } from "react";
 import { StorageStatus } from "@/components/Common/StorageStatus";
 import { SurfaceCard } from "@/components/Common/SurfaceCard";
+import { openCookieSettings } from "@/components/consent/consent";
 import { useAppLanguage } from "@/src/lib/i18n/use-app-language";
 import { t as translate } from "@/src/lib/i18n/translations";
 import { defaultPermissionPolicy } from "@/src/lib/security/permission-policy";
@@ -513,6 +514,14 @@ export function SettingsView() {
                   setSettings((prev) => ({ ...prev, allowExternalAI: checked }))
                 }
               />
+              <button
+                type="button"
+                onClick={openCookieSettings}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-app border border-app-border bg-app-bg px-4 text-sm font-semibold text-app-text transition hover:bg-app-hover"
+              >
+                <ShieldCheck size={16} />
+                쿠키 설정
+              </button>
             </div>
           </SurfaceCard>
 

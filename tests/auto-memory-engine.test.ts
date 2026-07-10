@@ -6,30 +6,29 @@ import {
 } from "../src/lib/memory/auto-memory-engine";
 import type { ApprovedMemory } from "../src/lib/memory/memory.types";
 
-test("analyzeConversationForMemory ignores trivial chat", () => {
-  assert.equal(
-    analyzeConversationForMemory({
-      userMessage: "안녕",
-      assistantAnswer: "안녕하세요."
-    }),
-    null
-  );
+test("analyzeConversationForMemory stores every non-empty chat exchange", () => {
+  const greeting = analyzeConversationForMemory({
+    userMessage: "안녕",
+    assistantAnswer: "안녕하세요. 무엇을 도와드릴까요?"
+  });
+  assert.ok(greeting);
+  assert.equal(greeting.category, "Knowledge");
+  assert.match(greeting.content, /Original conversation/u);
+  assert.match(greeting.content, /안녕/u);
 
-  assert.equal(
-    analyzeConversationForMemory({
-      userMessage: "테스트",
-      assistantAnswer: "테스트 응답입니다."
-    }),
-    null
-  );
+  const testExchange = analyzeConversationForMemory({
+    userMessage: "테스트",
+    assistantAnswer: "테스트 응답입니다."
+  });
+  assert.ok(testExchange);
 });
 
 test("analyzeConversationForMemory extracts durable personal brain memory metadata", () => {
   const extraction = analyzeConversationForMemory({
     userMessage:
-      "Personal Brain AI Memory Engine이 모든 대화를 자동 분석해서 RAG, Embedding, Knowledge Graph를 업데이트하게 해줘.",
+      "Personal Brain AI Memory Engine should analyze every conversation and update RAG, Embedding, Knowledge Graph, and document memory.",
     assistantAnswer:
-      "자동 메모리 엔진을 추가하고 채팅 응답 후 조용히 실행되도록 연결했습니다."
+      "I will connect the automatic memory engine so chat answers can update the automation workflow quietly."
   });
 
   assert.ok(extraction);
@@ -39,7 +38,11 @@ test("analyzeConversationForMemory extracts durable personal brain memory metada
   assert.ok(extraction.tags.includes("#Memory"));
   assert.ok(extraction.tags.includes("#RAG"));
   assert.ok(extraction.relatedConcepts.includes("Knowledge Graph"));
-  assert.ok(extraction.relatedLinks.some((link) => link.type === "project" && link.label === "Personal Brain AI"));
+  assert.ok(
+    extraction.relatedLinks.some(
+      (link) => link.type === "project" && link.label === "Personal Brain AI"
+    )
+  );
   assert.ok(extraction.relatedLinks.some((link) => link.type === "document"));
   assert.ok(extraction.summary.split("\n").length <= 3);
   assert.match(extraction.content, /Original conversation/u);
@@ -47,8 +50,8 @@ test("analyzeConversationForMemory extracts durable personal brain memory metada
 
 test("findAutoMemoryTarget reuses the same project memory instead of creating duplicates", () => {
   const extraction = analyzeConversationForMemory({
-    userMessage: "Personal Brain AI 메모리 엔진의 자동 저장 방식을 수정해줘.",
-    assistantAnswer: "같은 프로젝트 메모리를 업데이트하도록 처리했습니다."
+    userMessage: "Personal Brain AI memory engine automation should save every chat response.",
+    assistantAnswer: "The same project memory will be updated instead of creating duplicates."
   });
   assert.ok(extraction);
 
@@ -64,7 +67,11 @@ test("findAutoMemoryTarget reuses the same project memory instead of creating du
 
   assert.equal(findAutoMemoryTarget([existingMemory], extraction)?.id, "memory-1");
 
-  const merged = mergeAutoMemoryMetadata(existingMemory, extraction, "2026-07-10T00:00:00.000Z");
+  const merged = mergeAutoMemoryMetadata(
+    existingMemory,
+    extraction,
+    "2026-07-10T00:00:00.000Z"
+  );
   assert.equal(merged.id, "memory-1");
   assert.equal(merged.projectId, "Personal Brain AI");
   assert.ok(merged.tags?.includes("#Automation"));

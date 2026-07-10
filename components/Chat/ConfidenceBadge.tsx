@@ -1,14 +1,8 @@
 import type { AnswerConfidence } from "@/src/lib/chat/chat.types";
+import { getConfidenceBadgeLabel } from "@/src/lib/chat/confidence-labels";
 
 type ConfidenceBadgeProps = {
   confidence: AnswerConfidence | null;
-};
-
-const labelByLevel = {
-  high: "문서 근거 충분",
-  medium: "일부 문서 근거 있음",
-  low: "문서 근거 부족",
-  none: "로컬 문서에서 확인 불가"
 };
 
 const colorByLevel = {
@@ -26,7 +20,7 @@ export function ConfidenceBadge({ confidence }: ConfidenceBadgeProps) {
       title={confidence.reason}
       className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${colorByLevel[confidence.level]}`}
     >
-      {labelByLevel[confidence.level]} · {Math.round(confidence.score * 100)}%
+      {getConfidenceBadgeLabel(confidence.level)} · {Math.round(confidence.score * 100)}%
     </span>
   );
 }
