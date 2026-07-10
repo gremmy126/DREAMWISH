@@ -6,6 +6,7 @@
     "dev": "next dev -H 127.0.0.1 -p 3100",
     "build": "next build",
     "start": "next start -H 127.0.0.1 -p 3100",
+    "start:railway": "next start -H 0.0.0.0 -p $PORT",
     "lint": "node scripts/lint.mjs",
     "test": "node scripts/run-tests.mjs",
     "typecheck": "tsc --noEmit"
