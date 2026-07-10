@@ -3,6 +3,7 @@
 import { HardDrive } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useAppLanguage } from "@/src/lib/i18n/use-app-language";
+import { calculateStoragePercent } from "@/src/lib/storage/storage-metrics";
 
 type StorageStatusProps = {
   compact?: boolean;
@@ -52,7 +53,7 @@ export function StorageStatus({ compact = false }: StorageStatusProps) {
 
   const usage = info.usageBytes ?? info.localStorageBytes;
   const quota = info.quotaBytes;
-  const percent = quota ? Math.min(100, Math.round((usage / quota) * 100)) : null;
+  const percent = calculateStoragePercent(usage, quota);
 
   return (
     <div className={compact ? "" : "rounded-app border border-app-border bg-white p-4"}>
@@ -62,14 +63,14 @@ export function StorageStatus({ compact = false }: StorageStatusProps) {
           <p className="text-xs font-semibold text-app-text">{t("storage.title")}</p>
         </div>
         {percent !== null ? (
-          <span className="text-xs font-semibold text-app-primary">{percent}%</span>
+          <span className="text-xs font-semibold text-app-primary">{percent.label}</span>
         ) : null}
       </div>
 
       <div className="h-2 overflow-hidden rounded-full bg-slate-100">
         <div
           className="h-full rounded-full bg-app-primary transition-all"
-          style={{ width: `${percent ?? 0}%` }}
+          style={{ width: `${percent?.widthPercent ?? 0}%` }}
         />
       </div>
 

@@ -1,25 +1,46 @@
 import { decryptToken } from "./token-encryption";
-import type { OAuthProviderId } from "./oauth.types";
+import type {
+  ConnectableOAuthProviderId,
+  OAuthProviderId,
+  OAuthServiceId
+} from "./oauth.types";
+import {
+  getOAuthClientId,
+  getOAuthClientSecret
+} from "./oauth-provider-registry";
 import {
   listOAuthTokens,
   saveOAuthToken
 } from "@/src/lib/repositories/oauth-token.repository";
 
-export async function getActiveAccessToken(provider: OAuthProviderId) {
+export async function getActiveAccessToken(
+  provider: OAuthProviderId,
+  service?: OAuthServiceId | null
+) {
   if (provider === "firebase") return null;
 
   let token = (await listOAuthTokens()).find(
-    (item) => item.provider === provider && item.status === "active"
+    (item) =>
+      item.provider === provider &&
+      item.status === "active" &&
+      (!service || (item.service || item.provider) === service)
   );
   if (!token) return getEnvAccessToken(provider);
   if (token.expiresAt && new Date(token.expiresAt).getTime() <= Date.now() + 60000) {
-    token = (await refreshOAuthToken(provider)) || token;
+    token = (await refreshOAuthToken(provider, service)) || token;
   }
   return decryptToken(token.accessTokenEncrypted);
 }
 
-export async function getOAuthConnectionStatus(provider: OAuthProviderId) {
-  const token = (await listOAuthTokens()).find((item) => item.provider === provider);
+export async function getOAuthConnectionStatus(
+  provider: OAuthProviderId,
+  service?: OAuthServiceId | null
+) {
+  const token = (await listOAuthTokens()).find(
+    (item) =>
+      item.provider === provider &&
+      (!service || (item.service || item.provider) === service)
+  );
   const envToken = getEnvAccessToken(provider);
   const firebaseConfigured =
     provider === "firebase" &&
@@ -30,17 +51,28 @@ export async function getOAuthConnectionStatus(provider: OAuthProviderId) {
 
   return {
     provider,
+    service: service || null,
     connected: token?.status === "active" || Boolean(envToken) || firebaseConfigured,
     accountEmail:
       token?.accountEmail ||
       (envToken ? `${provider} token from env` : firebaseConfigured ? "Firebase project configured" : null),
+    accountName: token?.accountName || null,
+    workspaceName: token?.workspaceName || null,
     scope: token?.scope || [],
     expiresAt: token?.expiresAt || null
   };
 }
 
-export async function refreshOAuthToken(provider: OAuthProviderId) {
-  const token = (await listOAuthTokens()).find((item) => item.provider === provider);
+export async function refreshOAuthToken(
+  provider: ConnectableOAuthProviderId,
+  service?: OAuthServiceId | null
+) {
+  const token = (await listOAuthTokens()).find(
+    (item) =>
+      item.provider === provider &&
+      item.status === "active" &&
+      (!service || (item.service || item.provider) === service)
+  );
   if (!token || token.status !== "active") return null;
 
   const refreshToken = decryptToken(token.refreshTokenEncrypted);
@@ -51,8 +83,8 @@ export async function refreshOAuthToken(provider: OAuthProviderId) {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
-      client_id: process.env.GOOGLE_CLIENT_ID || "",
-      client_secret: process.env.GOOGLE_CLIENT_SECRET || "",
+      client_id: getOAuthClientId("google"),
+      client_secret: getOAuthClientSecret("google"),
       grant_type: "refresh_token",
       refresh_token: refreshToken
     })
@@ -67,7 +99,13 @@ export async function refreshOAuthToken(provider: OAuthProviderId) {
 
   return saveOAuthToken({
     provider: "google",
+    service: token.service || "drive",
+    providerAccountId: token.providerAccountId,
+    accountName: token.accountName,
     accountEmail: token.accountEmail,
+    accountAvatarUrl: token.accountAvatarUrl,
+    workspaceId: token.workspaceId,
+    workspaceName: token.workspaceName,
     accessToken: data.access_token,
     refreshToken,
     expiresAt: data.expires_in
@@ -88,6 +126,10 @@ function getEnvAccessToken(provider: OAuthProviderId) {
 
   if (provider === "notion") {
     return process.env.NOTION_ACCESS_TOKEN || process.env.NOTION_TOKEN || null;
+  }
+
+  if (provider === "discord") {
+    return process.env.DISCORD_ACCESS_TOKEN || process.env.DISCORD_BOT_TOKEN || null;
   }
 
   if (provider === "firebase") {

@@ -88,18 +88,18 @@ async function assertOAuthAndPolarContracts() {
   });
   const tokens = await listOAuthTokens();
   tokens[0].accessTokenEncrypted satisfies string;
-  tokens[0].provider satisfies "google" | "slack" | "github" | "notion" | "firebase";
+  tokens[0].provider satisfies "google" | "slack" | "github" | "notion" | "discord" | "firebase";
 
   const googleUrl = createOAuthAuthorizationUrl({
     provider: "google",
-    redirectUri: "https://dreamwish.co.kr/api/oauth/google/callback",
+    redirectUri: "https://dreamwish.co.kr/api/integrations/google/callback",
     state: "state-1"
   });
   googleUrl.toString() satisfies string;
 
   POLAR_CHECKOUT_SETTINGS.amountUsd satisfies 19;
-  POLAR_CHECKOUT_SETTINGS.successUrl satisfies "https://dreamwish.co.kr/billing/success";
-  POLAR_CHECKOUT_SETTINGS.returnUrl satisfies "https://dreamwish.co.kr/pricing";
+  POLAR_CHECKOUT_SETTINGS.successUrl satisfies "https://dreamwish.co.kr/payment/success";
+  POLAR_CHECKOUT_SETTINGS.returnUrl satisfies "https://dreamwish.co.kr/pricing?payment=cancelled";
   POLAR_CHECKOUT_SETTINGS.webhookUrl satisfies "https://dreamwish.co.kr/api/webhooks/polar";
 
   const checkoutPayload = buildPolarCheckoutPayload({

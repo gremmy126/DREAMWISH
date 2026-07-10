@@ -58,7 +58,7 @@ const BASE_TRANSLATIONS = {
     },
     auth: {
       title: "DREAMWISH 로그인",
-      subtitle: "비밀번호 없이 이메일로 접근 권한을 확인합니다.",
+      subtitle: "Firebase 이메일/비밀번호 또는 Google 로그인으로 접근 권한을 확인합니다.",
       email: "이메일",
       name: "이름",
       namePlaceholder: "선택 사항",
@@ -252,7 +252,7 @@ const BASE_TRANSLATIONS = {
     },
     auth: {
       title: "DREAMWISH Login",
-      subtitle: "Use email-only access. No password is required.",
+      subtitle: "Use Firebase email/password or Google login to verify access.",
       email: "Email",
       name: "Name",
       namePlaceholder: "Optional",
@@ -448,7 +448,7 @@ const BASE_TRANSLATIONS = {
     },
     auth: {
       title: "DREAMWISHログイン",
-      subtitle: "パスワードなしでメールアドレスだけでアクセス権を確認します。",
+      subtitle: "Firebaseのメール/パスワードまたはGoogleログインでアクセス権を確認します。",
       email: "メール",
       name: "名前",
       namePlaceholder: "任意",

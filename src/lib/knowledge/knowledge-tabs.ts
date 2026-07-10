@@ -1,3 +1,4 @@
+import { externalConnectionTargets } from "../connections/external-actions";
 import type { KnowledgeNote } from "./knowledge.repository";
 
 export type KnowledgeTabId = "network" | "documents" | "tags" | "recommendations";
@@ -62,24 +63,14 @@ export function buildKnowledgeTabModel(notes: KnowledgeNote[]): KnowledgeTabMode
     targetId: tag.tag,
     strength: Math.min(0.9, 0.42 + tag.count * 0.08)
   }));
-  const externalRecommendations = [
-    {
-      id: "app:github",
-      title: "GitHub",
-      reason: "Connect repositories and issues to project knowledge.",
-      targetType: "app" as const,
-      targetId: "github",
-      strength: 0.68
-    },
-    {
-      id: "website:firebase",
-      title: "Firebase",
-      reason: "Connect Firebase project configuration to deployment knowledge.",
-      targetType: "website" as const,
-      targetId: "firebase",
-      strength: 0.62
-    }
-  ];
+  const externalRecommendations = externalConnectionTargets.map((target, index) => ({
+    id: `${target.targetType}:${target.id}`,
+    title: target.label,
+    reason: target.description,
+    targetType: target.targetType,
+    targetId: target.id,
+    strength: Number(Math.max(0.52, 0.74 - index * 0.02).toFixed(2))
+  }));
 
   return {
     documents: notes,

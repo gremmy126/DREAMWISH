@@ -40,6 +40,7 @@ import {
   shouldSubmitChat,
   type ChatStatus
 } from "@/src/lib/chat/chat-flow";
+import { upsertOptimisticChatSession } from "@/src/lib/chat/session-list";
 import {
   CHAT_QUICK_ACTIONS,
   type ChatQuickActionId
@@ -100,14 +101,24 @@ type CodeRunResult = {
 };
 
 type SpeechRecognitionEventLike = {
-  results?: ArrayLike<ArrayLike<{ transcript: string }>>;
+  results?: ArrayLike<SpeechRecognitionResultLike>;
+};
+
+type SpeechRecognitionResultLike = ArrayLike<{ transcript: string }> & {
+  isFinal?: boolean;
+};
+
+type SpeechRecognitionErrorEventLike = {
+  error?: string;
 };
 
 type SpeechRecognitionInstance = {
   lang: string;
   interimResults: boolean;
+  continuous?: boolean;
+  maxAlternatives?: number;
   onresult: ((event: SpeechRecognitionEventLike) => void) | null;
-  onerror: (() => void) | null;
+  onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null;
   start: () => void;
 };
 
@@ -121,9 +132,9 @@ type SpeechWindow = Window & {
 const ACTIONS_KEY = "dreamwish-chat-actions-v1";
 
 const providerOptions: Array<{ value: ChatModel; label: string }> = [
-  { value: "groq", label: "Groq" },
   { value: "gemini", label: "Gemini" },
   { value: "openrouter", label: "OpenRouter" },
+  { value: "groq", label: "Groq" },
   { value: "huggingface", label: "HF" },
   { value: "cloudflare", label: "Cloudflare" }
 ];
@@ -248,6 +259,10 @@ export function ChatView() {
     setProviderStatus(
       Object.fromEntries((data.ai?.providers || []).map((item) => [item.provider, item.connected]))
     );
+    const firstConnected = providerOptions.find((provider) =>
+      (data.ai?.providers || []).some((item) => item.provider === provider.value && item.connected)
+    );
+    if (firstConnected) setSelectedModel(firstConnected.value);
   }
 
   function startNewChat() {
@@ -343,6 +358,9 @@ export function ChatView() {
         onSession: (sessionId) => {
           setCurrentSessionId(sessionId);
           if (activeProjectId) void assignSessionToActiveProject(sessionId);
+        },
+        onSessionRecord: (session) => {
+          setSessions((prev) => upsertOptimisticChatSession(prev, session));
         },
         onSources: ({ sources, confidence }) => {
           setMessages((prev) =>
@@ -544,11 +562,16 @@ export function ChatView() {
       /\.(md|txt|json|csv|tsv|js|ts|tsx|css|html|xml|yaml|yml)$/iu.test(file.name);
 
     if (!textLike) {
-      addLocalExchange(
-        `${fileLabels.fileAttached}: ${file.name}`,
-        `${t("chat.fileAttached")}\n\n${fileLabels.name}: ${file.name}\n${fileLabels.type}: ${
-          file.type || fileLabels.unknown
-        }\n${fileLabels.size}: ${formatBytes(file.size)}`
+      setInput((prev) =>
+        [
+          prev,
+          `${fileLabels.fileAttached}: ${file.name}`,
+          `${fileLabels.type}: ${file.type || fileLabels.unknown}`,
+          `${fileLabels.size}: ${formatBytes(file.size)}`,
+          "이 첨부 파일의 메타데이터를 바탕으로 분석하고, 추가로 필요한 정보가 있으면 물어봐."
+        ]
+          .filter(Boolean)
+          .join("\n\n")
       );
       return;
     }
@@ -564,16 +587,20 @@ export function ChatView() {
     try {
       const bitmap = await createImageBitmap(file);
       const color = averageImageColor(bitmap);
-      addLocalExchange(
-        `${fileLabels.imageAttached}: ${file.name}`,
+      setInput((prev) =>
         [
+          prev,
           t("chat.imageAttached"),
           `- ${fileLabels.fileName}: ${file.name}`,
           `- ${fileLabels.size}: ${formatBytes(file.size)}`,
           `- ${fileLabels.resolution}: ${bitmap.width} x ${bitmap.height}`,
           `- ${fileLabels.type}: ${file.type || fileLabels.unknown}`,
-          `- ${fileLabels.averageColor}: ${color}`
-        ].join("\n")
+          `- ${fileLabels.averageColor}: ${color}`,
+          "",
+          "이 이미지의 파일명, 크기, 해상도, 색상 정보를 바탕으로 분석해줘. 이미지 내용 식별에 한계가 있으면 명확히 말해줘."
+        ]
+          .filter(Boolean)
+          .join("\n")
       );
       bitmap.close();
     } catch {
@@ -609,12 +636,24 @@ export function ChatView() {
     const recognition = new SpeechRecognition();
     recognition.lang = language === "en" ? "en-US" : language === "ja" ? "ja-JP" : "ko-KR";
     recognition.interimResults = false;
+    recognition.continuous = false;
+    recognition.maxAlternatives = 1;
     recognition.onresult = (event) => {
-      const transcript = event.results?.[0]?.[0]?.transcript;
+      const transcript = Array.from(event.results || [])
+        .filter((result) => result.isFinal !== false)
+        .map((result) => result[0]?.transcript || "")
+        .join(" ")
+        .trim();
       if (transcript) setInput((prev) => `${prev}${prev ? " " : ""}${transcript}`);
     };
-    recognition.onerror = () => setError(t("chat.voiceFailed"));
-    recognition.start();
+    recognition.onerror = (event) => {
+      setError(event.error === "not-allowed" ? "Microphone permission was denied." : t("chat.voiceFailed"));
+    };
+    try {
+      recognition.start();
+    } catch {
+      setError(t("chat.voiceFailed"));
+    }
   }
 
   function createProjectFromConversation() {
@@ -923,7 +962,13 @@ export function ChatView() {
               const Icon = quickActionIcons[action.id];
               const text = getChatQuickActionText(action.id, language);
               return (
-                <ToolButton key={action.id} onClick={() => setInput(text.prompt)}>
+                <ToolButton
+                  key={action.id}
+                  onClick={() => {
+                    setChatMode(modeForQuickAction(action.id));
+                    setInput(text.prompt);
+                  }}
+                >
                   <Icon size={13} />
                   {text.label}
                 </ToolButton>
@@ -1163,11 +1208,19 @@ function parseLocalAction(message: string): Pick<ChatAction, "type" | "title"> |
   return null;
 }
 
+function modeForQuickAction(actionId: ChatQuickActionId): ChatMode {
+  if (actionId === "automation" || actionId === "approval_queue" || actionId === "code_run") {
+    return "agent";
+  }
+  return "ask";
+}
+
 async function readEventStream(
   response: Response,
   handlers: {
     onStatus: (status: ChatStatus) => void;
     onSession: (sessionId: string) => void;
+    onSessionRecord: (session: ChatSessionRecord) => void;
     onSources: (data: {
       sources: SourceDocument[];
       confidence: AnswerConfidence;
@@ -1231,8 +1284,10 @@ function handleSseEvent(
     answer?: string;
     verification?: AnswerVerification;
     status?: ChatStatus;
+    session?: ChatSessionRecord;
     code?: string;
     error?: string;
+    message?: string;
   };
 
   try {
@@ -1244,6 +1299,7 @@ function handleSseEvent(
 
   if (event === "status" && data.status) handlers.onStatus(data.status);
   if (event === "session" && data.sessionId) handlers.onSession(data.sessionId);
+  if (event === "session" && data.session) handlers.onSessionRecord(data.session);
   if (event === "sources" && data.sources && data.confidence) {
     handlers.onSources({ sources: data.sources, confidence: data.confidence });
   }
@@ -1264,7 +1320,7 @@ function handleSseEvent(
       sessionId: data.sessionId
     });
   }
-  if (event === "error") handlers.onError(data.error || "Streaming interrupted", data.code);
+  if (event === "error") handlers.onError(data.message || data.error || "Streaming interrupted", data.code);
 }
 
 function averageImageColor(bitmap: ImageBitmap) {

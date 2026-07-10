@@ -1,0 +1,1 @@
+export const NAVER_SITE_VERIFICATION = "89a2cae4c4d0e846aee8304cfb48e4ad71c7c6d7";

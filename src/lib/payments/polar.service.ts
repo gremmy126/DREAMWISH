@@ -30,6 +30,14 @@ export type PolarWebhookEvent = {
   receivedAt: string;
 };
 
+export type PolarCheckoutVerification = {
+  id: string;
+  paid: boolean;
+  status: string;
+  customerEmail: string | null;
+  raw: Record<string, unknown>;
+};
+
 type AppUrlConfig = {
   origin: string;
   source: string;
@@ -45,19 +53,18 @@ export class PolarCheckoutError extends Error {
     this.name = "PolarCheckoutError";
     this.code = input.code;
     this.status = input.status || 400;
-    this.clientMessage = input.clientMessage || "결제창을 만들지 못했습니다.";
+    this.clientMessage = input.clientMessage || "Payment checkout could not be created.";
   }
 }
 
 export function buildPolarCheckoutPayload(input: PolarCheckoutInput = {}): PolarCheckoutPayload {
   void input;
   const productId = getPolarProductId();
-  const appUrl = getAppUrlConfig().origin;
-  const urls = buildCheckoutUrls(appUrl);
+  const urls = buildCheckoutUrls();
   return {
     products: productId ? [productId] : [],
     success_url: urls.successUrl,
-    return_url: urls.returnUrl
+    return_url: urls.cancelUrl
   };
 }
 
@@ -71,7 +78,7 @@ export function getPolarCheckoutRequestConfig(input: PolarCheckoutInput = {}): P
       code: "POLAR_CHECKOUT_CONFIG_ERROR",
       message: "POLAR_ACCESS_TOKEN is not configured.",
       status: 500,
-      clientMessage: "결제 설정이 올바르지 않습니다."
+      clientMessage: "Payment configuration is invalid."
     });
   }
 
@@ -80,7 +87,7 @@ export function getPolarCheckoutRequestConfig(input: PolarCheckoutInput = {}): P
       code: "POLAR_CHECKOUT_CONFIG_ERROR",
       message: "POLAR_PRODUCT_ID is not configured.",
       status: 500,
-      clientMessage: "결제 상품이 설정되어 있지 않습니다."
+      clientMessage: "Payment product is not configured."
     });
   }
 
@@ -89,7 +96,7 @@ export function getPolarCheckoutRequestConfig(input: PolarCheckoutInput = {}): P
       code: "POLAR_CHECKOUT_CONFIG_ERROR",
       message: "POLAR_PRODUCT_ID must be a Polar product UUID.",
       status: 500,
-      clientMessage: "결제 상품 설정이 올바르지 않습니다."
+      clientMessage: "Payment product configuration is invalid."
     });
   }
 
@@ -121,7 +128,7 @@ export async function createPolarCheckoutSession(input: PolarCheckoutInput = {})
       code: response.status === 422 ? "POLAR_CHECKOUT_VALIDATION_FAILED" : "POLAR_CHECKOUT_FAILED",
       message: buildPolarCheckoutError(response.status, data),
       status: response.status === 422 ? 422 : 502,
-      clientMessage: "결제창을 만들지 못했습니다."
+      clientMessage: "Payment checkout could not be created."
     });
   }
 
@@ -135,6 +142,74 @@ export async function createPolarCheckoutSession(input: PolarCheckoutInput = {})
     return_url?: string;
     amount?: number;
     currency?: string;
+  };
+}
+
+export async function verifyPolarCheckoutSession(checkoutId: string): Promise<PolarCheckoutVerification> {
+  const id = checkoutId.trim();
+  if (!/^[a-z0-9_-]{8,80}$/iu.test(id)) {
+    throw new PolarCheckoutError({
+      code: "POLAR_CHECKOUT_INVALID_ID",
+      message: "checkout_id is invalid.",
+      status: 400,
+      clientMessage: "Payment verification ID is invalid."
+    });
+  }
+
+  const accessToken = getPolarAccessToken();
+  if (!accessToken) {
+    throw new PolarCheckoutError({
+      code: "POLAR_CHECKOUT_CONFIG_ERROR",
+      message: "POLAR_ACCESS_TOKEN is not configured.",
+      status: 500,
+      clientMessage: "Payment configuration is invalid."
+    });
+  }
+
+  const response = await fetch(`${getPolarApiBaseUrl()}/checkouts/${encodeURIComponent(id)}`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json"
+    },
+    cache: "no-store"
+  });
+  const data = await readPolarJson(response);
+
+  if (!response.ok) {
+    throw new PolarCheckoutError({
+      code: "POLAR_CHECKOUT_VERIFY_FAILED",
+      message: buildPolarCheckoutError(response.status, data),
+      status: response.status === 404 ? 404 : 502,
+      clientMessage: "Payment status could not be verified."
+    });
+  }
+
+  return parsePolarCheckoutVerification(id, data);
+}
+
+export function parsePolarCheckoutVerification(
+  checkoutId: string,
+  data: Record<string, unknown>
+): PolarCheckoutVerification {
+  const status = String(
+    data.status ||
+      data.payment_status ||
+      data.checkout_status ||
+      data.order_status ||
+      "unknown"
+  ).toLowerCase();
+  const paid =
+    data.paid === true ||
+    data.is_paid === true ||
+    ["paid", "succeeded", "success", "completed", "complete", "confirmed"].includes(status);
+
+  return {
+    id: readString(data, "id") || checkoutId,
+    paid,
+    status,
+    customerEmail: extractCheckoutCustomerEmail(data),
+    raw: data
   };
 }
 
@@ -156,26 +231,23 @@ function getPolarAccessToken() {
 }
 
 function getAppUrlConfig(): AppUrlConfig {
-  const configured = getConfiguredAppUrl();
-  if (!configured) {
+  const configured = getConfiguredAppUrl() || {
+    source: "NEXT_PUBLIC_APP_URL",
+    value: "http://localhost:3000"
+  };
+  const origin = normalizeAppOrigin(configured.value, configured.source);
+  const hostname = new URL(origin).hostname;
+
+  if (isProductionRuntime() && isLocalHostname(hostname)) {
     throw new PolarCheckoutError({
       code: "INVALID_CHECKOUT_RETURN_URL",
-      message: "APP_URL is not configured. Set APP_URL or NEXT_PUBLIC_APP_URL.",
+      message: `${configured.source} cannot use localhost in production.`,
       status: 500,
-      clientMessage: "결제 반환 URL 설정이 올바르지 않습니다."
+      clientMessage: "Payment return URL configuration is invalid."
     });
   }
 
-  const origin = normalizeAppOrigin(configured.value, configured.source);
-  const hostname = new URL(origin).hostname;
-  if (isHostedRuntime() && isLocalHostname(hostname)) {
-    throw new PolarCheckoutError({
-      code: "INVALID_CHECKOUT_RETURN_URL",
-      message: `${configured.source} must be a public URL in hosted deployments.`,
-      status: 500,
-      clientMessage: "결제 반환 URL 설정이 올바르지 않습니다."
-    });
-  }
+  assertCanonicalDreamwishHost(origin, configured.source);
 
   return {
     origin,
@@ -185,17 +257,17 @@ function getAppUrlConfig(): AppUrlConfig {
 
 function getConfiguredAppUrl() {
   for (const source of [
-    "APP_URL",
     "NEXT_PUBLIC_APP_URL",
+    "APP_URL",
     "PUBLIC_APP_URL",
     "NEXT_PUBLIC_SITE_URL",
     "SITE_URL"
   ]) {
-    const value = process.env[source]?.trim();
+    const value = process.env[source];
     if (value) return { source, value };
   }
 
-  const railwayDomain = process.env.RAILWAY_PUBLIC_DOMAIN?.trim();
+  const railwayDomain = process.env.RAILWAY_PUBLIC_DOMAIN;
   if (railwayDomain) {
     return {
       source: "RAILWAY_PUBLIC_DOMAIN",
@@ -207,63 +279,112 @@ function getConfiguredAppUrl() {
 }
 
 function normalizeAppOrigin(value: string, source: string) {
-  let parsed: URL;
-  try {
-    parsed = new URL(value);
-  } catch {
-    throw invalidAppUrlError(source);
-  }
-
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-    throw invalidAppUrlError(source);
-  }
-
-  return parsed.origin;
+  return new URL(validateHttpUrl(value, source)).origin;
 }
 
-function buildCheckoutUrls(appOrigin: string) {
-  const successUrl = `${appOrigin}/payment/success?checkout_id={CHECKOUT_ID}`;
-  const returnUrl = `${appOrigin}/settings/billing`;
+function buildCheckoutUrls() {
+  const appOrigin = getAppUrlConfig().origin;
+  const successBase = normalizeCheckoutBaseUrl(
+    process.env.POLAR_SUCCESS_URL || `${appOrigin}/payment/success`,
+    "POLAR_SUCCESS_URL",
+    "/payment/success"
+  );
+  const cancelUrl = normalizeCheckoutBaseUrl(
+    process.env.POLAR_CANCEL_URL || `${appOrigin}/pricing?payment=cancelled`,
+    "POLAR_CANCEL_URL",
+    "/pricing"
+  );
+  const successUrl = appendCheckoutIdPlaceholder(successBase);
   validateCheckoutUrl(successUrl, "success_url");
-  validateCheckoutUrl(returnUrl, "return_url");
-  return { successUrl, returnUrl };
+  validateCheckoutUrl(cancelUrl, "return_url");
+  return { successUrl, cancelUrl };
+}
+
+export function validateHttpUrl(value: string, name: string) {
+  try {
+    if (value !== value.trim() || /["'\r\n\t]/u.test(value)) {
+      throw new Error(`${name} contains quotes or whitespace`);
+    }
+
+    const url = new URL(value);
+
+    if (!["http:", "https:"].includes(url.protocol)) {
+      throw new Error(`${name} must use http or https`);
+    }
+
+    if (url.protocol === "http:" && !isLocalHostname(url.hostname)) {
+      throw new Error(`${name} must use https outside localhost`);
+    }
+
+    if (isProductionRuntime() && isLocalHostname(url.hostname)) {
+      throw new PolarCheckoutError({
+        code: "INVALID_CHECKOUT_RETURN_URL",
+        message: `${name} cannot use localhost in production.`,
+        status: 500,
+        clientMessage: "Payment return URL configuration is invalid."
+      });
+    }
+
+    if (/https?:\/\//iu.test(`${url.pathname}${url.search}${url.hash}`)) {
+      throw new Error(`${name} contains a nested URL`);
+    }
+
+    assertCanonicalDreamwishHost(url.origin, name);
+
+    return url.toString().replace(/\/$/u, "");
+  } catch (error) {
+    if (error instanceof PolarCheckoutError) throw error;
+    throw new PolarCheckoutError({
+      code: "INVALID_CHECKOUT_RETURN_URL",
+      message: `Invalid ${name}: ${value}`,
+      status: 500,
+      clientMessage: "Payment return URL configuration is invalid."
+    });
+  }
+}
+
+function normalizeCheckoutBaseUrl(value: string, name: string, expectedPath: string) {
+  const normalized = validateHttpUrl(value, name);
+  const parsed = new URL(normalized);
+  if (parsed.pathname.replace(/\/$/u, "") !== expectedPath) {
+    throw new PolarCheckoutError({
+      code: "INVALID_CHECKOUT_RETURN_URL",
+      message: `${name} must use ${expectedPath}.`,
+      status: 500,
+      clientMessage: "Payment return URL configuration is invalid."
+    });
+  }
+  return normalized;
 }
 
 function validateCheckoutUrl(value: string, fieldName: string) {
-  let parsed: URL;
-  try {
-    parsed = new URL(value);
-  } catch {
-    throw new PolarCheckoutError({
-      code: "INVALID_CHECKOUT_RETURN_URL",
-      message: `${fieldName} must be an absolute URL.`,
-      status: 500,
-      clientMessage: "결제 반환 URL 설정이 올바르지 않습니다."
-    });
-  }
+  validateHttpUrl(value.replace("{CHECKOUT_ID}", "checkout_test_id"), fieldName);
+}
 
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+function appendCheckoutIdPlaceholder(successBase: string) {
+  const withoutExistingCheckoutId = successBase
+    .replace(/([?&])checkout_id=[^&]*/u, "$1")
+    .replace(/[?&]$/u, "");
+  const separator = withoutExistingCheckoutId.includes("?") ? "&" : "?";
+  return `${withoutExistingCheckoutId}${separator}checkout_id={CHECKOUT_ID}`;
+}
+
+function assertCanonicalDreamwishHost(value: string, name: string) {
+  const hostname = new URL(value).hostname.toLowerCase();
+  if (isProductionRuntime() && hostname !== "dreamwish.co.kr") {
     throw new PolarCheckoutError({
       code: "INVALID_CHECKOUT_RETURN_URL",
-      message: `${fieldName} must be an http or https URL.`,
+      message: `${name} must use dreamwish.co.kr.`,
       status: 500,
-      clientMessage: "결제 반환 URL 설정이 올바르지 않습니다."
+      clientMessage: "Payment return URL configuration is invalid."
     });
   }
 }
 
-function invalidAppUrlError(source: string) {
-  return new PolarCheckoutError({
-    code: "INVALID_CHECKOUT_RETURN_URL",
-    message: `${source} must be an absolute http or https URL.`,
-    status: 500,
-    clientMessage: "결제 반환 URL 설정이 올바르지 않습니다."
-  });
-}
-
-function isHostedRuntime() {
+function isProductionRuntime() {
   return Boolean(
-    process.env.RAILWAY_ENVIRONMENT ||
+    process.env.NODE_ENV === "production" ||
+      process.env.RAILWAY_ENVIRONMENT ||
       process.env.RAILWAY_SERVICE_ID ||
       process.env.VERCEL ||
       process.env.RENDER ||
@@ -291,13 +412,30 @@ async function readPolarJson(response: Response) {
 
 function buildPolarCheckoutError(status: number, data: Record<string, unknown>) {
   const detail = readString(data, "detail") || readString(data, "message") || readString(data, "error");
-  if (detail) return `Polar Checkout Session 생성에 실패했습니다. (${status}) ${detail}`;
-  return `Polar Checkout Session 생성에 실패했습니다. (${status})`;
+  if (detail) return `Polar Checkout Session could not be created. (${status}) ${detail}`;
+  return `Polar Checkout Session could not be created. (${status})`;
 }
 
 function readString(source: Record<string, unknown>, key: string) {
   const value = source[key];
   return typeof value === "string" ? value : "";
+}
+
+function extractCheckoutCustomerEmail(data: Record<string, unknown>) {
+  const customer = data.customer as { email?: unknown } | undefined;
+  const metadata = data.metadata as { customer_email?: unknown; email?: unknown } | undefined;
+  const user = data.user as { email?: unknown } | undefined;
+  return (
+    stringOrNull(data.customer_email) ||
+    stringOrNull(customer?.email) ||
+    stringOrNull(metadata?.customer_email) ||
+    stringOrNull(metadata?.email) ||
+    stringOrNull(user?.email)
+  );
+}
+
+function stringOrNull(value: unknown) {
+  return typeof value === "string" && value.includes("@") ? value : null;
 }
 
 function logPolarCheckoutError(
@@ -314,11 +452,10 @@ function logPolarCheckoutError(
 }
 
 function logPolarCheckoutUrls(payload: PolarCheckoutPayload) {
-  if (process.env.NODE_ENV === "production") return;
-  console.log("[Polar Checkout URLs]", {
+  console.log("[Polar Checkout]", {
     successUrl: payload.success_url,
-    returnUrl: payload.return_url,
-    appUrl: new URL(payload.return_url).origin
+    cancelUrl: payload.return_url,
+    environment: process.env.NODE_ENV
   });
 }
 

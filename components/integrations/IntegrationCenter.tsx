@@ -25,7 +25,10 @@ import type {
   Integration
 } from "@/src/lib/integrations/types";
 import { useAppLanguage } from "@/src/lib/i18n/use-app-language";
-import type { OAuthProviderId } from "@/src/lib/oauth/oauth.types";
+import type {
+  ConnectableOAuthProviderId,
+  OAuthServiceId
+} from "@/src/lib/oauth/oauth.types";
 import { CalendarIntegrationCard } from "./CalendarIntegrationCard";
 import { ConnectorLogViewer } from "./ConnectorLogViewer";
 import { ConnectorPermissionList } from "./ConnectorPermissionList";
@@ -43,8 +46,10 @@ import { SyncButton } from "./SyncButton";
 import { SyncHistoryTable } from "./SyncHistoryTable";
 
 const iconMap = {
+  drive: FileText,
   notion: FileText,
   github: Github,
+  discord: MessageSquare,
   firebase: Globe2,
   browser: Globe2,
   "local-files": FileText,
@@ -270,6 +275,11 @@ function localizeIntegration(connectorId: string, integration: Integration, lang
 
 function connectorDisplay(connectorId: string, language: string) {
   const table: Record<string, Record<string, { name: string; description: string }>> = {
+    drive: {
+      ko: { name: "Google Drive", description: "Google Drive 파일 연결은 Google OAuth의 Drive 전용 scope로 처리합니다." },
+      en: { name: "Google Drive", description: "Connects Drive with service-specific Google OAuth scopes." },
+      ja: { name: "Google Drive", description: "Google OAuth scopes are separated for Drive access." }
+    },
     gmail: {
       ko: { name: "Gmail", description: "Gmail 메시지 읽기, 검색, 첨부 파일 메타데이터, 초안 생성과 승인 후 발송을 담당합니다." },
       en: { name: "Gmail", description: "Reads, searches, drafts, and sends Gmail messages only after approval." },
@@ -295,6 +305,11 @@ function connectorDisplay(connectorId: string, language: string) {
       en: { name: "Notion", description: "Reads pages and databases and prepares approved page creation." },
       ja: { name: "Notion", description: "ページとデータベースを読み取り、承認後のページ作成を準備します。" }
     },
+    discord: {
+      ko: { name: "Discord", description: "Discord 계정 식별 정보를 먼저 연결하고 서버 scope는 필요한 기능에서만 요청합니다." },
+      en: { name: "Discord", description: "Connects Discord identity first, with optional server scopes only when needed." },
+      ja: { name: "Discord", description: "Discord identity OAuth is connected before optional server scopes." }
+    },
     firebase: {
       ko: { name: "Firebase", description: "Firebase 프로젝트 설정, 배포 준비 상태, 동기화 상태를 추적합니다." },
       en: { name: "Firebase", description: "Tracks Firebase project configuration, deployment readiness, and sync status." },
@@ -306,31 +321,42 @@ function connectorDisplay(connectorId: string, language: string) {
 
 function ConnectorAccountActions({ connectorId }: { connectorId: string }) {
   const { t } = useAppLanguage();
-  const provider = providerForConnector(connectorId);
-  if (!provider) return null;
+  const target = oauthTargetForConnector(connectorId);
+  if (!target) return null;
 
-  const labelKey: Record<OAuthProviderId, string> = {
-    google: "integrations.connectGoogle",
-    slack: "integrations.connectSlack",
-    github: "integrations.connectGithub",
-    notion: "integrations.connectNotion",
-    firebase: "integrations.connectFirebase"
+  const labelByConnector: Record<string, string> = {
+    drive: "Connect Google Drive",
+    gmail: t("integrations.connectGoogle"),
+    calendar: t("integrations.connectGoogle"),
+    slack: t("integrations.connectSlack"),
+    github: t("integrations.connectGithub"),
+    notion: t("integrations.connectNotion"),
+    discord: "Connect Discord"
   };
 
   return (
     <div className="grid gap-2">
-      <OAuthConnectButton provider={provider} label={t(labelKey[provider])} />
-      <IntegrationDisconnectButton provider={provider} />
+      <OAuthConnectButton
+        provider={target.provider}
+        service={target.service}
+        label={labelByConnector[connectorId] || "Connect"}
+      />
+      <IntegrationDisconnectButton provider={target.provider} service={target.service} />
     </div>
   );
 }
 
-function providerForConnector(connectorId: string): OAuthProviderId | null {
-  if (connectorId === "gmail" || connectorId === "calendar") return "google";
-  if (connectorId === "slack") return "slack";
-  if (connectorId === "github") return "github";
-  if (connectorId === "notion") return "notion";
-  if (connectorId === "firebase") return "firebase";
+function oauthTargetForConnector(connectorId: string): {
+  provider: ConnectableOAuthProviderId;
+  service: OAuthServiceId;
+} | null {
+  if (connectorId === "drive") return { provider: "google", service: "drive" };
+  if (connectorId === "gmail") return { provider: "google", service: "gmail" };
+  if (connectorId === "calendar") return { provider: "google", service: "calendar" };
+  if (connectorId === "slack") return { provider: "slack", service: "slack" };
+  if (connectorId === "github") return { provider: "github", service: "github" };
+  if (connectorId === "notion") return { provider: "notion", service: "notion" };
+  if (connectorId === "discord") return { provider: "discord", service: "discord" };
   return null;
 }
 
@@ -403,6 +429,24 @@ function previewActionFor(connectorId: string, name: string) {
       goal: "Notion page preview",
       requiredPermissionKeys: ["notion.page.create"],
       payload: { title: "DREAMWISH note" }
+    };
+  }
+  if (connectorId === "drive") {
+    return {
+      type: "drive.file.read",
+      connectorId,
+      goal: "Google Drive file preview",
+      requiredPermissionKeys: ["drive.file"],
+      payload: { source: "drive" }
+    };
+  }
+  if (connectorId === "discord") {
+    return {
+      type: "discord.identity.read",
+      connectorId,
+      goal: "Discord identity preview",
+      requiredPermissionKeys: ["discord.identify"],
+      payload: { source: "discord" }
     };
   }
   return {

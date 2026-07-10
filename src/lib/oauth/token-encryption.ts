@@ -37,6 +37,7 @@ export function decryptToken(encryptedToken: string) {
 
 function getEncryptionKey() {
   const secret =
+    process.env.INTEGRATION_TOKEN_ENCRYPTION_KEY ||
     process.env.OAUTH_TOKEN_ENCRYPTION_KEY ||
     process.env.AUTH_SECRET ||
     "dreamwish-local-first-development-token-key";

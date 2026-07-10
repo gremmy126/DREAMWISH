@@ -1,33 +1,30 @@
-import type { OAuthProviderId } from "./oauth.types";
+import {
+  assertConnectableOAuthProvider,
+  getOAuthProviderConfig
+} from "./oauth-provider-registry";
+import type { ConnectableOAuthProviderId } from "./oauth.types";
 
-const PROVIDER_REDIRECT_ENV: Record<OAuthProviderId, string[]> = {
-  google: ["GOOGLE_REDIRECT_URI"],
-  slack: ["SLACK_REDIRECT_URI"],
-  github: ["GITHUB_REDIRECT_URI"],
-  notion: ["NOTION_REDIRECT_URI"],
-  firebase: ["FIREBASE_REDIRECT_URI"]
-};
-
-export function getOAuthRedirectUri(provider: OAuthProviderId, requestUrl: string) {
-  const configured = firstEnv(PROVIDER_REDIRECT_ENV[provider]);
-  if (configured) return configured;
+export function getOAuthRedirectUri(provider: ConnectableOAuthProviderId, requestUrl: string) {
+  const config = getOAuthProviderConfig(assertConnectableOAuthProvider(provider));
+  const configured = firstEnv([config.redirectUriEnv]);
+  if (configured) return validateRedirectUri(provider, configured);
 
   const baseUrl = getPublicAppUrl(requestUrl);
-  return `${baseUrl}/api/oauth/${provider}/callback`;
+  return new URL(config.redirectPath, baseUrl).toString();
 }
 
 export function getPublicAppUrl(requestUrl: string) {
   const configured = firstEnv([
-    "NEXT_PUBLIC_APP_URL",
     "APP_URL",
+    "NEXT_PUBLIC_APP_URL",
     "PUBLIC_APP_URL",
     "NEXT_PUBLIC_SITE_URL",
     "SITE_URL"
   ]);
-  if (configured) return stripTrailingSlash(configured);
+  if (configured) return validateAppUrl(configured, "APP_URL");
 
   const url = new URL(requestUrl);
-  return url.origin;
+  return validateAppUrl(url.origin, "request URL");
 }
 
 function firstEnv(keys: string[]) {
@@ -40,4 +37,52 @@ function firstEnv(keys: string[]) {
 
 function stripTrailingSlash(value: string) {
   return value.replace(/\/+$/u, "");
+}
+
+function validateRedirectUri(provider: ConnectableOAuthProviderId, value: string) {
+  const config = getOAuthProviderConfig(provider);
+  const url = new URL(value);
+  validateAppUrl(url.origin, `${config.redirectUriEnv} origin`);
+  if (url.pathname !== config.redirectPath) {
+    throw new Error(`${config.redirectUriEnv} must use ${config.redirectPath}`);
+  }
+  return stripTrailingSlash(url.toString());
+}
+
+function validateAppUrl(value: string, label: string) {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error(`${label} must be an absolute http or https URL.`);
+  }
+
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new Error(`${label} must be an absolute http or https URL.`);
+  }
+
+  if (isHostedDeployment() && isLocalhost(url.hostname)) {
+    throw new Error(`${label} must be a public URL in hosted deployments.`);
+  }
+
+  return stripTrailingSlash(url.origin);
+}
+
+function isHostedDeployment() {
+  return Boolean(
+    process.env.RAILWAY_ENVIRONMENT?.trim() ||
+      process.env.RAILWAY_PROJECT_ID?.trim() ||
+      process.env.VERCEL?.trim() ||
+      process.env.RENDER?.trim() ||
+      process.env.FLY_APP_NAME?.trim()
+  );
+}
+
+function isLocalhost(hostname: string) {
+  return (
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname === "::1" ||
+    hostname.endsWith(".localhost")
+  );
 }

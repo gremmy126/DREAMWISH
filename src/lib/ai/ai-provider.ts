@@ -15,33 +15,20 @@ export type AIProviderName =
   | "gemini"
   | "openrouter"
   | "huggingface"
-  | "cloudflare"
-  | "ollama"
-  | "lmstudio"
-  | "mock";
-
-export class AIProviderError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "AIProviderError";
-  }
-}
+  | "cloudflare";
 
 export function getConfiguredProviderName(): AIProviderName {
-  const value = (process.env.AI_PROVIDER || "mock").toLowerCase();
+  const value = (process.env.AI_PROVIDER || "").toLowerCase();
 
   if (
     value === "groq" ||
     value === "gemini" ||
     value === "openrouter" ||
     value === "huggingface" ||
-    value === "cloudflare" ||
-    value === "ollama" ||
-    value === "lmstudio" ||
-    value === "mock"
+    value === "cloudflare"
   ) {
     return value;
   }
 
-  return "mock";
+  throw new Error("No connected AI provider is configured.");
 }

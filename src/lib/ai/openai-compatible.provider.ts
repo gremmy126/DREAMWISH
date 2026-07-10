@@ -1,4 +1,5 @@
-import { AIProviderError, type AIMessage, type AIProvider } from "./ai-provider";
+import type { AIMessage, AIProvider } from "./ai-provider";
+import { AIProviderError, classifyProviderHttpError } from "./errors";
 
 type ChatCompletionChunk = {
   choices?: Array<{ delta?: { content?: string } }>;
@@ -38,7 +39,14 @@ export class OpenAICompatibleProvider implements AIProvider {
 
   async chat(messages: AIMessage[]): Promise<string> {
     const json = (await this.request(messages, false)) as ChatCompletionResponse;
-    return json.choices?.[0]?.message?.content?.trim() || "";
+    const answer = json.choices?.[0]?.message?.content?.trim() || "";
+    if (!answer) {
+      throw new AIProviderError({
+        code: "MODEL_RESPONSE_EMPTY",
+        message: `${this.name} returned an empty response.`
+      });
+    }
+    return answer;
   }
 
   async *streamChat(messages: AIMessage[]): AsyncIterable<string> {
@@ -46,7 +54,10 @@ export class OpenAICompatibleProvider implements AIProvider {
     const reader = response.body?.getReader();
 
     if (!reader) {
-      throw new AIProviderError(`${this.name} streaming 응답을 읽을 수 없습니다.`);
+      throw new AIProviderError({
+        code: "MODEL_RESPONSE_EMPTY",
+        message: `${this.name} streaming response could not be read.`
+      });
     }
 
     const decoder = new TextDecoder();
@@ -76,29 +87,54 @@ export class OpenAICompatibleProvider implements AIProvider {
 
   private async request(messages: AIMessage[], stream: boolean) {
     if (!this.apiKey) {
-      throw new AIProviderError(this.missingKeyMessage);
+      throw new AIProviderError({
+        code: "PROVIDER_NOT_CONFIGURED",
+        message: this.missingKeyMessage
+      });
     }
 
-    const response = await fetch(`${this.baseUrl}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${this.apiKey}`,
-        ...this.headers
-      },
-      body: JSON.stringify({
-        model: this.model,
-        messages,
-        temperature: 0.2,
-        stream
-      })
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 60000);
+    let response: Response;
+
+    try {
+      response = await fetch(`${this.baseUrl}/chat/completions`, {
+        method: "POST",
+        signal: controller.signal,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${this.apiKey}`,
+          ...this.headers
+        },
+        body: JSON.stringify({
+          model: this.model,
+          messages,
+          temperature: 0.2,
+          stream
+        })
+      });
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new AIProviderError({
+          code: "PROVIDER_TIMEOUT",
+          message: `${this.name} response timed out.`,
+          retryable: true
+        });
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
 
     if (!response.ok) {
       const detail = await response.text().catch(() => "");
-      throw new AIProviderError(
-        `${this.name} 호출 실패: ${response.status}${detail ? ` ${detail.slice(0, 240)}` : ""}`
-      );
+      const classified = classifyProviderHttpError(response.status);
+      throw new AIProviderError({
+        code: classified.code,
+        retryable: classified.retryable,
+        status: response.status,
+        message: `${this.name} request failed: ${response.status}${detail ? ` ${detail.slice(0, 180)}` : ""}`
+      });
     }
 
     return stream ? response : response.json();

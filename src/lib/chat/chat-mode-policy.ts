@@ -32,12 +32,12 @@ export function shouldRouteToAgentPreview(
 }
 
 export function isExplicitAgentPreviewCommand(message: string) {
-  return /^(agent|에이전트|plan|계획|計画|エージェント)\s*[:：→-]/iu.test(message) ||
+  return /^(agent|에이전트|plan|계획)\s*[:：>\-]/iu.test(message) ||
     isExternalServiceCommand(message);
 }
 
 export function isExternalServiceCommand(message: string) {
-  return /(?:gmail|google\s*mail|메일\s*보내|초안\s*만들|calendar|캘린더|일정\s*(?:만들|수정|삭제)|slack|슬랙|github|깃허브|notion|노션|firebase|파이어베이스|외부\s*앱|승인\s*대기)/iu.test(
+  return /(?:drive|google\s*drive|gmail|google\s*mail|calendar|slack|github|notion|discord|firebase|browser|local\s*files?|files?|webhook|메일|일정|캘린더|깃허브|노션|디스코드|파이어베이스|브라우저|파일|웹훅|자동화)/iu.test(
     message
   );
 }

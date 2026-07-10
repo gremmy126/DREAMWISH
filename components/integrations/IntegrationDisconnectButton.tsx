@@ -3,18 +3,26 @@
 import { Unplug } from "lucide-react";
 import { useState } from "react";
 import { useAppLanguage } from "@/src/lib/i18n/use-app-language";
-import type { OAuthProviderId } from "@/src/lib/oauth/oauth.types";
+import { getIntegrationDisconnectPath } from "@/src/lib/oauth/oauth-connect-url";
+import type {
+  ConnectableOAuthProviderId,
+  OAuthServiceId
+} from "@/src/lib/oauth/oauth.types";
 
 export function IntegrationDisconnectButton({
-  provider
+  provider,
+  service
 }: {
-  provider: OAuthProviderId;
+  provider: ConnectableOAuthProviderId;
+  service?: OAuthServiceId | null;
 }) {
   const [message, setMessage] = useState<string | null>(null);
   const { t } = useAppLanguage();
 
   async function disconnect() {
-    const response = await fetch(`/api/oauth/${provider}/disconnect`, { method: "POST" });
+    const response = await fetch(getIntegrationDisconnectPath({ provider, service }), {
+      method: "POST"
+    });
     const data = (await response.json()) as { revoked?: boolean };
     setMessage(data.revoked ? t("integrations.disconnected") : t("integrations.noStoredConnection"));
   }

@@ -1,72 +1,109 @@
-import { AIProviderError, type AIMessage, type AIProvider } from "./ai-provider";
+import type { AIMessage, AIProvider } from "./ai-provider";
+import { getProviderRuntimeConfig } from "./config";
+import { AIProviderError, classifyProviderHttpError } from "./errors";
 
-type GeminiInteractionResponse = {
-  output_text?: string;
-  steps?: Array<{
-    output?: Array<{ text?: string }>;
+type GeminiGenerateContentResponse = {
+  candidates?: Array<{
+    content?: {
+      parts?: Array<{ text?: string }>;
+    };
   }>;
 };
 
 export class GeminiProvider implements AIProvider {
   name = "gemini";
-  model = process.env.GEMINI_MODEL || "gemini-3.5-flash";
+  model = getProviderRuntimeConfig("gemini").model;
 
-  private get apiKey() {
-    return process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  private get config() {
+    return getProviderRuntimeConfig("gemini");
   }
 
   async chat(messages: AIMessage[]): Promise<string> {
-    if (!this.apiKey) {
-      throw new AIProviderError("Gemini API Key가 없습니다. GEMINI_API_KEY를 설정해주세요.");
+    const config = this.config;
+    if (!config.apiKey) {
+      throw new AIProviderError({
+        code: "PROVIDER_NOT_CONFIGURED",
+        message: "Gemini API key is missing. Set GEMINI_API_KEY or GOOGLE_API_KEY."
+      });
     }
 
-    const response = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": this.apiKey
-      },
-      body: JSON.stringify({
-        model: this.model,
-        system_instruction: messages
-          .filter((message) => message.role === "system")
-          .map((message) => message.content)
-          .join("\n\n"),
-        input: messages
-          .filter((message) => message.role !== "system")
-          .map((message) => `${message.role}: ${message.content}`)
-          .join("\n\n"),
-        generation_config: {
-          thinking_level: "low"
+    const systemInstruction = messages
+      .filter((message) => message.role === "system")
+      .map((message) => message.content)
+      .join("\n\n");
+    const contents = messages
+      .filter((message) => message.role !== "system")
+      .map((message) => ({
+        role: message.role === "assistant" ? "model" : "user",
+        parts: [{ text: message.content }]
+      }));
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 60000);
+    let response: Response;
+
+    try {
+      response = await fetch(
+        `${config.baseUrl}/models/${encodeURIComponent(config.model)}:generateContent?key=${encodeURIComponent(config.apiKey)}`,
+        {
+          method: "POST",
+          signal: controller.signal,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            systemInstruction: systemInstruction
+              ? { parts: [{ text: systemInstruction }] }
+              : undefined,
+            contents,
+            generationConfig: {
+              temperature: 0.2
+            }
+          })
         }
-      })
-    });
+      );
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new AIProviderError({
+          code: "PROVIDER_TIMEOUT",
+          message: "Gemini response timed out.",
+          retryable: true
+        });
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
 
     if (!response.ok) {
       const detail = await response.text().catch(() => "");
-      throw new AIProviderError(
-        `Gemini 호출 실패: ${response.status}${detail ? ` ${detail.slice(0, 240)}` : ""}`
-      );
+      const classified = classifyProviderHttpError(response.status);
+      throw new AIProviderError({
+        code: classified.code,
+        retryable: classified.retryable,
+        status: response.status,
+        message: `Gemini request failed: ${response.status}${detail ? ` ${detail.slice(0, 180)}` : ""}`
+      });
     }
 
-    const data = (await response.json()) as GeminiInteractionResponse;
-    return data.output_text || extractTextFromSteps(data) || "";
+    const data = (await response.json()) as GeminiGenerateContentResponse;
+    const answer = data.candidates?.[0]?.content?.parts
+      ?.map((part) => part.text || "")
+      .join("")
+      .trim();
+
+    if (!answer) {
+      throw new AIProviderError({
+        code: "MODEL_RESPONSE_EMPTY",
+        message: "Gemini returned an empty response."
+      });
+    }
+
+    return answer;
   }
 
   async *streamChat(messages: AIMessage[]): AsyncIterable<string> {
     const answer = await this.chat(messages);
-    const parts = answer.match(/[\s\S]{1,28}/g) || [answer];
-
-    for (const part of parts) {
+    for (const part of answer.match(/[\s\S]{1,32}/g) || [answer]) {
       yield part;
     }
   }
-}
-
-function extractTextFromSteps(data: GeminiInteractionResponse) {
-  return data.steps
-    ?.flatMap((step) => step.output || [])
-    .map((output) => output.text || "")
-    .join("")
-    .trim();
 }

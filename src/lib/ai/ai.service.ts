@@ -1,21 +1,18 @@
 import { assertProviderAllowed } from "@/src/lib/privacy/privacy.config";
 import {
-  getConfiguredProviderName,
   type AIMessage,
   type AIProvider,
   type AIProviderName
 } from "./ai-provider";
 import { CloudflareProvider } from "./cloudflare.provider";
+import { getDefaultAIProviderName } from "./config";
 import { GeminiProvider } from "./gemini.provider";
 import { GroqProvider } from "./groq.provider";
 import { HuggingFaceProvider } from "./huggingface.provider";
-import { LMStudioProvider } from "./lmstudio.provider";
-import { MockProvider } from "./mock.provider";
-import { OllamaProvider } from "./ollama.provider";
 import { OpenRouterProvider } from "./openrouter.provider";
 
 export function createAIProvider(providerNameOverride?: AIProviderName): AIProvider {
-  const providerName = providerNameOverride || getConfiguredProviderName();
+  const providerName = providerNameOverride || getDefaultAIProviderName();
   assertProviderAllowed(providerName);
 
   switch (providerName) {
@@ -29,12 +26,6 @@ export function createAIProvider(providerNameOverride?: AIProviderName): AIProvi
       return new HuggingFaceProvider();
     case "cloudflare":
       return new CloudflareProvider();
-    case "ollama":
-      return new OllamaProvider();
-    case "lmstudio":
-      return new LMStudioProvider();
-    default:
-      return new MockProvider();
   }
 }
 

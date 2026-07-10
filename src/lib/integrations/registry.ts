@@ -5,6 +5,16 @@ import { slackConnector } from "./slack-connector";
 import type { Connector } from "./types";
 
 const connectors: Connector[] = [
+  new MockConnector({
+    id: "drive",
+    name: "Google Drive",
+    serviceType: "file",
+    description: "Google Drive file metadata and approved file actions are routed through Google OAuth.",
+    permissions: [
+      permission("drive.file", "Drive file access", "Reads and manages files created or selected through the app.", "medium", true),
+      permission("drive.readonly", "Drive read-only", "Use only when broader Drive reading is explicitly enabled.", "high", false)
+    ]
+  }),
   gmailConnector,
   calendarConnector,
   slackConnector,
@@ -26,6 +36,17 @@ const connectors: Connector[] = [
     permissions: [
       permission("github.repo.read", "Repo 읽기", "Repository 메타데이터를 읽습니다.", "medium", true),
       permission("github.issue.write", "Issue 작성", "승인 후 Issue를 작성합니다.", "high", false)
+    ]
+  }),
+  new MockConnector({
+    id: "discord",
+    name: "Discord",
+    serviceType: "message",
+    description: "Discord account identity and optional server scopes are connected through OAuth.",
+    permissions: [
+      permission("discord.identify", "Read identity", "Reads the connected Discord account id and username.", "low", true),
+      permission("discord.email", "Read email", "Reads the connected Discord account email when granted.", "low", true),
+      permission("discord.guilds", "Read servers", "Use only when server selection features are enabled.", "medium", false)
     ]
   }),
   new MockConnector({

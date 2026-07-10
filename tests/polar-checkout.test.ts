@@ -8,7 +8,7 @@ test("buildPolarCheckoutPayload sends only products and checkout redirect URLs",
   withEnv(
     {
       POLAR_PRODUCT_ID: "  123e4567-e89b-12d3-a456-426614174000  ",
-      NEXT_PUBLIC_APP_URL: "http://127.0.0.1:3100/"
+      NEXT_PUBLIC_APP_URL: "http://localhost:3100/"
     },
     () => {
       const payload = buildPolarCheckoutPayload({
@@ -20,8 +20,8 @@ test("buildPolarCheckoutPayload sends only products and checkout redirect URLs",
       assert.deepEqual(Object.keys(payload).sort(), ["products", "return_url", "success_url"]);
       assert.deepEqual(payload, {
         products: ["123e4567-e89b-12d3-a456-426614174000"],
-        success_url: "http://127.0.0.1:3100/payment/success?checkout_id={CHECKOUT_ID}",
-        return_url: "http://127.0.0.1:3100/settings/billing"
+        success_url: "http://localhost:3100/payment/success?checkout_id={CHECKOUT_ID}",
+        return_url: "http://localhost:3100/pricing?payment=cancelled"
       });
     }
   );
@@ -41,17 +41,17 @@ test("getPolarCheckoutRequestConfig validates required server-side Polar setting
       assert.deepEqual(config.payload, {
         products: ["123e4567-e89b-12d3-a456-426614174000"],
         success_url: "https://dreamwish.co.kr/payment/success?checkout_id={CHECKOUT_ID}",
-        return_url: "https://dreamwish.co.kr/settings/billing"
+        return_url: "https://dreamwish.co.kr/pricing?payment=cancelled"
       });
     }
   );
 });
 
-test("getPolarCheckoutRequestConfig uses server-only APP_URL before public app url", () => {
+test("getPolarCheckoutRequestConfig uses NEXT_PUBLIC_APP_URL before legacy app url", () => {
   withEnv(
     {
-      APP_URL: "https://dreamwish.co.kr/",
-      NEXT_PUBLIC_APP_URL: "https://wrong-public.example.com",
+      APP_URL: "https://wrong-server.example.com/",
+      NEXT_PUBLIC_APP_URL: "https://dreamwish.co.kr",
       POLAR_ACCESS_TOKEN: "token-value",
       POLAR_PRODUCT_ID: "123e4567-e89b-12d3-a456-426614174000"
     },
@@ -61,7 +61,28 @@ test("getPolarCheckoutRequestConfig uses server-only APP_URL before public app u
       assert.deepEqual(config.payload, {
         products: ["123e4567-e89b-12d3-a456-426614174000"],
         success_url: "https://dreamwish.co.kr/payment/success?checkout_id={CHECKOUT_ID}",
-        return_url: "https://dreamwish.co.kr/settings/billing"
+        return_url: "https://dreamwish.co.kr/pricing?payment=cancelled"
+      });
+    }
+  );
+});
+
+test("getPolarCheckoutRequestConfig honors explicit Polar success and cancel urls", () => {
+  withEnv(
+    {
+      NEXT_PUBLIC_APP_URL: "https://dreamwish.co.kr",
+      POLAR_SUCCESS_URL: "https://dreamwish.co.kr/payment/success",
+      POLAR_CANCEL_URL: "https://dreamwish.co.kr/pricing?payment=cancelled",
+      POLAR_ACCESS_TOKEN: "token-value",
+      POLAR_PRODUCT_ID: "123e4567-e89b-12d3-a456-426614174000"
+    },
+    () => {
+      const config = getPolarCheckoutRequestConfig();
+
+      assert.deepEqual(config.payload, {
+        products: ["123e4567-e89b-12d3-a456-426614174000"],
+        success_url: "https://dreamwish.co.kr/payment/success?checkout_id={CHECKOUT_ID}",
+        return_url: "https://dreamwish.co.kr/pricing?payment=cancelled"
       });
     }
   );
@@ -70,15 +91,15 @@ test("getPolarCheckoutRequestConfig uses server-only APP_URL before public app u
 test("getPolarCheckoutRequestConfig rejects protocol-less app urls", () => {
   withEnv(
     {
-      APP_URL: "dreamwish.co.kr",
-      NEXT_PUBLIC_APP_URL: undefined,
+      APP_URL: undefined,
+      NEXT_PUBLIC_APP_URL: "dreamwish.co.kr",
       POLAR_ACCESS_TOKEN: "token-value",
       POLAR_PRODUCT_ID: "123e4567-e89b-12d3-a456-426614174000"
     },
     () => {
       assert.throws(
         () => getPolarCheckoutRequestConfig(),
-        /APP_URL must be an absolute http or https URL/u
+        /Invalid NEXT_PUBLIC_APP_URL/u
       );
     }
   );
@@ -87,8 +108,8 @@ test("getPolarCheckoutRequestConfig rejects protocol-less app urls", () => {
 test("getPolarCheckoutRequestConfig rejects localhost app urls on Railway", () => {
   withEnv(
     {
-      APP_URL: "http://127.0.0.1:3100",
-      NEXT_PUBLIC_APP_URL: undefined,
+      APP_URL: undefined,
+      NEXT_PUBLIC_APP_URL: "http://127.0.0.1:3100",
       RAILWAY_ENVIRONMENT: "production",
       POLAR_ACCESS_TOKEN: "token-value",
       POLAR_PRODUCT_ID: "123e4567-e89b-12d3-a456-426614174000"
@@ -96,7 +117,42 @@ test("getPolarCheckoutRequestConfig rejects localhost app urls on Railway", () =
     () => {
       assert.throws(
         () => getPolarCheckoutRequestConfig(),
-        /APP_URL must be a public URL in hosted deployments/u
+        /NEXT_PUBLIC_APP_URL cannot use localhost in production/u
+      );
+    }
+  );
+});
+
+test("getPolarCheckoutRequestConfig rejects quoted and nested checkout urls", () => {
+  withEnv(
+    {
+      NEXT_PUBLIC_APP_URL: "https://dreamwish.co.kr",
+      POLAR_SUCCESS_URL: "\"https://dreamwish.co.kr/payment/success\"",
+      POLAR_CANCEL_URL: "https://dreamwish.co.kr/https://dreamwish.co.kr/pricing",
+      POLAR_ACCESS_TOKEN: "token-value",
+      POLAR_PRODUCT_ID: "123e4567-e89b-12d3-a456-426614174000"
+    },
+    () => {
+      assert.throws(
+        () => getPolarCheckoutRequestConfig(),
+        /Invalid POLAR_SUCCESS_URL/u
+      );
+    }
+  );
+});
+
+test("getPolarCheckoutRequestConfig rejects www production domain drift", () => {
+  withEnv(
+    {
+      NODE_ENV: "production",
+      NEXT_PUBLIC_APP_URL: "https://www.dreamwish.co.kr",
+      POLAR_ACCESS_TOKEN: "token-value",
+      POLAR_PRODUCT_ID: "123e4567-e89b-12d3-a456-426614174000"
+    },
+    () => {
+      assert.throws(
+        () => getPolarCheckoutRequestConfig(),
+        /NEXT_PUBLIC_APP_URL must use dreamwish.co.kr/u
       );
     }
   );

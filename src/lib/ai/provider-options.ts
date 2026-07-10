@@ -1,18 +1,15 @@
 import type { AIProviderName } from "./ai-provider";
 
 export const SUPPORTED_FREE_PROVIDERS = [
-  "groq",
   "gemini",
   "openrouter",
+  "groq",
   "huggingface",
   "cloudflare"
 ] as const satisfies AIProviderName[];
 
 export const SUPPORTED_PROVIDER_NAMES = [
-  ...SUPPORTED_FREE_PROVIDERS,
-  "ollama",
-  "lmstudio",
-  "mock"
+  ...SUPPORTED_FREE_PROVIDERS
 ] as const satisfies AIProviderName[];
 
 export function parseProviderName(value: unknown): AIProviderName | undefined {

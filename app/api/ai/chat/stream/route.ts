@@ -2,12 +2,12 @@ import { streamChatWithAI } from "@/src/lib/ai/ai.service";
 import { apiFailure } from "@/src/lib/api/api-response";
 import { parseJsonRequestBody } from "@/src/lib/api/json-request";
 import { parseProviderName } from "@/src/lib/ai/provider-options";
-import { buildChatMessages, buildGeneralChatMessages } from "@/src/lib/ai/prompts";
+import { buildContextAwareChatMessages } from "@/src/lib/ai/prompts";
 import { getChatExecutionPlan, getWebSearchQuery } from "@/src/lib/ai/question-classifier";
 import {
   type AnswerConfidence,
   type AnswerVerification,
-  type SourceDocument,
+  type SourceDocument
 } from "@/src/lib/chat/chat.types";
 import {
   buildWebAnswerMessages,
@@ -16,6 +16,8 @@ import {
   formatWebAnswerReferences,
   selectWebAnswerContext
 } from "@/src/lib/ai/web-answer";
+import { toClientAIError } from "@/src/lib/ai/errors";
+import { emptyAnswerVerification } from "@/src/lib/ai/graph/chat-state";
 import { addMessage, ensureSession } from "@/src/lib/db/repositories/chat.repository";
 import { runAutoMemoryEngineQuietly } from "@/src/lib/memory/auto-memory-engine";
 import {
@@ -50,12 +52,12 @@ export async function POST(request: Request) {
   const message = typeof body.message === "string" ? body.message.trim() : "";
 
   if (!message) {
-    const failure = apiFailure(400, "MESSAGE_REQUIRED", "Message is required.");
+    const failure = apiFailure(400, "EMPTY_MESSAGE", "Message is required.");
     return Response.json({ ok: false, error: failure.error }, { status: failure.status });
   }
 
   if (message.length > 4000) {
-    const failure = apiFailure(413, "MESSAGE_TOO_LONG", "Message is too long.");
+    const failure = apiFailure(413, "INVALID_REQUEST", "Message is too long.");
     return Response.json({ ok: false, error: failure.error }, { status: failure.status });
   }
 
@@ -74,45 +76,22 @@ export async function POST(request: Request) {
       try {
         send("status", { status: "submitting" });
         const session = await ensureSession(sessionId, message);
-        send("session", { sessionId: session.id });
+        send("session", { sessionId: session.id, session });
         await addMessage({ sessionId: session.id, role: "user", content: message });
 
         if (isQualityCommand(message)) {
           const report = await checkDocumentQuality(message);
           const answer = formatQualityReport(report);
-          const confidence = {
-            level: "high" as const,
+          const confidence: AnswerConfidence = {
+            level: "high",
             score: 1,
-            reason: "로컬 문서 품질검사 결과입니다."
+            reason: "Local document quality report."
           };
-          const verification = {
-            supportedClaims: [],
-            weakClaims: [],
-            unsupportedClaims: [],
-            warning: null
-          };
+          const verification = emptyAnswerVerification();
           send("sources", { sources: [], confidence });
           send("delta", { text: answer });
-          await addMessage({
-            sessionId: session.id,
-            role: "assistant",
-            content: answer,
-            sources: [],
-            confidence,
-            verification
-          });
-          await runAutoMemoryEngineQuietly({
-            sessionId: session.id,
-            userMessage: message,
-            assistantAnswer: answer
-          });
-          send("done", {
-            answer,
-            sources: [],
-            confidence,
-            verification,
-            sessionId: session.id
-          });
+          await saveAssistantExchange(session.id, message, answer, [], confidence, verification);
+          send("done", { answer, sources: [], confidence, verification, sessionId: session.id });
           return;
         }
 
@@ -120,11 +99,11 @@ export async function POST(request: Request) {
         let answer = "";
         let sources: SourceDocument[] = [];
         let confidence: AnswerConfidence = {
-          level: "none" as const,
+          level: "none",
           score: 0,
-          reason: "일반 LLM 답변입니다."
+          reason: "General AI answer."
         };
-        let verification: AnswerVerification = emptyVerification();
+        let verification: AnswerVerification = emptyAnswerVerification();
 
         send("status", { status: "generating" });
 
@@ -136,7 +115,7 @@ export async function POST(request: Request) {
           confidence = {
             level: references.length > 0 ? "medium" : "none",
             score: references.length > 0 ? 0.72 : 0,
-            reason: references.length > 0 ? "웹 검색 결과를 종합한 답변입니다." : "웹 검색 근거가 부족합니다."
+            reason: references.length > 0 ? "Web search context was used." : "No web context was found."
           };
           send("sources", { sources, confidence });
 
@@ -160,57 +139,36 @@ export async function POST(request: Request) {
               send("delta", { text: suffix });
             }
           }
-        } else if (plan.intent === "LOCAL") {
-          send("status", { status: "searching-local" });
-          const chunks = await hybridSearch(message, 8);
+        } else {
+          if (plan.intent === "LOCAL") send("status", { status: "searching-local" });
+          const chunks = plan.intent === "LOCAL" ? await hybridSearch(message, 8) : [];
           const context = buildRagContext(chunks);
           sources = context.sources;
-          confidence = calculateConfidence(chunks);
+          confidence =
+            plan.intent === "LOCAL"
+              ? calculateConfidence(chunks)
+              : confidence;
           send("sources", { sources, confidence });
           send("status", { status: "streaming" });
           for await (const token of streamChatWithAI(
-            buildChatMessages(context.contextText, message),
+            buildContextAwareChatMessages({
+              question: message,
+              contextText: context.contextText,
+              contextAvailable: context.sources.length > 0
+            }),
             providerName
           )) {
             answer += token;
             send("delta", { text: token });
           }
-          verification = verifyAnswer(answer, sources);
-        } else {
-          send("sources", { sources, confidence });
-          send("status", { status: "streaming" });
-          for await (const token of streamChatWithAI(
-            buildGeneralChatMessages(message),
-            providerName
-          )) {
-            answer += token;
-            send("delta", { text: token });
-          }
+          verification =
+            context.sources.length > 0 ? verifyAnswer(answer, sources) : emptyAnswerVerification();
         }
 
-        await addMessage({
-          sessionId: session.id,
-          role: "assistant",
-          content: answer,
-          sources,
-          confidence,
-          verification
-        });
-        await runAutoMemoryEngineQuietly({
-          sessionId: session.id,
-          userMessage: message,
-          assistantAnswer: answer
-        });
-
-        send("done", {
-          answer,
-          sources,
-          confidence,
-          verification,
-          sessionId: session.id
-        });
+        await saveAssistantExchange(session.id, message, answer, sources, confidence, verification);
+        send("done", { answer, sources, confidence, verification, sessionId: session.id });
       } catch (error) {
-        send("error", { code: "GENERATION_FAILED", error: getReadableError(error) });
+        send("error", toClientAIError(error));
       } finally {
         controller.close();
       }
@@ -226,16 +184,25 @@ export async function POST(request: Request) {
   });
 }
 
-function getReadableError(error: unknown) {
-  if (error instanceof Error) return error.message;
-  return "Streaming 중단: AI 응답을 완료하지 못했습니다.";
-}
-
-function emptyVerification() {
-  return {
-    supportedClaims: [],
-    weakClaims: [],
-    unsupportedClaims: [],
-    warning: null
-  };
+async function saveAssistantExchange(
+  sessionId: string,
+  userMessage: string,
+  answer: string,
+  sources: SourceDocument[],
+  confidence: AnswerConfidence,
+  verification: AnswerVerification
+) {
+  await addMessage({
+    sessionId,
+    role: "assistant",
+    content: answer,
+    sources,
+    confidence,
+    verification
+  });
+  await runAutoMemoryEngineQuietly({
+    sessionId,
+    userMessage,
+    assistantAnswer: answer
+  });
 }

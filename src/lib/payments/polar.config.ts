@@ -4,8 +4,8 @@ export const POLAR_CHECKOUT_SETTINGS = {
   amountUsd: 19,
   amountCents: 1900,
   currency: "USD",
-  successUrl: "https://dreamwish.co.kr/billing/success",
-  returnUrl: "https://dreamwish.co.kr/pricing",
+  successUrl: "https://dreamwish.co.kr/payment/success",
+  returnUrl: "https://dreamwish.co.kr/pricing?payment=cancelled",
   webhookUrl: "https://dreamwish.co.kr/api/webhooks/polar"
 } as const;
 

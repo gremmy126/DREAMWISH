@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     }
 
     await saveIntegrationSyncSetting({
-      connectorId: target.id === "google-workspace" ? "gmail" : target.id,
+      connectorId: target.id,
       enabled: true,
       syncDays: 30,
       commandPrefix: target.commandPrefix

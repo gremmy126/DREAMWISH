@@ -1,8 +1,14 @@
+import {
+  getOAuthClientId,
+  getOAuthClientSecret,
+  getOAuthProviderConfig
+} from "./oauth-provider-registry";
 import type { OAuthAuthorizationRequest } from "./oauth.types";
 
 export function createNotionOAuthAuthorizationUrl(request: OAuthAuthorizationRequest) {
-  const url = new URL("https://api.notion.com/v1/oauth/authorize");
-  url.searchParams.set("client_id", process.env.NOTION_CLIENT_ID || "");
+  const config = getOAuthProviderConfig("notion");
+  const url = new URL(config.authorizationUrl);
+  url.searchParams.set("client_id", getOAuthClientId("notion"));
   url.searchParams.set("redirect_uri", request.redirectUri);
   url.searchParams.set("response_type", "code");
   url.searchParams.set("owner", "user");
@@ -11,10 +17,10 @@ export function createNotionOAuthAuthorizationUrl(request: OAuthAuthorizationReq
 }
 
 export async function exchangeNotionOAuthCode(code: string, redirectUri: string) {
-  const clientId = process.env.NOTION_CLIENT_ID || "";
-  const clientSecret = process.env.NOTION_CLIENT_SECRET || "";
+  const clientId = getOAuthClientId("notion");
+  const clientSecret = getOAuthClientSecret("notion");
   const basic = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
-  const response = await fetch("https://api.notion.com/v1/oauth/token", {
+  const response = await fetch(getOAuthProviderConfig("notion").tokenUrl, {
     method: "POST",
     headers: {
       Authorization: `Basic ${basic}`,
@@ -28,8 +34,12 @@ export async function exchangeNotionOAuthCode(code: string, redirectUri: string)
   });
   const data = (await response.json()) as {
     access_token?: string;
+    workspace_id?: string;
     workspace_name?: string;
+    workspace_icon?: string;
     bot_id?: string;
+    duplicated_template_id?: string;
+    owner?: unknown;
     error?: string;
     message?: string;
   };

@@ -1,6 +1,10 @@
 import type { AIProviderName } from "@/src/lib/ai/ai-provider";
+import { getAIProviderHealth } from "@/src/lib/ai/config";
 import { SUPPORTED_PROVIDER_NAMES } from "@/src/lib/ai/provider-options";
-import type { OAuthProviderId } from "@/src/lib/oauth/oauth.types";
+import type {
+  ConnectableOAuthProviderId,
+  OAuthServiceId
+} from "@/src/lib/oauth/oauth.types";
 import { getOAuthConnectionStatus } from "@/src/lib/oauth/token.service";
 import type { IntegrationStatus } from "./types";
 
@@ -29,8 +33,37 @@ export type FirebaseConnectionState = {
 export async function getConnectorAuthState(
   connectorId: string
 ): Promise<ConnectorAuthState> {
-  if (connectorId === "gmail" || connectorId === "calendar" || connectorId === "google") {
-    return oauthStateForConnector(connectorId, "google", ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"], "Google");
+  if (connectorId === "drive") {
+    return oauthStateForConnector(
+      connectorId,
+      "google",
+      "drive",
+      ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"],
+      ["GOOGLE_ACCESS_TOKEN", "GOOGLE_OAUTH_TOKEN"],
+      "Google Drive"
+    );
+  }
+
+  if (connectorId === "gmail") {
+    return oauthStateForConnector(
+      connectorId,
+      "google",
+      "gmail",
+      ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"],
+      ["GOOGLE_ACCESS_TOKEN", "GOOGLE_OAUTH_TOKEN", "GMAIL_ACCESS_TOKEN"],
+      "Gmail"
+    );
+  }
+
+  if (connectorId === "calendar" || connectorId === "google") {
+    return oauthStateForConnector(
+      connectorId,
+      "google",
+      "calendar",
+      ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"],
+      ["GOOGLE_ACCESS_TOKEN", "GOOGLE_OAUTH_TOKEN"],
+      "Google Calendar"
+    );
   }
 
   if (connectorId === "slack") {
@@ -41,11 +74,13 @@ export async function getConnectorAuthState(
       hasAllEnv(["SLACK_CLIENT_ID", "SLACK_CLIENT_SECRET"]);
     return {
       connectorId,
-      status: configured ? "connected" : "not_connected",
+      status: oauth.connected ? "connected" : "not_connected",
       configured,
-      accountLabel: oauth.accountEmail || (configured ? "Slack app configured" : null),
+      accountLabel: oauth.accountEmail || null,
       detail: configured
-        ? "Slack OAuth/API configuration is present."
+        ? oauth.connected
+          ? "Slack account is connected."
+          : "Slack OAuth app is configured and ready to connect."
         : "Slack OAuth/API configuration is missing."
     };
   }
@@ -54,6 +89,8 @@ export async function getConnectorAuthState(
     return oauthStateForConnector(
       connectorId,
       "github",
+      "github",
+      ["GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET"],
       ["GITHUB_TOKEN", "GITHUB_OAUTH_TOKEN"],
       "GitHub"
     );
@@ -63,8 +100,21 @@ export async function getConnectorAuthState(
     return oauthStateForConnector(
       connectorId,
       "notion",
-      ["NOTION_CLIENT_ID", "NOTION_CLIENT_SECRET", "NOTION_ACCESS_TOKEN", "NOTION_TOKEN"],
+      "notion",
+      ["NOTION_CLIENT_ID", "NOTION_CLIENT_SECRET"],
+      ["NOTION_ACCESS_TOKEN", "NOTION_TOKEN"],
       "Notion"
+    );
+  }
+
+  if (connectorId === "discord") {
+    return oauthStateForConnector(
+      connectorId,
+      "discord",
+      "discord",
+      ["DISCORD_CLIENT_ID", "DISCORD_CLIENT_SECRET"],
+      ["DISCORD_ACCESS_TOKEN"],
+      "Discord"
     );
   }
 
@@ -97,28 +147,26 @@ export async function getAllConnectorAuthStates(connectorIds: string[]) {
 }
 
 export function getAIProviderKeyState(): AIProviderKeyState {
+  const configured = getAIProviderHealth().map((provider) => ({
+    provider: provider.provider,
+    connected: provider.configured,
+    requiredKeys: requiredKeysForProvider(provider.provider)
+  }));
+
+  return {
+    providers: configured
+  };
+}
+
+function requiredKeysForProvider(provider: AIProviderName) {
   const requirements: Record<AIProviderName, string[]> = {
     groq: ["GROQ_API_KEY"],
     gemini: ["GEMINI_API_KEY", "GOOGLE_API_KEY"],
     openrouter: ["OPENROUTER_API_KEY"],
     huggingface: ["HF_TOKEN", "HUGGINGFACE_API_KEY"],
-    cloudflare: ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_TOKEN"],
-    ollama: ["OLLAMA_BASE_URL"],
-    lmstudio: ["LMSTUDIO_BASE_URL"],
-    mock: []
+    cloudflare: ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_TOKEN"]
   };
-
-  return {
-    providers: SUPPORTED_PROVIDER_NAMES.map((provider) => ({
-      provider,
-      connected:
-        provider === "mock" ||
-        provider === "ollama" ||
-        provider === "lmstudio" ||
-        hasProviderEnv(provider, requirements[provider]),
-      requiredKeys: requirements[provider]
-    }))
-  };
+  return requirements[provider];
 }
 
 export function getFirebaseConnectionState(): FirebaseConnectionState {
@@ -140,28 +188,25 @@ export function getFirebaseConnectionState(): FirebaseConnectionState {
 
 async function oauthStateForConnector(
   connectorId: string,
-  provider: OAuthProviderId,
-  envKeys: string[],
+  provider: ConnectableOAuthProviderId,
+  service: OAuthServiceId,
+  clientEnvKeys: string[],
+  tokenEnvKeys: string[],
   label: string
 ): Promise<ConnectorAuthState> {
-  const oauth = await getOAuthConnectionStatus(provider);
-  const configured = oauth.connected || hasAnyEnv(envKeys);
+  const oauth = await getOAuthConnectionStatus(provider, service);
+  const configured = oauth.connected || hasAnyEnv(tokenEnvKeys) || hasAllEnv(clientEnvKeys);
   return {
     connectorId,
-    status: configured ? "connected" : "not_connected",
+    status: oauth.connected ? "connected" : "not_connected",
     configured,
-    accountLabel: oauth.accountEmail || (configured ? `${label} account configured` : null),
+    accountLabel: oauth.accountEmail || null,
     detail: configured
-      ? `${label} account/API configuration is present.`
+      ? oauth.connected
+        ? `${label} account is connected.`
+        : `${label} OAuth app is configured and ready to connect.`
       : `${label} account/API configuration is missing.`
   };
-}
-
-function hasProviderEnv(provider: AIProviderName, keys: string[]) {
-  if (provider === "cloudflare") {
-    return hasAllEnv(["CLOUDFLARE_ACCOUNT_ID"]) && hasAnyEnv(["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_API_KEY"]);
-  }
-  return hasAnyEnv(keys);
 }
 
 function hasAnyEnv(keys: string[]) {
