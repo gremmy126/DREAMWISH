@@ -6,6 +6,7 @@ import {
 import { canEnableFirebaseGitHubLogin } from "../src/lib/firebase/firebase-auth-providers";
 import { NAVER_SITE_VERIFICATION } from "../src/lib/site/metadata";
 import { upsertOptimisticChatSession } from "../src/lib/chat/session-list";
+import fs from "node:fs";
 
 test("Firebase client config is available only when public client settings exist", () => {
   withEnv(
@@ -27,6 +28,42 @@ test("Firebase client config is available only when public client settings exist
       });
     }
   );
+});
+
+test("Firebase browser config uses statically analyzable public environment references", () => {
+  const source = fs.readFileSync("src/lib/firebase/firebase-client-config.ts", "utf8");
+  for (const key of [
+    "NEXT_PUBLIC_FIREBASE_API_KEY",
+    "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN",
+    "NEXT_PUBLIC_FIREBASE_PROJECT_ID",
+    "NEXT_PUBLIC_FIREBASE_APP_ID"
+  ]) {
+    assert.match(source, new RegExp(`process\\.env\\.${key}`, "u"));
+  }
+  assert.doesNotMatch(source, /process\.env\[key\]/u);
+});
+
+test("Firebase auth client exposes signup and authenticated password change", () => {
+  const source = fs.readFileSync("src/lib/firebase/firebase-client.ts", "utf8");
+  assert.match(source, /createUserWithEmailAndPassword/u);
+  assert.match(source, /updatePassword/u);
+  assert.match(source, /export async function createFirebasePasswordAccount/u);
+  assert.match(source, /export async function changeFirebasePassword/u);
+});
+
+test("login UI exposes account creation, Google login, reset, and password change", () => {
+  const source = fs.readFileSync("components/auth/AuthGate.tsx", "utf8");
+  assert.match(source, /createFirebasePasswordAccount/u);
+  assert.match(source, /signInWithFirebaseGoogle/u);
+  assert.match(source, /sendFirebasePasswordReset/u);
+  assert.match(source, /changeFirebasePassword/u);
+});
+
+test("AI chat uses server provider catalog and omits recommended connections", () => {
+  const source = fs.readFileSync("components/Chat/ChatView.tsx", "utf8");
+  assert.match(source, /\/api\/ai\/providers/u);
+  assert.doesNotMatch(source, /ConnectedContextWorkspace/u);
+  assert.doesNotMatch(source, /hard=true/u);
 });
 
 test("Firebase GitHub login is exposed only when explicitly enabled and client id exists", () => {

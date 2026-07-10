@@ -16,6 +16,8 @@ import {
   type AccessState
 } from "@/src/lib/auth/access-control";
 import {
+  changeFirebasePassword,
+  createFirebasePasswordAccount,
   getFirebaseClientAuth,
   logoutFirebaseUser,
   sendFirebasePasswordReset,
@@ -43,6 +45,7 @@ export function AuthGate({ children }: AuthGateProps) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resetMessage, setResetMessage] = useState<string | null>(null);
+  const [creatingAccount, setCreatingAccount] = useState(false);
   const { t } = useAppLanguage();
 
   useEffect(() => {
@@ -107,6 +110,38 @@ export function AuthGate({ children }: AuthGateProps) {
       setAccess(data.access);
       setEmail(data.access.email);
       setPassword("");
+    } catch (caught) {
+      setError(stringifyUnknownError(caught));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function signup() {
+    setSubmitting(true);
+    setError(null);
+    setResetMessage(null);
+    try {
+      if (password.length < 6) throw new Error("Password must be at least 6 characters.");
+      const credential = await createFirebasePasswordAccount({ email, password, name });
+      const idToken = await credential.user.getIdToken();
+      await completeFirebaseLogin(idToken, credential.user.email || email, name);
+    } catch (caught) {
+      setError(stringifyUnknownError(caught));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function changePassword() {
+    const newPassword = window.prompt("Enter a new password (at least 6 characters).");
+    if (!newPassword) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      if (newPassword.length < 6) throw new Error("Password must be at least 6 characters.");
+      await changeFirebasePassword(newPassword);
+      setResetMessage("Password changed successfully.");
     } catch (caught) {
       setError(stringifyUnknownError(caught));
     } finally {
@@ -234,6 +269,9 @@ export function AuthGate({ children }: AuthGateProps) {
         onPasswordChange={setPassword}
         onNameChange={setName}
         onSubmit={login}
+        onSignup={signup}
+        creatingAccount={creatingAccount}
+        onModeChange={setCreatingAccount}
         onResetPassword={resetPassword}
         onGoogle={loginWithGoogle}
         onGithub={process.env.NEXT_PUBLIC_ENABLE_FIREBASE_GITHUB_LOGIN === "true" ? loginWithGithub : undefined}
@@ -254,7 +292,18 @@ export function AuthGate({ children }: AuthGateProps) {
     );
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => void changePassword()}
+        className="fixed bottom-4 right-4 z-50 rounded-2xl border border-app-border bg-white px-3 py-2 text-xs font-semibold text-app-muted shadow-soft hover:text-app-primary"
+      >
+        Change password
+      </button>
+      {children}
+    </>
+  );
 }
 
 export function LoginShell({
@@ -268,6 +317,9 @@ export function LoginShell({
   onPasswordChange,
   onNameChange,
   onSubmit,
+  onSignup,
+  creatingAccount,
+  onModeChange,
   onResetPassword,
   onGoogle,
   onGithub
@@ -282,6 +334,9 @@ export function LoginShell({
   onPasswordChange: (value: string) => void;
   onNameChange: (value: string) => void;
   onSubmit: () => void;
+  onSignup: () => void;
+  creatingAccount: boolean;
+  onModeChange: (value: boolean) => void;
   onResetPassword: () => void;
   onGoogle: () => void;
   onGithub?: () => void;
@@ -348,12 +403,20 @@ export function LoginShell({
 
         <button
           type="button"
-          onClick={onSubmit}
+          onClick={creatingAccount ? onSignup : onSubmit}
           disabled={submitting || !email.trim() || !password.trim()}
           className="mt-5 flex h-11 w-full items-center justify-center gap-2 rounded-app bg-app-primary px-4 text-sm font-semibold text-white disabled:bg-slate-200"
         >
           {submitting ? <Loader2 size={16} className="animate-spin" /> : <ShieldCheck size={16} />}
-          {t("auth.submit")}
+          {creatingAccount ? "Create account" : t("auth.submit")}
+        </button>
+        <button
+          type="button"
+          onClick={() => onModeChange(!creatingAccount)}
+          disabled={submitting}
+          className="mt-3 flex h-9 w-full items-center justify-center rounded-app text-xs font-semibold text-app-primary hover:bg-app-hover"
+        >
+          {creatingAccount ? "Already have an account? Sign in" : "New here? Create an account"}
         </button>
         <button
           type="button"

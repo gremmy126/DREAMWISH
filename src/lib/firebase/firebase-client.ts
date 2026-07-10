@@ -2,6 +2,7 @@
 
 import { initializeApp, getApps } from "firebase/app";
 import {
+  createUserWithEmailAndPassword,
   getAuth,
   GithubAuthProvider,
   GoogleAuthProvider,
@@ -10,6 +11,8 @@ import {
   signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
+  updatePassword,
+  updateProfile,
   type User
 } from "firebase/auth";
 import { getFirebaseAuthClientConfig } from "./firebase-client-config";
@@ -27,6 +30,25 @@ export async function signInWithFirebasePassword(input: {
 }) {
   const auth = requireAuth();
   return signInWithEmailAndPassword(auth, input.email, input.password);
+}
+
+export async function createFirebasePasswordAccount(input: {
+  email: string;
+  password: string;
+  name?: string;
+}) {
+  const auth = requireAuth();
+  const credential = await createUserWithEmailAndPassword(auth, input.email, input.password);
+  if (input.name?.trim()) {
+    await updateProfile(credential.user, { displayName: input.name.trim() });
+  }
+  return credential;
+}
+
+export async function changeFirebasePassword(newPassword: string) {
+  const auth = requireAuth();
+  if (!auth.currentUser) throw new Error("Sign in again before changing your password.");
+  return updatePassword(auth.currentUser, newPassword);
 }
 
 export async function signInWithFirebaseGoogle() {

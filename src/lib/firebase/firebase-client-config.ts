@@ -8,10 +8,11 @@ export type FirebaseAuthClientConfig = {
 };
 
 export function getFirebaseAuthClientConfig(): FirebaseAuthClientConfig | null {
-  const apiKey = env("NEXT_PUBLIC_FIREBASE_API_KEY");
-  const authDomain = env("NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN");
-  const projectId = env("NEXT_PUBLIC_FIREBASE_PROJECT_ID");
-  const appId = env("NEXT_PUBLIC_FIREBASE_APP_ID");
+  // These must remain direct references so Next.js can inline them in the browser bundle.
+  const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY?.trim() || "";
+  const authDomain = process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN?.trim() || "";
+  const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID?.trim() || "";
+  const appId = process.env.NEXT_PUBLIC_FIREBASE_APP_ID?.trim() || "";
   if (!apiKey || !authDomain || !projectId || !appId) return null;
 
   return {
@@ -19,19 +20,12 @@ export function getFirebaseAuthClientConfig(): FirebaseAuthClientConfig | null {
     authDomain,
     projectId,
     appId,
-    storageBucket: optionalEnv("NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET"),
-    messagingSenderId: optionalEnv("NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID")
+    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET?.trim() || undefined,
+    messagingSenderId:
+      process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID?.trim() || undefined
   };
 }
 
 export function isFirebaseAuthConfigured() {
   return Boolean(getFirebaseAuthClientConfig());
-}
-
-function env(key: string) {
-  return process.env[key]?.trim() || "";
-}
-
-function optionalEnv(key: string) {
-  return process.env[key]?.trim() || undefined;
 }

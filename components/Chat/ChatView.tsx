@@ -23,7 +23,6 @@ import { SourceCard } from "@/components/Chat/SourceCard";
 import { EmptyState } from "@/components/Common/EmptyState";
 import { SectionHeader } from "@/components/Common/SectionHeader";
 import { SurfaceCard } from "@/components/Common/SurfaceCard";
-import { ConnectedContextWorkspace } from "@/components/context/ConnectedContextWorkspace";
 import { createExecutionPreview } from "@/src/lib/agent/approval";
 import { planAgentExecution } from "@/src/lib/agent/planner";
 import { getErrorCode, readApiResponse } from "@/src/lib/api/api-response";
@@ -131,14 +130,6 @@ type SpeechWindow = Window & {
 
 const ACTIONS_KEY = "dreamwish-chat-actions-v1";
 
-const providerOptions: Array<{ value: ChatModel; label: string }> = [
-  { value: "gemini", label: "Gemini" },
-  { value: "openrouter", label: "OpenRouter" },
-  { value: "groq", label: "Groq" },
-  { value: "huggingface", label: "HF" },
-  { value: "cloudflare", label: "Cloudflare" }
-];
-
 const quickActionIcons: Record<ChatQuickActionId, LucideIcon> = {
   todo: Plus,
   schedule: CalendarPlus,
@@ -163,6 +154,7 @@ export function ChatView() {
   const [projectName, setProjectName] = useState("");
   const [integrationApps, setIntegrationApps] = useState<IntegrationApp[]>([]);
   const [providerStatus, setProviderStatus] = useState<Record<string, boolean>>({});
+  const [providerOptions, setProviderOptions] = useState<Array<{ value: ChatModel; label: string }>>([]);
   const [chatMode, setChatMode] = useState<ChatMode>("ask");
   const [selectedModel, setSelectedModel] = useState<ChatModel>("groq");
   const [lastQuery, setLastQuery] = useState("");
@@ -251,18 +243,18 @@ export function ChatView() {
   }
 
   async function loadProviderStatus() {
-    const response = await fetch("/api/integrations/status");
+    const response = await fetch("/api/ai/providers");
     if (!response.ok) return;
     const data = (await response.json()) as {
-      ai?: { providers?: Array<{ provider: string; connected: boolean }> };
+      providers?: Array<{ provider: ChatModel; label: string; configured: boolean }>;
     };
+    const configured = (data.providers || []).filter((item) => item.configured);
+    setProviderOptions(configured.map((item) => ({ value: item.provider, label: item.label })));
     setProviderStatus(
-      Object.fromEntries((data.ai?.providers || []).map((item) => [item.provider, item.connected]))
+      Object.fromEntries((data.providers || []).map((item) => [item.provider, item.configured]))
     );
-    const firstConnected = providerOptions.find((provider) =>
-      (data.ai?.providers || []).some((item) => item.provider === provider.value && item.connected)
-    );
-    if (firstConnected) setSelectedModel(firstConnected.value);
+    const firstConnected = configured[0];
+    if (firstConnected) setSelectedModel(firstConnected.provider);
   }
 
   function startNewChat() {
@@ -274,7 +266,7 @@ export function ChatView() {
   }
 
   async function deleteSession(sessionId: string) {
-    await fetch(`/api/ai/sessions/${sessionId}?hard=true`, { method: "DELETE" });
+    await fetch(`/api/ai/sessions/${sessionId}`, { method: "DELETE" });
     if (sessionId === currentSessionId) startNewChat();
     await loadSessions();
   }
@@ -1086,7 +1078,6 @@ export function ChatView() {
         </div>
       </SurfaceCard>
 
-      <ConnectedContextWorkspace query={contextQuery} />
       {projectModalOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 px-4">
           <div className="w-[420px] rounded-app border border-app-border bg-white p-5 shadow-app">

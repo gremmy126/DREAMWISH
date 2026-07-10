@@ -25,6 +25,26 @@ const PROVIDER_ORDER: ExternalAIProviderName[] = [
   "cloudflare"
 ];
 
+const PROVIDER_LABELS: Record<ExternalAIProviderName, string> = {
+  gemini: "Gemini",
+  openrouter: "OpenRouter",
+  groq: "Groq",
+  huggingface: "Hugging Face",
+  cloudflare: "Cloudflare AI"
+};
+
+export function getPublicAIProviderCatalog() {
+  return PROVIDER_ORDER.map((provider) => {
+    const config = getProviderRuntimeConfig(provider);
+    return {
+      provider,
+      label: PROVIDER_LABELS[provider],
+      model: config.model,
+      configured: Boolean(config.apiKey && config.model)
+    };
+  });
+}
+
 export function getConfiguredAIProviders(): AIProviderRuntimeConfig[] {
   return PROVIDER_ORDER.flatMap((provider) => {
     const config = getProviderRuntimeConfig(provider);

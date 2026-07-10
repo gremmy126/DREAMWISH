@@ -1,12 +1,15 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-const DB_DIR = path.join(process.cwd(), ".local-db");
+export function getDataDirectory() {
+  return process.env.DATA_DIR?.trim() || path.join(process.cwd(), ".local-db");
+}
 
 export async function readJsonStore<T>(fileName: string, fallback: T): Promise<T> {
-  await fs.mkdir(DB_DIR, { recursive: true });
+  const dbDir = getDataDirectory();
+  await fs.mkdir(dbDir, { recursive: true });
   try {
-    const raw = await fs.readFile(path.join(DB_DIR, fileName), "utf8");
+    const raw = await fs.readFile(path.join(dbDir, fileName), "utf8");
     return { ...fallback, ...(JSON.parse(raw) as Partial<T>) };
   } catch {
     return fallback;
@@ -14,8 +17,9 @@ export async function readJsonStore<T>(fileName: string, fallback: T): Promise<T
 }
 
 export async function writeJsonStore<T>(fileName: string, data: T) {
-  await fs.mkdir(DB_DIR, { recursive: true });
-  const filePath = path.join(DB_DIR, fileName);
+  const dbDir = getDataDirectory();
+  await fs.mkdir(dbDir, { recursive: true });
+  const filePath = path.join(dbDir, fileName);
   const tempPath = `${filePath}.tmp`;
   await fs.writeFile(tempPath, JSON.stringify(data, null, 2), "utf8");
   await fs.rename(tempPath, filePath);

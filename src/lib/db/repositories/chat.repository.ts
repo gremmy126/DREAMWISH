@@ -12,14 +12,14 @@ import type {
 } from "@/src/lib/chat/chat.types";
 import type { SearchResult } from "@/src/lib/search/search.types";
 import { normalizeSearchText } from "@/src/lib/search/search-text";
+import { getDataDirectory } from "@/src/lib/local-db/json-store";
 
 type LocalChatDb = {
   chat_sessions: ChatSessionRecord[];
   chat_messages: ChatMessageRecord[];
 };
 
-const DB_DIR = path.join(process.cwd(), ".local-db");
-const DB_PATH = path.join(DB_DIR, "chat.json");
+const DB_PATH = () => path.join(getDataDirectory(), "chat.json");
 
 export async function createSession(title = "새 대화") {
   const db = await readDb();
@@ -115,15 +115,7 @@ export async function archiveSession(id: string) {
 }
 
 export async function deleteSession(id: string) {
-  const db = await readDb();
-  const before = db.chat_sessions.length;
-  db.chat_sessions = db.chat_sessions.filter((session) => session.id !== id);
-  db.chat_messages = db.chat_messages.filter((message) => message.session_id !== id);
-
-  if (db.chat_sessions.length === before) return false;
-
-  await writeDb(db);
-  return true;
+  return archiveSession(id);
 }
 
 export async function searchChatMessages(query: string, limit = 8): Promise<SearchResult[]> {
@@ -171,10 +163,10 @@ export async function ensureSession(sessionId: string | undefined, message: stri
 }
 
 async function readDb(): Promise<LocalChatDb> {
-  await fs.mkdir(DB_DIR, { recursive: true });
+  await fs.mkdir(getDataDirectory(), { recursive: true });
 
   try {
-    const raw = await fs.readFile(DB_PATH, "utf8");
+    const raw = await fs.readFile(DB_PATH(), "utf8");
     const parsed = JSON.parse(raw) as LocalChatDb;
 
     return {
@@ -187,10 +179,11 @@ async function readDb(): Promise<LocalChatDb> {
 }
 
 async function writeDb(db: LocalChatDb) {
-  await fs.mkdir(DB_DIR, { recursive: true });
-  const tempPath = `${DB_PATH}.tmp`;
+  await fs.mkdir(getDataDirectory(), { recursive: true });
+  const dbPath = DB_PATH();
+  const tempPath = `${dbPath}.tmp`;
   await fs.writeFile(tempPath, JSON.stringify(db, null, 2), "utf8");
-  await fs.rename(tempPath, DB_PATH);
+  await fs.rename(tempPath, dbPath);
 }
 
 function makeSessionTitle(message: string) {

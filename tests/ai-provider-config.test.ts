@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import {
   getConfiguredAIProviders,
   getDefaultAIProviderName,
+  getPublicAIProviderCatalog,
   getProviderRuntimeConfig
 } from "../src/lib/ai/config";
 import { buildContextAwareChatMessages } from "../src/lib/ai/prompts";
@@ -25,6 +26,19 @@ test("AI config selects the first configured external provider without falling b
       );
     }
   );
+});
+
+test("public AI catalog exposes configured models without credentials", () => {
+  withEnv({ GEMINI_API_KEY: "secret", GEMINI_MODEL: "gemini-test" }, () => {
+    const gemini = getPublicAIProviderCatalog().find((item) => item.provider === "gemini");
+    assert.deepEqual(gemini, {
+      provider: "gemini",
+      label: "Gemini",
+      model: "gemini-test",
+      configured: true
+    });
+    assert.equal("apiKey" in (gemini || {}), false);
+  });
 });
 
 test("AI config returns a clear provider-not-configured error when no external provider is connected", () => {
