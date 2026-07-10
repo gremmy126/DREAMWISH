@@ -12,52 +12,119 @@ export type PolarCheckoutInput = {
   customerIpAddress?: string;
 };
 
+export type PolarCheckoutPayload = {
+  products: string[];
+  success_url: string;
+  return_url: string;
+};
+
+export type PolarCheckoutRequestConfig = {
+  accessToken: string;
+  endpoint: string;
+  payload: PolarCheckoutPayload;
+};
+
 export type PolarWebhookEvent = {
   type: string;
   data: Record<string, unknown>;
   receivedAt: string;
 };
 
-export function buildPolarCheckoutPayload(input: PolarCheckoutInput = {}) {
+export class PolarCheckoutError extends Error {
+  code: string;
+  status: number;
+  clientMessage: string;
+
+  constructor(input: { code: string; message: string; status?: number; clientMessage?: string }) {
+    super(input.message);
+    this.name = "PolarCheckoutError";
+    this.code = input.code;
+    this.status = input.status || 400;
+    this.clientMessage = input.clientMessage || "결제창을 만들지 못했습니다.";
+  }
+}
+
+export function buildPolarCheckoutPayload(input: PolarCheckoutInput = {}): PolarCheckoutPayload {
+  void input;
   const productId = getPolarProductId();
-  const brand = buildPolarCheckoutBrand();
-  return compactObject({
+  const appUrl = getAppBaseUrl();
+  return {
     products: productId ? [productId] : [],
-    success_url: POLAR_CHECKOUT_SETTINGS.successUrl,
-    return_url: POLAR_CHECKOUT_SETTINGS.returnUrl,
-    customer_email: input.customerEmail,
-    customer_name: input.customerName,
-    external_customer_id: input.externalCustomerId,
-    customer_ip_address: input.customerIpAddress,
-    metadata: {
-      provider: POLAR_CHECKOUT_SETTINGS.provider,
-      plan: POLAR_CHECKOUT_SETTINGS.planName,
-      amount_usd: POLAR_CHECKOUT_SETTINGS.amountUsd,
-      brand_name: brand.name,
-      customer_email: input.customerEmail || input.externalCustomerId || ""
-    }
-  });
+    success_url: `${appUrl}/payment/success?checkout_id={CHECKOUT_ID}`,
+    return_url: `${appUrl}/settings/billing`
+  };
+}
+
+export function getPolarCheckoutRequestConfig(input: PolarCheckoutInput = {}): PolarCheckoutRequestConfig {
+  const accessToken = getPolarAccessToken();
+  const productId = getPolarProductId();
+  const appUrl = getAppBaseUrl();
+
+  if (!accessToken) {
+    throw new PolarCheckoutError({
+      code: "POLAR_CHECKOUT_CONFIG_ERROR",
+      message: "POLAR_ACCESS_TOKEN is not configured.",
+      status: 500,
+      clientMessage: "결제 설정이 올바르지 않습니다."
+    });
+  }
+
+  if (!productId) {
+    throw new PolarCheckoutError({
+      code: "POLAR_CHECKOUT_CONFIG_ERROR",
+      message: "POLAR_PRODUCT_ID is not configured.",
+      status: 500,
+      clientMessage: "결제 상품이 설정되어 있지 않습니다."
+    });
+  }
+
+  if (!isUuid(productId)) {
+    throw new PolarCheckoutError({
+      code: "POLAR_CHECKOUT_CONFIG_ERROR",
+      message: "POLAR_PRODUCT_ID must be a Polar product UUID.",
+      status: 500,
+      clientMessage: "결제 상품 설정이 올바르지 않습니다."
+    });
+  }
+
+  if (!appUrl) {
+    throw new PolarCheckoutError({
+      code: "POLAR_CHECKOUT_CONFIG_ERROR",
+      message: "NEXT_PUBLIC_APP_URL is not configured.",
+      status: 500,
+      clientMessage: "결제 반환 URL 설정이 올바르지 않습니다."
+    });
+  }
+
+  return {
+    accessToken,
+    endpoint: `${getPolarApiBaseUrl()}/checkouts/`,
+    payload: buildPolarCheckoutPayload(input)
+  };
 }
 
 export async function createPolarCheckoutSession(input: PolarCheckoutInput = {}) {
-  const accessToken = process.env.POLAR_ACCESS_TOKEN || process.env.POLAR_API_KEY || "";
-  const productId = getPolarProductId();
-  if (!accessToken) throw new Error("POLAR_ACCESS_TOKEN is not configured.");
-  if (!productId) throw new Error("POLAR_PRODUCT_ID is not configured.");
-
-  const response = await fetch(`${getPolarApiBaseUrl()}/checkouts/`, {
+  const config = getPolarCheckoutRequestConfig(input);
+  const response = await fetch(config.endpoint, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${accessToken}`,
+      Authorization: `Bearer ${config.accessToken}`,
       "Content-Type": "application/json"
     },
-    body: JSON.stringify(buildPolarCheckoutPayload(input))
+    body: JSON.stringify(config.payload),
+    cache: "no-store"
   });
   const data = await readPolarJson(response);
   const checkoutUrl = readString(data, "url") || readString(data, "checkout_url");
 
   if (!response.ok || !checkoutUrl) {
-    throw new Error(buildPolarCheckoutError(response.status, data));
+    logPolarCheckoutError(response, data, config.payload);
+    throw new PolarCheckoutError({
+      code: response.status === 422 ? "POLAR_CHECKOUT_VALIDATION_FAILED" : "POLAR_CHECKOUT_FAILED",
+      message: buildPolarCheckoutError(response.status, data),
+      status: response.status === 422 ? 422 : 502,
+      clientMessage: "결제창을 만들지 못했습니다."
+    });
   }
 
   return {
@@ -83,7 +150,15 @@ export function parsePolarWebhookEvent(payload: unknown): PolarWebhookEvent {
 }
 
 function getPolarProductId() {
-  return process.env.POLAR_PRODUCT_ID || process.env.NEXT_PUBLIC_POLAR_PRODUCT_ID || "";
+  return (process.env.POLAR_PRODUCT_ID || "").trim();
+}
+
+function getPolarAccessToken() {
+  return (process.env.POLAR_ACCESS_TOKEN || process.env.POLAR_API_KEY || "").trim();
+}
+
+function getAppBaseUrl() {
+  return (process.env.NEXT_PUBLIC_APP_URL || "").trim().replace(/\/+$/u, "");
 }
 
 export function getPolarApiBaseUrl() {
@@ -111,8 +186,21 @@ function readString(source: Record<string, unknown>, key: string) {
   return typeof value === "string" ? value : "";
 }
 
-function compactObject<T extends Record<string, unknown>>(value: T): T {
-  return Object.fromEntries(
-    Object.entries(value).filter(([, entry]) => entry !== undefined && entry !== "")
-  ) as T;
+function logPolarCheckoutError(
+  response: Response,
+  data: Record<string, unknown>,
+  payload: PolarCheckoutPayload
+) {
+  console.error("[Polar Checkout Error]", {
+    status: response.status,
+    statusText: response.statusText,
+    response: data,
+    request: payload
+  });
+}
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(
+    value
+  );
 }
