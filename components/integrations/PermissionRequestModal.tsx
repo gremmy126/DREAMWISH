@@ -1,4 +1,7 @@
+"use client";
+
 import type { ConnectorExecutionPreview } from "@/src/lib/integrations/types";
+import { useAppLanguage } from "@/src/lib/i18n/use-app-language";
 
 export function PermissionRequestModal({
   preview,
@@ -7,6 +10,8 @@ export function PermissionRequestModal({
   preview: ConnectorExecutionPreview | null;
   onClose: () => void;
 }) {
+  const { t } = useAppLanguage();
+
   if (!preview) return null;
 
   return (
@@ -14,7 +19,7 @@ export function PermissionRequestModal({
       <div className="w-[520px] rounded-app border border-app-border bg-white p-5 shadow-app">
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
-            <h2 className="text-base font-semibold text-app-text">Execution Preview</h2>
+            <h2 className="text-base font-semibold text-app-text">{t("integrations.preview")}</h2>
             <p className="mt-1 text-sm text-app-muted">{preview.goal}</p>
           </div>
           <button
@@ -22,16 +27,16 @@ export function PermissionRequestModal({
             onClick={onClose}
             className="rounded-2xl border border-app-border px-3 py-1 text-xs font-semibold text-app-muted hover:bg-app-hover"
           >
-            닫기
+            {t("common.close")}
           </button>
         </div>
         <div className="space-y-3 text-sm">
           <PreviewRow label="Connector" value={preview.connectorId} />
-          <PreviewRow label="Risk" value={preview.riskLevel} />
-          <PreviewRow label="Record" value={preview.recordLocation} />
+          <PreviewRow label={t("integrations.risk")} value={preview.riskLevel} />
+          <PreviewRow label={t("integrations.record")} value={preview.recordLocation} />
           <PreviewRow
-            label="Approval"
-            value={preview.approvalRequired ? "필수" : "불필요"}
+            label={t("integrations.approval")}
+            value={preview.approvalRequired ? t("integrations.required") : t("integrations.notRequired")}
           />
         </div>
       </div>

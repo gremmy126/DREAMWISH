@@ -2,11 +2,13 @@
 
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { useState } from "react";
+import { useAppLanguage } from "@/src/lib/i18n/use-app-language";
 import { POLAR_CHECKOUT_SETTINGS } from "@/src/lib/payments/polar.config";
 
 export function PricingPageClient() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { t } = useAppLanguage();
 
   async function startCheckout() {
     setLoading(true);
@@ -19,11 +21,11 @@ export function PricingPageClient() {
       });
       const data = (await response.json()) as { checkoutUrl?: string; error?: string };
       if (!response.ok || !data.checkoutUrl) {
-        throw new Error(data.error || "Payment checkout could not be started.");
+        throw new Error(data.error || t("pricing.checkoutFailed"));
       }
       window.location.href = data.checkoutUrl;
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Payment checkout could not be started.");
+      setError(caught instanceof Error ? caught.message : t("pricing.checkoutFailed"));
     } finally {
       setLoading(false);
     }
@@ -34,13 +36,13 @@ export function PricingPageClient() {
       <section className="mx-auto max-w-5xl">
         <div className="mb-8">
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-app-muted">
-            DREAMWISH
+            {t("pricing.eyebrow")}
           </p>
           <h1 className="mt-2 text-3xl font-semibold text-app-text">
-            DREAMWISH Pricing
+            {t("pricing.pageTitle")}
           </h1>
           <p className="mt-2 text-sm text-app-muted">
-            International payments are handled through production Polar checkout.
+            {t("pricing.subtitle")}
           </p>
         </div>
 
@@ -55,7 +57,7 @@ export function PricingPageClient() {
                   ${POLAR_CHECKOUT_SETTINGS.amountUsd}
                 </h2>
                 <p className="mt-2 text-sm text-app-muted">
-                  One production Polar product for DREAMWISH Pro.
+                  {t("pricing.planDescription")}
                 </p>
               </div>
               <span className="rounded-full border border-app-border bg-app-bg px-3 py-1 text-xs font-semibold text-app-muted">
@@ -65,10 +67,10 @@ export function PricingPageClient() {
 
             <div className="mt-6 grid gap-3 text-sm text-app-text">
               {[
-                "AI Chat",
-                "Knowledge connections",
-                "CRM / Workflow / Automation",
-                "Approval-first external actions"
+                t("pricing.featureAi"),
+                t("pricing.featureKnowledge"),
+                t("pricing.featureAutomation"),
+                t("pricing.featureApproval")
               ].map((feature) => (
                 <div key={feature} className="flex items-center gap-2">
                   <CheckCircle2 size={16} className="text-emerald-500" />
@@ -84,7 +86,7 @@ export function PricingPageClient() {
               className="mt-7 inline-flex h-12 items-center justify-center gap-2 rounded-app bg-app-primary px-5 text-sm font-semibold text-white shadow-soft disabled:bg-slate-200"
             >
               {loading ? <Loader2 size={16} className="animate-spin" /> : null}
-              Pay with Polar
+              {t("pricing.payWithPolar")}
             </button>
             {error ? (
               <p className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -95,21 +97,20 @@ export function PricingPageClient() {
 
           <aside className="rounded-app border border-app-border bg-white p-5 shadow-soft">
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-app-muted">
-              DREAMWISH
+              {t("pricing.eyebrow")}
             </p>
             <h2 className="mt-2 text-base font-semibold text-app-text">
-              Secure Polar Checkout
+              {t("pricing.secureTitle")}
             </h2>
             <p className="mt-3 text-sm leading-6 text-app-muted">
-              Checkout URLs stay configured on the server and are no longer shown on the public
-              pricing page.
+              {t("pricing.secureDescription")}
             </p>
             <div className="mt-5 rounded-app border border-app-border bg-app-bg p-4">
               <p className="text-sm font-semibold text-app-text">
-                Text brand: DREAMWISH
+                {t("pricing.brandText")}
               </p>
               <p className="mt-1 text-xs text-app-muted">
-                No logo asset is required for the checkout handoff.
+                {t("pricing.noLogo")}
               </p>
             </div>
           </aside>

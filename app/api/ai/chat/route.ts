@@ -1,8 +1,24 @@
 import { NextResponse } from "next/server";
+import { apiFailure, apiSuccess } from "@/src/lib/api/api-response";
+import { parseJsonRequestBody } from "@/src/lib/api/json-request";
 import { chatWithAI } from "@/src/lib/ai/ai.service";
 import { parseProviderName } from "@/src/lib/ai/provider-options";
 import { buildChatMessages, buildGeneralChatMessages } from "@/src/lib/ai/prompts";
+import { getChatExecutionPlan, getWebSearchQuery } from "@/src/lib/ai/question-classifier";
+import {
+  type AnswerConfidence,
+  type AnswerVerification,
+  type SourceDocument,
+} from "@/src/lib/chat/chat.types";
+import {
+  appendWebAnswerReferences,
+  buildWebAnswerMessages,
+  buildWebAnswerReferences,
+  createInsufficientWebAnswer,
+  selectWebAnswerContext
+} from "@/src/lib/ai/web-answer";
 import { addMessage, ensureSession } from "@/src/lib/db/repositories/chat.repository";
+import { runAutoMemoryEngineQuietly } from "@/src/lib/memory/auto-memory-engine";
 import {
   checkDocumentQuality,
   formatQualityReport,
@@ -12,25 +28,41 @@ import { buildRagContext } from "@/src/lib/rag/context-builder";
 import { calculateConfidence } from "@/src/lib/rag/confidence";
 import { hybridSearch } from "@/src/lib/rag/rag.service";
 import { verifyAnswer } from "@/src/lib/rag/verification";
+import { searchWeb } from "@/src/lib/web-search/web-search.service";
 
-const UNKNOWN_ANSWER = "현재 로컬 문서 안에서는 이 내용을 확인할 수 없습니다.";
+type ChatRequestBody = {
+  message?: unknown;
+  sessionId?: unknown;
+  model?: unknown;
+  provider?: unknown;
+};
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const message = String(body.message || "").trim();
+    const parsed = await parseJsonRequestBody<ChatRequestBody>(request);
+
+    if (!parsed.ok) {
+      return NextResponse.json(
+        { ok: false, error: parsed.error },
+        { status: parsed.status }
+      );
+    }
+
+    const body = parsed.data;
+    const message = typeof body.message === "string" ? body.message.trim() : "";
     const sessionId = typeof body.sessionId === "string" ? body.sessionId : undefined;
-    const useRag = body.useRag !== false;
     const providerName = parseProviderName(body.model || body.provider);
 
     if (!message) {
-      return NextResponse.json({ error: "질문을 입력해주세요." }, { status: 400 });
+      const failure = apiFailure(400, "MESSAGE_REQUIRED", "Message is required.");
+      return NextResponse.json({ ok: false, error: failure.error }, { status: failure.status });
     }
 
     if (message.length > 4000) {
+      const failure = apiFailure(413, "MESSAGE_TOO_LONG", "Message is too long.");
       return NextResponse.json(
-        { error: "질문이 너무 깁니다. 4000자 이하로 줄여주세요." },
-        { status: 400 }
+        { ok: false, error: failure.error },
+        { status: failure.status }
       );
     }
 
@@ -57,7 +89,12 @@ export async function POST(request: Request) {
           warning: null
         }
       });
-      return NextResponse.json({
+      await runAutoMemoryEngineQuietly({
+        sessionId: session.id,
+        userMessage: message,
+        assistantAnswer: answer
+      });
+      return NextResponse.json(apiSuccess({
         answer,
         sources: [],
         confidence: {
@@ -72,44 +109,76 @@ export async function POST(request: Request) {
           warning: null
         },
         sessionId: session.id
-      });
+      }));
     }
 
-    const chunks = useRag ? await hybridSearch(message, 8) : [];
-    const context = buildRagContext(chunks);
-    const confidence = calculateConfidence(chunks);
+    const plan = getChatExecutionPlan(message);
+    let answer = "";
+    let sources: SourceDocument[] = [];
+    let confidence: AnswerConfidence = {
+      level: "none" as const,
+      score: 0,
+      reason: "일반 LLM 답변입니다."
+    };
+    let verification: AnswerVerification = emptyVerification();
 
-    const answer =
-      useRag && chunks.length === 0
-        ? UNKNOWN_ANSWER
-        : await chatWithAI(
-            useRag
-              ? buildChatMessages(context.contextText, message)
-              : buildGeneralChatMessages(message),
-            providerName
-          );
-
-    const verification = verifyAnswer(answer, context.sources);
+    if (plan.intent === "WEB") {
+      const webResults = await searchWeb(getWebSearchQuery(message));
+      const webContext = selectWebAnswerContext(message, webResults);
+      const references = buildWebAnswerReferences(webContext);
+      answer =
+        webContext.length === 0
+          ? createInsufficientWebAnswer()
+          : appendWebAnswerReferences(
+              await chatWithAI(buildWebAnswerMessages(message, webContext), providerName),
+              references
+            );
+      confidence = {
+        level: references.length > 0 ? "medium" : "none",
+        score: references.length > 0 ? 0.72 : 0,
+        reason: references.length > 0 ? "웹 검색 결과를 종합한 답변입니다." : "웹 검색 근거가 부족합니다."
+      };
+    } else if (plan.intent === "LOCAL") {
+      const chunks = await hybridSearch(message, 8);
+      const context = buildRagContext(chunks);
+      sources = context.sources;
+      confidence = calculateConfidence(chunks);
+      answer = await chatWithAI(buildChatMessages(context.contextText, message), providerName);
+      verification = verifyAnswer(answer, sources);
+    } else {
+      answer = await chatWithAI(buildGeneralChatMessages(message), providerName);
+    }
 
     await addMessage({
       sessionId: session.id,
       role: "assistant",
       content: answer,
-      sources: context.sources,
+      sources,
       confidence,
       verification
     });
+    await runAutoMemoryEngineQuietly({
+      sessionId: session.id,
+      userMessage: message,
+      assistantAnswer: answer
+    });
 
-    return NextResponse.json({
+    return NextResponse.json(apiSuccess({
       answer,
-      sources: context.sources,
+      sources,
       confidence,
       verification,
       sessionId: session.id
-    });
+    }));
   } catch (error) {
     return NextResponse.json(
-      { error: getReadableError(error) },
+      {
+        ok: false,
+        error: {
+          code: "GENERATION_FAILED",
+          message: getReadableError(error)
+        }
+      },
       { status: 500 }
     );
   }
@@ -118,4 +187,13 @@ export async function POST(request: Request) {
 function getReadableError(error: unknown) {
   if (error instanceof Error) return error.message;
   return "AI 채팅 처리 중 알 수 없는 오류가 발생했습니다.";
+}
+
+function emptyVerification() {
+  return {
+    supportedClaims: [],
+    weakClaims: [],
+    unsupportedClaims: [],
+    warning: null
+  };
 }

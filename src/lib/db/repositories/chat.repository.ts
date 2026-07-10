@@ -11,6 +11,7 @@ import type {
   SourceDocument
 } from "@/src/lib/chat/chat.types";
 import type { SearchResult } from "@/src/lib/search/search.types";
+import { normalizeSearchText } from "@/src/lib/search/search-text";
 
 type LocalChatDb = {
   chat_sessions: ChatSessionRecord[];
@@ -207,5 +208,5 @@ function normalize(value: number, max: number) {
 }
 
 function makeSnippet(content: string) {
-  return content.replace(/\s+/g, " ").trim().slice(0, 360);
+  return normalizeSearchText(content).slice(0, 360);
 }

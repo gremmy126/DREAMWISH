@@ -21,6 +21,37 @@ export type MemorySignal =
 
 export type MemoryStatus = "pending" | "approved" | "rejected";
 
+export type MemoryCategory =
+  | "Projects"
+  | "Knowledge"
+  | "Ideas"
+  | "Tasks"
+  | "Meetings"
+  | "Learning"
+  | "Coding"
+  | "CRM"
+  | "Business"
+  | "Automation"
+  | "Documents"
+  | "Settings"
+  | "Personal Workflow";
+
+export type MemoryHistoryEntry = {
+  at: string;
+  event: string;
+  sourceId: string | null;
+  summary: string;
+};
+
+export type MemoryRelatedLinkType = "document" | "project" | "code" | "schedule" | "crm" | "task";
+
+export type MemoryRelatedLink = {
+  type: MemoryRelatedLinkType;
+  label: string;
+  confidence: number;
+  sourceId?: string | null;
+};
+
 export type MemoryCandidate = {
   id: string;
   title: string;
@@ -37,6 +68,13 @@ export type MemoryCandidate = {
   createdAt: string;
   updatedAt: string;
   preview: string;
+  category?: MemoryCategory;
+  summary?: string;
+  tags?: string[];
+  relatedConcepts?: string[];
+  relatedLinks?: MemoryRelatedLink[];
+  relatedMemoryIds?: string[];
+  history?: MemoryHistoryEntry[];
   executionTrail?: ExternalCaptureStep[];
 };
 

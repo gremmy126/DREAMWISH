@@ -4,14 +4,14 @@ import {
   Brain,
   CalendarDays,
   Cable,
-  CreditCard,
   DatabaseZap,
   File,
   Home,
   Info,
   MessageSquareText,
   ScrollText,
-  Settings
+  Settings,
+  Sparkles
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
@@ -26,6 +26,17 @@ type SidebarProps = {
   activeView: ViewId;
   onViewChange: (view: ViewId) => void;
 };
+
+export const SIDEBAR_NAV_ORDER = [
+  "chat",
+  "memory",
+  "crm",
+  "automation",
+  "calendar",
+  "files",
+  "integrations",
+  "settings"
+] as const satisfies readonly ViewId[];
 
 const primaryItems: Array<{
   id: ViewId;
@@ -61,11 +72,11 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
   }, []);
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-30 flex w-[248px] flex-col border-r border-app-border bg-white/88 px-4 py-5 backdrop-blur-xl">
+    <aside className="fixed inset-y-0 left-0 z-30 flex h-dvh w-[248px] min-h-0 flex-col border-r border-app-border bg-white/88 px-4 py-5 backdrop-blur-xl">
       <button
         type="button"
         onClick={() => onViewChange("chat")}
-        className="mb-6 flex items-center gap-3 rounded-2xl px-2 py-1 text-left transition hover:bg-app-hover"
+        className="mb-6 flex shrink-0 items-center gap-3 rounded-2xl px-2 py-1 text-left transition hover:bg-app-hover"
       >
         <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-app-primary text-white shadow-soft">
           <span className="text-sm font-semibold">DW</span>
@@ -76,7 +87,7 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
         </div>
       </button>
 
-      <nav className="space-y-1">
+      <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1 app-scrollbar">
         {primaryItems.map((item) => {
           const Icon = item.icon;
           const active = activeView === item.id;
@@ -100,17 +111,18 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
         })}
       </nav>
 
-      <div className="mt-auto space-y-3">
+      <div className="mt-4 shrink-0 space-y-3">
         {!paymentButton.hidden ? (
           <button
             type="button"
             onClick={() => {
-              window.location.href = paymentButton.checkoutPath;
+              window.location.assign(paymentButton.checkoutPath);
             }}
-            className="flex w-full items-center justify-center gap-2 rounded-app bg-app-primary px-3 py-3 text-xs font-semibold text-white shadow-soft transition hover:brightness-105"
+            className="flex w-full items-center justify-center gap-2 rounded-app bg-app-hover px-3 py-3 text-xs font-semibold text-app-primary shadow-soft transition hover:bg-violet-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-app-primary active:scale-[0.99]"
+            aria-label={t("sidebar.upgradeAria")}
             title={t("sidebar.upgradeDescription")}
           >
-            <CreditCard size={14} />
+            <Sparkles size={14} />
             {t("sidebar.upgrade")}
           </button>
         ) : null}

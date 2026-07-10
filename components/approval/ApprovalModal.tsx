@@ -1,6 +1,7 @@
 "use client";
 
 import type { ConnectorExecutionPreview } from "@/src/lib/integrations/types";
+import { useAppLanguage } from "@/src/lib/i18n/use-app-language";
 import { ExecutionPreviewCard } from "./ExecutionPreviewCard";
 
 export function ApprovalModal({
@@ -14,6 +15,8 @@ export function ApprovalModal({
   onReject: () => void;
   onClose: () => void;
 }) {
+  const { t } = useAppLanguage();
+
   if (!preview) return null;
 
   return (
@@ -26,21 +29,21 @@ export function ApprovalModal({
             onClick={onReject}
             className="rounded-2xl border border-app-border px-4 py-2 text-xs font-semibold text-app-muted hover:bg-app-hover"
           >
-            거절
+            {t("integrations.reject")}
           </button>
           <button
             type="button"
             onClick={onApprove}
             className="rounded-2xl bg-app-primary px-4 py-2 text-xs font-semibold text-white"
           >
-            승인
+            {t("integrations.approve")}
           </button>
           <button
             type="button"
             onClick={onClose}
             className="rounded-2xl border border-app-border px-4 py-2 text-xs font-semibold text-app-muted hover:bg-app-hover"
           >
-            닫기
+            {t("common.close")}
           </button>
         </div>
       </div>

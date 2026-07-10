@@ -16,7 +16,9 @@ type ResolveLanguageResult<T extends string> = T extends "en"
     ? { language: "ja"; htmlLang: "ja" }
     : T extends "ko"
       ? { language: "ko"; htmlLang: "ko" }
-      : { language: LanguagePreference; htmlLang: LanguagePreference };
+      : string extends T
+        ? { language: LanguagePreference; htmlLang: LanguagePreference }
+        : { language: "ko"; htmlLang: "ko" };
 type LanguageLabel<T extends string> = T extends "en"
   ? "English"
   : T extends "ja"
@@ -63,9 +65,9 @@ export function readStoredLanguagePreference(storage: Storage): LanguagePreferen
   try {
     const raw = storage.getItem(APP_SETTINGS_STORAGE_KEY);
     const parsed = raw ? (JSON.parse(raw) as { language?: string }) : null;
-    return resolveLanguagePreference(parsed?.language || "ko").language;
+    return resolveLanguagePreference(parsed?.language || detectSystemLanguagePreference()).language;
   } catch {
-    return "ko";
+    return detectSystemLanguagePreference();
   }
 }
 
@@ -92,4 +94,13 @@ export function emitLanguagePreferenceChange(language: LanguagePreference) {
       detail: { language }
     })
   );
+}
+
+function detectSystemLanguagePreference(): LanguagePreference {
+  const rawLanguage =
+    typeof navigator === "undefined"
+      ? ""
+      : navigator.languages?.[0] || navigator.language || "";
+  const baseLanguage = rawLanguage.toLowerCase().split("-")[0];
+  return resolveLanguagePreference(baseLanguage).language;
 }

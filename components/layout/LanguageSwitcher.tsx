@@ -11,6 +11,7 @@ import {
   writeStoredLanguagePreference,
   type LanguagePreference
 } from "@/src/lib/settings/app-preferences";
+import { t as translate } from "@/src/lib/i18n/translations";
 
 export function LanguageSwitcher({ compact = false }: { compact?: boolean }) {
   const [language, setLanguage] = useState<LanguagePreference>("ko");
@@ -52,7 +53,7 @@ export function LanguageSwitcher({ compact = false }: { compact?: boolean }) {
       className={`flex items-center gap-1 rounded-2xl border border-app-border bg-white p-1 shadow-soft ${
         compact ? "w-full justify-between" : "h-10"
       }`}
-      aria-label={language === "en" ? "Site language" : language === "ja" ? "サイト言語" : "사이트 언어"}
+      aria-label={translate(language, "language.label")}
     >
       <span className="flex h-8 w-8 shrink-0 items-center justify-center text-app-muted">
         <Languages size={16} />

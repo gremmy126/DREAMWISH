@@ -4,6 +4,8 @@ import { Search } from "lucide-react";
 import { useEffect, useState } from "react";
 import { PanelShell } from "@/components/context/PanelShell";
 import { ResultList } from "@/components/context/ResultList";
+import type { ContextPayload } from "@/components/context/types";
+import { readApiResponse } from "@/src/lib/api/api-response";
 import type { SearchResult } from "@/src/lib/search/search.types";
 
 export function ContextSearchPanel({
@@ -34,7 +36,7 @@ export function ContextSearchPanel({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query })
       });
-      const data = (await response.json()) as { conversationMatches?: SearchResult[] };
+      const data = await readApiResponse<ContextPayload>(response);
       setResults(data.conversationMatches || []);
     } finally {
       setLoading(false);

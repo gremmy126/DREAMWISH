@@ -1,4 +1,5 @@
 import type { SearchResult } from "@/src/lib/search/search.types";
+import { normalizeSearchText, safeExternalUrl } from "@/src/lib/search/search-text";
 import type { WebSearchResult } from "./web-search.types";
 
 type DuckDuckGoTopic = {
@@ -45,7 +46,9 @@ export function webResultsToSearchResults(
   query: string,
   results: WebSearchResult[]
 ): SearchResult[] {
-  return results.map((result, index) => ({
+  return results.map((rawResult, index) => {
+    const result = normalizeWebSearchResult(rawResult);
+    return {
     documentId: result.url || `web:${query}:${index}`,
     title: result.title || "웹 검색 결과",
     path: result.url || "web",
@@ -55,7 +58,16 @@ export function webResultsToSearchResults(
     matchedBy: "web",
     sourceType: "web",
     updatedAt: ""
-  }));
+    };
+  });
+}
+
+export function normalizeWebSearchResult(result: WebSearchResult): WebSearchResult {
+  return {
+    title: normalizeSearchText(result.title || "웹 검색 결과"),
+    url: safeExternalUrl(result.url || ""),
+    snippet: normalizeSearchText(result.snippet || "")
+  };
 }
 
 async function searchDuckDuckGoInstant(query: string): Promise<WebSearchResult[]> {
@@ -85,15 +97,15 @@ async function searchDuckDuckGoInstant(query: string): Promise<WebSearchResult[]
   return [
     data.AbstractText
       ? {
-          title: data.Heading || query,
-          url: data.AbstractURL || "",
-          snippet: data.AbstractText
+          title: normalizeSearchText(data.Heading || query),
+          url: safeExternalUrl(data.AbstractURL || ""),
+          snippet: normalizeSearchText(data.AbstractText)
         }
       : null,
     ...topics.map((topic) => ({
-      title: topic.Text?.split(" - ")[0] || topic.Name || "검색 결과",
-      url: topic.FirstURL || "",
-      snippet: topic.Text || ""
+      title: normalizeSearchText(topic.Text?.split(" - ")[0] || topic.Name || "검색 결과"),
+      url: safeExternalUrl(topic.FirstURL || ""),
+      snippet: normalizeSearchText(topic.Text || "")
     }))
   ].filter(Boolean) as WebSearchResult[];
 }
@@ -124,8 +136,8 @@ async function searchBingHtml(query: string): Promise<WebSearchResult[]> {
     const snippetMatch = block.match(
       /<div[^>]+class="b_caption"[\s\S]*?<p[^>]*>([\s\S]*?)<\/p>/i
     );
-    const title = cleanHtml(titleMatch[2]);
-    const resultUrl = normalizeBingUrl(decodeHtml(titleMatch[1]));
+    const title = normalizeSearchText(titleMatch[2]);
+    const resultUrl = normalizeBingUrl(titleMatch[1]);
     const snippet = snippetMatch ? cleanHtml(snippetMatch[1]) : "";
 
     if (title && resultUrl) {
@@ -149,31 +161,20 @@ function flattenTopics(topics: DuckDuckGoTopic[]): DuckDuckGoTopic[] {
 
 function normalizeBingUrl(value: string) {
   try {
-    const parsed = new URL(value);
+    const parsed = new URL(normalizeSearchText(value));
     const encodedTarget = parsed.searchParams.get("u");
     if (encodedTarget?.startsWith("a1")) {
       const decoded = Buffer.from(encodedTarget.slice(2), "base64").toString("utf8");
-      if (decoded.startsWith("http")) return decoded;
+      const url = safeExternalUrl(decoded);
+      if (url) return url;
     }
   } catch {
-    return value;
+    return safeExternalUrl(value);
   }
 
-  return value;
+  return safeExternalUrl(value);
 }
 
 function cleanHtml(value: string) {
-  return decodeHtml(value.replace(/<[^>]+>/g, " "))
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function decodeHtml(value: string) {
-  return value
-    .replace(/&amp;/g, "&")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&nbsp;/g, " ");
+  return normalizeSearchText(value);
 }

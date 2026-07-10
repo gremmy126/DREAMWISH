@@ -4,6 +4,8 @@ import { AlertTriangle, CheckCircle2, Clock3, LayoutTemplate, Play, Plus, Workfl
 import { useEffect, useMemo, useState } from "react";
 import { EmptyState } from "@/components/Common/EmptyState";
 import { SurfaceCard } from "@/components/Common/SurfaceCard";
+import { useAppLanguage } from "@/src/lib/i18n/use-app-language";
+import { APP_TRANSLATIONS } from "@/src/lib/i18n/translations";
 import type { Workflow as WorkflowRecord } from "@/src/lib/automation/workflow.types";
 
 export function WorkflowView() {
@@ -11,6 +13,7 @@ export function WorkflowView() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState({ name: "", description: "", triggerType: "manual" });
+  const { language, t } = useAppLanguage();
   const selected = useMemo(
     () => workspaces.find((workspace) => workspace.id === selectedId) || workspaces[0] || null,
     [workspaces, selectedId]
@@ -43,8 +46,8 @@ export function WorkflowView() {
   return (
     <div className="space-y-5">
       <Header
-        title="Workflow"
-        description="직접 만든 Workspace 단위로 Planner, Permission, Approval, Execute 흐름을 관리합니다."
+        title={t("workflow.title")}
+        description={t("workflow.description")}
         action={
           <button
             type="button"
@@ -52,27 +55,27 @@ export function WorkflowView() {
             className="inline-flex h-11 items-center gap-2 rounded-2xl bg-app-primary px-4 text-sm font-semibold text-white shadow-soft"
           >
             <Plus size={16} />
-            새 Workspace
+            {t("workflow.newWorkspace")}
           </button>
         }
       />
 
       <div className="grid grid-cols-5 gap-4">
         <Metric icon={Workflow} label="Workspace" value={String(workspaces.length)} />
-        <Metric icon={Play} label="활성" value={String(workspaces.filter((item) => item.status === "active").length)} />
-        <Metric icon={CheckCircle2} label="초안" value={String(workspaces.filter((item) => item.status === "draft").length)} />
-        <Metric icon={AlertTriangle} label="승인 대기" value="0" />
-        <Metric icon={Clock3} label="평균 실행" value="-" />
+        <Metric icon={Play} label={t("workflow.active")} value={String(workspaces.filter((item) => item.status === "active").length)} />
+        <Metric icon={CheckCircle2} label={t("workflow.draft")} value={String(workspaces.filter((item) => item.status === "draft").length)} />
+        <Metric icon={AlertTriangle} label={t("workflow.approvalQueue")} value="0" />
+        <Metric icon={Clock3} label={t("workflow.averageRun")} value="-" />
       </div>
 
       <div className="grid grid-cols-[minmax(0,1fr)_360px] gap-5">
         <SurfaceCard className="p-5">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-base font-semibold text-app-text">Workflow Workspace</h2>
-            <span className="rounded-2xl border border-app-border bg-app-bg px-3 py-1 text-xs text-app-muted">실제 저장</span>
+            <h2 className="text-base font-semibold text-app-text">{t("workflow.workspaceList")}</h2>
+            <span className="rounded-2xl border border-app-border bg-app-bg px-3 py-1 text-xs text-app-muted">{t("workflow.savedReal")}</span>
           </div>
           {workspaces.length === 0 ? (
-            <EmptyState icon={LayoutTemplate} title="Workspace 없음" description="새 Workspace를 만들어 업무 흐름을 설계하세요." />
+            <EmptyState icon={LayoutTemplate} title={t("workflow.emptyTitle")} description={t("workflow.emptyDescription")} />
           ) : (
             <div className="grid grid-cols-2 gap-3">
               {workspaces.map((workspace) => (
@@ -94,16 +97,16 @@ export function WorkflowView() {
         </SurfaceCard>
 
         <SurfaceCard className="p-5">
-          <p className="text-lg font-semibold text-app-text">{selected?.name || "선택된 Workspace 없음"}</p>
+          <p className="text-lg font-semibold text-app-text">{selected?.name || t("workflow.noSelected")}</p>
           <p className="mt-2 text-sm leading-6 text-app-muted">
-            {selected?.description || "Workspace를 만들면 실행 흐름과 승인 조건이 표시됩니다."}
+            {selected?.description || t("workflow.createDetailsHint")}
           </p>
           {selected ? (
             <div className="mt-5 space-y-3 text-sm">
-              <Detail label="Trigger" value={selected.trigger.label} />
-              <Detail label="Conditions" value={String(selected.conditions.length)} />
-              <Detail label="Actions" value={String(selected.actions.length)} />
-              <Detail label="Status" value={selected.status} />
+              <Detail label={t("workflow.trigger")} value={selected.trigger.label} />
+              <Detail label={t("workflow.conditions")} value={String(selected.conditions.length)} />
+              <Detail label={t("workflow.actions")} value={String(selected.actions.length)} />
+              <Detail label={t("workflow.status")} value={selected.status} />
             </div>
           ) : null}
         </SurfaceCard>
@@ -112,12 +115,12 @@ export function WorkflowView() {
       <SurfaceCard className="overflow-hidden">
         <div className="border-b border-app-border px-5 py-4">
           <p className="text-base font-semibold text-app-text">
-            {selected?.name || "Workspace Flow"}
+            {selected?.name || t("workflow.flowTitle")}
           </p>
-          <p className="mt-1 text-xs text-app-muted">Planner → Permission Check → Approval → Execute → History</p>
+          <p className="mt-1 text-xs text-app-muted">{t("workflow.flowDescription")}</p>
         </div>
         <div className="relative h-[280px] bg-[radial-gradient(circle,#e8eaf2_1px,transparent_1px)] [background-size:18px_18px]">
-          {["입력", "계획", "권한 확인", "승인", "실행 기록"].map((label, index) => (
+          {APP_TRANSLATIONS[language].workflow.steps.map((label, index) => (
             <div key={label} className="absolute top-[42%] z-10 w-32 rounded-app border border-app-border bg-white p-3 text-center shadow-soft" style={{ left: `${8 + index * 20}%` }}>
               <p className="text-xs font-semibold text-app-text">{label}</p>
             </div>
@@ -126,16 +129,16 @@ export function WorkflowView() {
       </SurfaceCard>
 
       {modalOpen ? (
-        <Modal title="새 Workflow Workspace" onClose={() => setModalOpen(false)}>
-          <Input label="이름" value={form.name} onChange={(name) => setForm((prev) => ({ ...prev, name }))} />
+        <Modal title={t("workflow.newWorkspace")} closeLabel={t("common.close")} onClose={() => setModalOpen(false)}>
+          <Input label={t("workflow.name")} value={form.name} onChange={(name) => setForm((prev) => ({ ...prev, name }))} />
           <textarea
             value={form.description}
             onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))}
             className="mt-3 min-h-24 w-full rounded-app border border-app-border bg-app-bg px-4 py-3 text-sm outline-none focus:border-app-primary"
-            placeholder="설명"
+            placeholder={t("workflow.descriptionField")}
           />
           <button type="button" onClick={() => void createWorkspace()} className="mt-3 h-11 w-full rounded-app bg-app-primary text-sm font-semibold text-white">
-            저장
+            {t("common.save")}
           </button>
         </Modal>
       ) : null}
@@ -173,8 +176,8 @@ function Detail({ label, value }: { label: string; value: string }) {
   return <div className="flex justify-between gap-4"><span className="text-app-muted">{label}</span><span className="font-semibold text-app-text">{value}</span></div>;
 }
 
-function Modal({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
-  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 px-4"><div className="w-[460px] rounded-app border border-app-border bg-white p-5 shadow-app"><div className="mb-4 flex items-center justify-between"><h2 className="text-base font-semibold text-app-text">{title}</h2><button type="button" onClick={onClose} className="rounded-2xl border border-app-border px-3 py-1 text-xs font-semibold text-app-muted">닫기</button></div>{children}</div></div>;
+function Modal({ title, closeLabel, children, onClose }: { title: string; closeLabel: string; children: React.ReactNode; onClose: () => void }) {
+  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 px-4"><div className="w-[460px] rounded-app border border-app-border bg-white p-5 shadow-app"><div className="mb-4 flex items-center justify-between"><h2 className="text-base font-semibold text-app-text">{title}</h2><button type="button" onClick={onClose} className="rounded-2xl border border-app-border px-3 py-1 text-xs font-semibold text-app-muted">{closeLabel}</button></div>{children}</div></div>;
 }
 
 function Input({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {

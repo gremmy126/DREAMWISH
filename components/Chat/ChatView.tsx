@@ -26,6 +26,7 @@ import { SurfaceCard } from "@/components/Common/SurfaceCard";
 import { ConnectedContextWorkspace } from "@/components/context/ConnectedContextWorkspace";
 import { createExecutionPreview } from "@/src/lib/agent/approval";
 import { planAgentExecution } from "@/src/lib/agent/planner";
+import { getErrorCode, readApiResponse } from "@/src/lib/api/api-response";
 import type {
   AnswerConfidence,
   AnswerVerification,
@@ -33,6 +34,12 @@ import type {
   ChatSessionRecord,
   SourceDocument
 } from "@/src/lib/chat/chat.types";
+import {
+  getChatErrorCode,
+  getLocalizedChatError,
+  shouldSubmitChat,
+  type ChatStatus
+} from "@/src/lib/chat/chat-flow";
 import {
   CHAT_QUICK_ACTIONS,
   type ChatQuickActionId
@@ -47,7 +54,6 @@ import {
   getChatQuickActionText
 } from "@/src/lib/i18n/translations";
 import { useAppLanguage } from "@/src/lib/i18n/use-app-language";
-import type { WebSearchResult } from "@/src/lib/web-search/web-search.types";
 
 type UiMessage = {
   id: string;
@@ -149,6 +155,7 @@ export function ChatView() {
   const [chatMode, setChatMode] = useState<ChatMode>("ask");
   const [selectedModel, setSelectedModel] = useState<ChatModel>("groq");
   const [lastQuery, setLastQuery] = useState("");
+  const [chatStatus, setChatStatus] = useState<ChatStatus>("idle");
   const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -258,20 +265,20 @@ export function ChatView() {
   }
 
   async function sendMessage() {
+    if (!shouldSubmitChat(input, isLoading, false)) {
+      if (!input.trim()) {
+        setError(getLocalizedChatError("MESSAGE_REQUIRED", language));
+      }
+      return;
+    }
+
     const message = input.trim();
-    if (!message || isLoading) return;
 
     const contextualQuery = currentProject ? `${currentProject.name} ${message}` : message;
     setLastQuery(contextualQuery);
 
     if (shouldRouteToAgentPreview(message, chatMode, integrationApps)) {
       await addAgentPreview(message, chatMode);
-      return;
-    }
-
-    const webSearch = extractWebSearchQuery(message);
-    if (webSearch) {
-      await runWebSearch(webSearch, message);
       return;
     }
 
@@ -309,6 +316,7 @@ export function ChatView() {
     setInput("");
     setError(null);
     setIsLoading(true);
+    setChatStatus("submitting");
     setMessages((prev) => [...prev, userMessage, assistantMessage]);
 
     try {
@@ -318,17 +326,20 @@ export function ChatView() {
         body: JSON.stringify({
           sessionId: currentSessionId,
           message,
-          useRag: true,
           model: selectedModel,
           projectId: activeProjectId
         })
       });
 
       if (!response.ok || !response.body) {
-        throw new Error(t("chat.answerFailed"));
+        await readApiResponse<unknown>(response);
+        throw Object.assign(new Error(t("chat.answerFailed")), { code: "GENERATION_FAILED" });
       }
 
       await readEventStream(response, {
+        onStatus: (status) => {
+          setChatStatus(status);
+        },
         onSession: (sessionId) => {
           setCurrentSessionId(sessionId);
           if (activeProjectId) void assignSessionToActiveProject(sessionId);
@@ -350,6 +361,7 @@ export function ChatView() {
           );
         },
         onDone: ({ answer, sources, confidence, verification }) => {
+          setChatStatus("completed");
           setMessages((prev) =>
             prev.map((item) =>
               item.id === assistantId
@@ -365,15 +377,16 @@ export function ChatView() {
             )
           );
         },
-        onError: (message) => {
-          throw new Error(message);
+        onError: (message, code) => {
+          throw Object.assign(new Error(message), { code: code || "GENERATION_FAILED" });
         }
       });
 
       await loadSessions();
       await loadProjects();
     } catch (caught) {
-      const message = stringifyUnknownError(caught);
+      setChatStatus(getChatErrorCode(caught) === "REQUEST_CANCELLED" ? "cancelled" : "error");
+      const message = getLocalizedChatError(getErrorCode(caught) || "GENERATION_FAILED", language);
       setError(message);
       setMessages((prev) =>
         prev.map((item) =>
@@ -489,38 +502,6 @@ export function ChatView() {
         verification: null
       }
     ]);
-  }
-
-  async function runWebSearch(query: string, originalMessage = `웹 검색: ${query}`) {
-    setInput("");
-    setError(null);
-    setIsLoading(true);
-    setLastQuery(originalMessage);
-
-    try {
-      const response = await fetch("/api/tools/web-search", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query })
-      });
-      const data = (await response.json()) as {
-        results?: WebSearchResult[];
-        error?: string;
-      };
-      if (!response.ok) throw new Error(data.error || t("chat.webFailed"));
-
-      const lines = (data.results || [])
-        .map(
-          (result, index) =>
-            `${index + 1}. ${result.title}\n${result.snippet}\n${result.url}`
-        )
-        .join("\n\n");
-      addLocalExchange(originalMessage, lines || t("chat.webNoResults"));
-    } catch (caught) {
-      setError(stringifyUnknownError(caught));
-    } finally {
-      setIsLoading(false);
-    }
   }
 
   async function runCode(code: string) {
@@ -893,7 +874,7 @@ export function ChatView() {
                         : "border border-app-border bg-white text-app-text"
                     }`}
                   >
-                    <div className="whitespace-pre-wrap text-sm leading-6">
+                    <div className="whitespace-pre-wrap text-sm leading-6 [overflow-wrap:anywhere]">
                       {message.content || (
                         <span className="inline-flex items-center gap-2 text-app-muted">
                           <Loader2 size={15} className="animate-spin" />
@@ -1028,6 +1009,7 @@ export function ChatView() {
               value={input}
               onChange={(event) => setInput(event.target.value)}
               onKeyDown={(event) => {
+                if (event.nativeEvent.isComposing) return;
                 if (event.key === "Enter" && !event.shiftKey) {
                   event.preventDefault();
                   void sendMessage();
@@ -1049,7 +1031,7 @@ export function ChatView() {
             <button
               type="button"
               onClick={() => void sendMessage()}
-              disabled={isLoading || input.trim().length === 0}
+              disabled={!shouldSubmitChat(input, isLoading, false)}
               className="mb-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-app-primary text-white transition hover:brightness-105 disabled:bg-slate-200 disabled:text-slate-400"
               aria-label={t("chat.send")}
             >
@@ -1167,17 +1149,6 @@ function parsePrefixedCommand(message: string, prefixes: string[]) {
   return null;
 }
 
-function extractWebSearchQuery(message: string) {
-  const prefixed = parsePrefixedCommand(message, ["웹 검색", "웹검색", "web search", "web", "web検索", "ウェブ検索"]);
-  if (prefixed) return prefixed;
-
-  if (/(찾아줘|검색해줘|검색해|조사해줘|알아봐|웹에서|search for|look up|調べて|検索して)/iu.test(message)) {
-    return message.replace(/(찾아줘|검색해줘|검색해|조사해줘|알아봐|웹에서|search for|look up|調べて|検索して)/giu, "").trim() || message;
-  }
-
-  return null;
-}
-
 function parseLocalAction(message: string): Pick<ChatAction, "type" | "title"> | null {
   const todo = message.match(/^(할 일|할일|todo|to do|TODO|タスク)\s*[:：→\-]?\s*(.+)$/iu);
   if (todo?.[2]?.trim()) {
@@ -1195,6 +1166,7 @@ function parseLocalAction(message: string): Pick<ChatAction, "type" | "title"> |
 async function readEventStream(
   response: Response,
   handlers: {
+    onStatus: (status: ChatStatus) => void;
     onSession: (sessionId: string) => void;
     onSources: (data: {
       sources: SourceDocument[];
@@ -1208,18 +1180,21 @@ async function readEventStream(
       verification: AnswerVerification;
       sessionId: string;
     }) => void;
-    onError: (message: string) => void;
+    onError: (message: string, code?: string) => void;
   }
 ) {
   const reader = response.body?.getReader();
   if (!reader) throw new Error("Streaming response could not be read.");
 
-  const decoder = new TextDecoder();
+  const decoder = new TextDecoder("utf-8");
   let buffer = "";
 
   while (true) {
     const { value, done } = await reader.read();
-    if (done) break;
+    if (done) {
+      buffer += decoder.decode();
+      break;
+    }
 
     buffer += decoder.decode(value, { stream: true });
     const events = buffer.split("\n\n");
@@ -1255,6 +1230,8 @@ function handleSseEvent(
     text?: string;
     answer?: string;
     verification?: AnswerVerification;
+    status?: ChatStatus;
+    code?: string;
     error?: string;
   };
 
@@ -1265,6 +1242,7 @@ function handleSseEvent(
     return;
   }
 
+  if (event === "status" && data.status) handlers.onStatus(data.status);
   if (event === "session" && data.sessionId) handlers.onSession(data.sessionId);
   if (event === "sources" && data.sources && data.confidence) {
     handlers.onSources({ sources: data.sources, confidence: data.confidence });
@@ -1286,7 +1264,7 @@ function handleSseEvent(
       sessionId: data.sessionId
     });
   }
-  if (event === "error") handlers.onError(data.error || "Streaming interrupted");
+  if (event === "error") handlers.onError(data.error || "Streaming interrupted", data.code);
 }
 
 function averageImageColor(bitmap: ImageBitmap) {

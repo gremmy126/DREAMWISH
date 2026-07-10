@@ -1,5 +1,6 @@
 import { chunkDocuments, loadMarkdownDocuments } from "@/src/lib/rag/document-loader";
 import type { LocalDocument, RagChunk } from "@/src/lib/rag/rag.types";
+import { normalizeSearchText } from "./search-text";
 import type { SearchMatchType, SearchResult } from "./search.types";
 
 export async function keywordSearch(query: string, limit = 10) {
@@ -206,7 +207,7 @@ function normalize(value: number, max: number) {
 }
 
 function makeSnippet(content: string) {
-  return content.replace(/\s+/g, " ").trim().slice(0, 360);
+  return normalizeSearchText(content).slice(0, 360);
 }
 
 function escapeRegExp(value: string) {

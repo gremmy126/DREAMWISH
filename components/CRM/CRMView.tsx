@@ -4,6 +4,7 @@ import { Activity, CalendarDays, CheckCircle2, Mail, Phone, Plus, Target, UsersR
 import { useEffect, useMemo, useState } from "react";
 import { EmptyState } from "@/components/Common/EmptyState";
 import { SurfaceCard } from "@/components/Common/SurfaceCard";
+import { useAppLanguage } from "@/src/lib/i18n/use-app-language";
 import type {
   CrmActivity,
   Customer,
@@ -36,6 +37,7 @@ export function CRMView() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState<CustomerForm>(emptyForm);
+  const { t } = useAppLanguage();
   const selected = useMemo(
     () => customers.find((customer) => customer.id === selectedId) || customers[0] || null,
     [customers, selectedId]
@@ -97,8 +99,8 @@ export function CRMView() {
   return (
     <div className="space-y-5">
       <Header
-        title="CRM"
-        description="직접 추가한 고객, 외부 데이터 연결 후보, 승인 기반 Timeline을 관리합니다."
+        title={t("crm.title")}
+        description={t("crm.description")}
         action={
           <button
             type="button"
@@ -106,32 +108,32 @@ export function CRMView() {
             className="inline-flex h-11 items-center gap-2 rounded-2xl bg-app-primary px-4 text-sm font-semibold text-white shadow-soft"
           >
             <Plus size={16} />
-            새 고객 초안
+            {t("crm.newCustomer")}
           </button>
         }
       />
 
       <div className="grid grid-cols-5 gap-4">
-        <Metric icon={UsersRound} label="전체 고객" value={String(customers.length)} />
-        <Metric icon={Target} label="리드" value={String(leadCustomers)} />
-        <Metric icon={CheckCircle2} label="활성 고객" value={String(activeCustomers)} />
-        <Metric icon={Activity} label="활동" value={String(activities.length)} />
-        <Metric icon={CalendarDays} label="승인 대기" value="0" />
+        <Metric icon={UsersRound} label={t("crm.totalCustomers")} value={String(customers.length)} />
+        <Metric icon={Target} label={t("crm.leads")} value={String(leadCustomers)} />
+        <Metric icon={CheckCircle2} label={t("crm.activeCustomers")} value={String(activeCustomers)} />
+        <Metric icon={Activity} label={t("crm.activities")} value={String(activities.length)} />
+        <Metric icon={CalendarDays} label={t("crm.approvalQueue")} value="0" />
       </div>
 
       <div className="grid grid-cols-[minmax(0,1fr)_320px] gap-5">
         <SurfaceCard className="p-5">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-base font-semibold text-app-text">고객 목록</h2>
+            <h2 className="text-base font-semibold text-app-text">{t("crm.customerList")}</h2>
             <span className="rounded-2xl border border-app-border bg-app-bg px-3 py-1 text-xs font-semibold text-app-muted">
-              Local CRM
+              {t("crm.localCrm")}
             </span>
           </div>
           {customers.length === 0 ? (
             <EmptyState
               icon={UsersRound}
-              title="고객 없음"
-              description="새 고객 초안을 눌러 직접 고객을 추가하세요."
+              title={t("crm.emptyTitle")}
+              description={t("crm.emptyDescription")}
             />
           ) : (
             <div className="grid grid-cols-3 gap-3">
@@ -145,7 +147,7 @@ export function CRMView() {
                   }`}
                 >
                   <p className="truncate text-sm font-semibold text-app-text">{customer.name}</p>
-                  <p className="mt-1 truncate text-xs text-app-muted">{customer.email || "이메일 없음"}</p>
+                  <p className="mt-1 truncate text-xs text-app-muted">{customer.email || t("crm.noEmail")}</p>
                   <p className="mt-3 rounded-full bg-app-bg px-2 py-1 text-[11px] font-semibold text-app-muted">
                     {customer.status}
                   </p>
@@ -157,20 +159,20 @@ export function CRMView() {
 
         <SurfaceCard className="p-5">
           <div className="mb-5">
-            <p className="text-base font-semibold text-app-text">고객 상세</p>
-            <p className="mt-1 text-sm text-app-muted">{selected?.name || "선택된 고객 없음"}</p>
+            <p className="text-base font-semibold text-app-text">{t("crm.details")}</p>
+            <p className="mt-1 text-sm text-app-muted">{selected?.name || t("crm.noSelected")}</p>
           </div>
           {selected ? (
             <>
               <div className="space-y-3 text-sm">
-                <Detail label="이메일" value={selected.email || "-"} />
-                <Detail label="전화" value={selected.phone || "-"} />
-                <Detail label="직책" value={selected.position || "-"} />
-                <Detail label="중요도" value={selected.importance} />
+                <Detail label={t("crm.email")} value={selected.email || "-"} />
+                <Detail label={t("crm.phone")} value={selected.phone || "-"} />
+                <Detail label={t("crm.position")} value={selected.position || "-"} />
+                <Detail label={t("crm.importance")} value={selected.importance} />
               </div>
               <div className="mt-5 grid grid-cols-2 gap-2">
                 <Select
-                  label="Status"
+                  label={t("crm.status")}
                   value={selected.status}
                   options={["lead", "active", "paused", "inactive"]}
                   onChange={(status) =>
@@ -178,7 +180,7 @@ export function CRMView() {
                   }
                 />
                 <Select
-                  label="Importance"
+                  label={t("crm.importance")}
                   value={selected.importance}
                   options={["low", "medium", "high", "critical"]}
                   onChange={(importance) =>
@@ -198,23 +200,23 @@ export function CRMView() {
                 ))}
               </div>
               <div className="mt-3 grid grid-cols-3 gap-2">
-                <ActionButton onClick={() => void addSelectedActivity("note")}>Note</ActionButton>
-                <ActionButton onClick={() => void addSelectedActivity("task")}>Task</ActionButton>
+                <ActionButton onClick={() => void addSelectedActivity("note")}>{t("crm.note")}</ActionButton>
+                <ActionButton onClick={() => void addSelectedActivity("task")}>{t("crm.task")}</ActionButton>
                 <ActionButton onClick={() => void addSelectedActivity("email_draft")}>
-                  Draft
+                  {t("crm.draft")}
                 </ActionButton>
               </div>
             </>
           ) : (
-            <p className="text-sm leading-6 text-app-muted">고객을 만들면 상세 정보가 표시됩니다.</p>
+            <p className="text-sm leading-6 text-app-muted">{t("crm.createDetailsHint")}</p>
           )}
         </SurfaceCard>
       </div>
 
       <SurfaceCard className="p-5">
-        <h2 className="mb-4 text-base font-semibold text-app-text">최근 활동</h2>
+        <h2 className="mb-4 text-base font-semibold text-app-text">{t("crm.recentActivities")}</h2>
         {activities.length === 0 ? (
-          <p className="text-sm text-app-muted">아직 CRM 활동이 없습니다.</p>
+          <p className="text-sm text-app-muted">{t("crm.noActivities")}</p>
         ) : (
           <div className="space-y-3">
             {activities.map((activity) => (
@@ -228,9 +230,9 @@ export function CRMView() {
       </SurfaceCard>
 
       <SurfaceCard className="p-5">
-        <h2 className="mb-4 text-base font-semibold text-app-text">Next Best Actions</h2>
+        <h2 className="mb-4 text-base font-semibold text-app-text">{t("crm.nextBestActions")}</h2>
         {pipeline.nextBestActions.length === 0 ? (
-          <p className="text-sm text-app-muted">No CRM actions yet.</p>
+          <p className="text-sm text-app-muted">{t("crm.noActions")}</p>
         ) : (
           <div className="grid grid-cols-3 gap-3">
             {pipeline.nextBestActions.map((item) => (
@@ -245,25 +247,25 @@ export function CRMView() {
       </SurfaceCard>
 
       {modalOpen ? (
-        <Modal title="새 고객 초안" onClose={() => setModalOpen(false)}>
+        <Modal title={t("crm.newCustomer")} closeLabel={t("common.close")} onClose={() => setModalOpen(false)}>
           <div className="grid gap-3">
-            <Input label="이름" value={form.name} onChange={(name) => setForm((prev) => ({ ...prev, name }))} />
-            <Input label="이메일" value={form.email} onChange={(email) => setForm((prev) => ({ ...prev, email }))} />
-            <Input label="전화" value={form.phone} onChange={(phone) => setForm((prev) => ({ ...prev, phone }))} />
-            <Input label="회사" value={form.companyName} onChange={(companyName) => setForm((prev) => ({ ...prev, companyName }))} />
-            <Input label="직책" value={form.position} onChange={(position) => setForm((prev) => ({ ...prev, position }))} />
+            <Input label={t("crm.name")} value={form.name} onChange={(name) => setForm((prev) => ({ ...prev, name }))} />
+            <Input label={t("crm.email")} value={form.email} onChange={(email) => setForm((prev) => ({ ...prev, email }))} />
+            <Input label={t("crm.phone")} value={form.phone} onChange={(phone) => setForm((prev) => ({ ...prev, phone }))} />
+            <Input label={t("crm.company")} value={form.companyName} onChange={(companyName) => setForm((prev) => ({ ...prev, companyName }))} />
+            <Input label={t("crm.position")} value={form.position} onChange={(position) => setForm((prev) => ({ ...prev, position }))} />
             <textarea
               value={form.memo}
               onChange={(event) => setForm((prev) => ({ ...prev, memo: event.target.value }))}
               className="min-h-24 rounded-app border border-app-border bg-app-bg px-4 py-3 text-sm outline-none focus:border-app-primary"
-              placeholder="메모"
+              placeholder={t("crm.memo")}
             />
             <button
               type="button"
               onClick={() => void createCustomer()}
               className="h-11 rounded-app bg-app-primary text-sm font-semibold text-white"
             >
-              저장
+              {t("common.save")}
             </button>
           </div>
         </Modal>
@@ -356,14 +358,14 @@ function ActionButton({
   );
 }
 
-function Modal({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
+function Modal({ title, closeLabel, children, onClose }: { title: string; closeLabel: string; children: React.ReactNode; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 px-4">
       <div className="w-[460px] rounded-app border border-app-border bg-white p-5 shadow-app">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-base font-semibold text-app-text">{title}</h2>
           <button type="button" onClick={onClose} className="rounded-2xl border border-app-border px-3 py-1 text-xs font-semibold text-app-muted">
-            닫기
+            {closeLabel}
           </button>
         </div>
         {children}

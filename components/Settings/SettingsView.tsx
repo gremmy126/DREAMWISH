@@ -21,6 +21,8 @@ import {
 import { useEffect, useState } from "react";
 import { StorageStatus } from "@/components/Common/StorageStatus";
 import { SurfaceCard } from "@/components/Common/SurfaceCard";
+import { useAppLanguage } from "@/src/lib/i18n/use-app-language";
+import { t as translate } from "@/src/lib/i18n/translations";
 import { defaultPermissionPolicy } from "@/src/lib/security/permission-policy";
 import { listPaymentProviders, type PaymentProviderId } from "@/src/lib/payments/payment.types";
 import { POLAR_CHECKOUT_SETTINGS } from "@/src/lib/payments/polar.config";
@@ -128,6 +130,8 @@ export function SettingsView() {
     loading: boolean;
     error: string | null;
   }>({ loading: false, error: null });
+  const [languageNotice, setLanguageNotice] = useState<string | null>(null);
+  const { t } = useAppLanguage();
 
   useEffect(() => {
     try {
@@ -153,6 +157,18 @@ export function SettingsView() {
     applyDocumentLanguage(settings.language, document);
   }, [settings.theme, settings.language]);
 
+  useEffect(() => {
+    if (!languageNotice) return;
+    const timeout = window.setTimeout(() => setLanguageNotice(null), 2400);
+    return () => window.clearTimeout(timeout);
+  }, [languageNotice]);
+
+  function changeLanguage(value: string) {
+    const language = value as LanguageMode;
+    setSettings((prev) => ({ ...prev, language }));
+    setLanguageNotice(translate(language, "settings.languageChanged"));
+  }
+
   async function runLocalBackup() {
     setBackupState({ loading: true, message: null, error: null });
     try {
@@ -170,7 +186,7 @@ export function SettingsView() {
         error?: string;
       };
 
-      if (!response.ok) throw new Error(data.error || "백업에 실패했습니다.");
+      if (!response.ok) throw new Error(data.error || t("settings.backupFailed"));
       setSettings((prev) => ({
         ...prev,
         backup: {
@@ -179,12 +195,12 @@ export function SettingsView() {
           lastBackupPath: data.backupPath || null
         }
       }));
-      setBackupState({ loading: false, message: "로컬 백업을 만들었습니다.", error: null });
+      setBackupState({ loading: false, message: t("settings.backupSuccess"), error: null });
     } catch (error) {
       setBackupState({
         loading: false,
         message: null,
-        error: error instanceof Error ? error.message : "백업에 실패했습니다."
+        error: error instanceof Error ? error.message : t("settings.backupFailed")
       });
     }
   }
@@ -199,13 +215,13 @@ export function SettingsView() {
       });
       const data = (await response.json()) as { checkoutUrl?: string; error?: string };
       if (!response.ok || !data.checkoutUrl) {
-        throw new Error(data.error || "Payment checkout could not be created.");
+        throw new Error(data.error || t("settings.checkoutCreateFailed"));
       }
       window.location.href = data.checkoutUrl;
     } catch (error) {
       setPaymentState({
         loading: false,
-        error: error instanceof Error ? error.message : "Payment checkout failed."
+        error: error instanceof Error ? error.message : t("settings.checkoutFailed")
       });
     }
   }
@@ -214,9 +230,9 @@ export function SettingsView() {
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-app-text">Settings</h1>
+          <h1 className="text-2xl font-semibold text-app-text">{t("settings.pageTitle")}</h1>
           <p className="mt-2 text-sm text-app-muted">
-            AI 모델, 저장소, Integration 권한, 결제 라우팅을 한 곳에서 조정합니다.
+            {t("settings.description")}
           </p>
         </div>
         <button
@@ -224,7 +240,7 @@ export function SettingsView() {
           className="inline-flex h-11 items-center gap-2 rounded-2xl bg-app-primary px-4 text-sm font-semibold text-white shadow-soft"
         >
           <Save size={16} />
-          설정 저장됨
+          {t("settings.saved")}
         </button>
       </div>
 
@@ -233,8 +249,8 @@ export function SettingsView() {
           <SurfaceCard className="p-6">
             <PanelTitle
               icon={Bot}
-              title="AI Models"
-              description="AI Chat에서 Mock과 Ollama를 제외하고 사용할 Provider입니다."
+              title={t("settings.models")}
+              description={t("settings.modelsDescription")}
             />
             <div className="grid grid-cols-3 gap-3">
               {providerOptions.map((provider) => (
@@ -250,7 +266,7 @@ export function SettingsView() {
                 >
                   <p className="text-sm font-semibold text-app-text">{provider}</p>
                   <p className="mt-1 text-xs leading-5 text-app-muted">
-                    무료/외부 Provider
+                    {t("settings.providerDescription")}
                   </p>
                 </button>
               ))}
@@ -260,13 +276,13 @@ export function SettingsView() {
           <SurfaceCard className="p-6">
             <PanelTitle
               icon={Workflow}
-              title="Integrations"
-              description="Mock Mode, 자동 동기화, 승인 정책, 로그 보존 기간을 설정합니다."
+              title={t("settings.integrations")}
+              description={t("settings.integrationsDescription")}
             />
             <div className="grid grid-cols-2 gap-3">
               <ToggleTile
-                title="Mock Mode"
-                description="실제 외부 API 대신 Mock Connector만 사용합니다."
+                title={t("settings.mockMode")}
+                description={t("settings.mockModeDescription")}
                 checked={settings.integrations.mockMode}
                 onChange={(checked) =>
                   setSettings((prev) => ({
@@ -276,8 +292,8 @@ export function SettingsView() {
                 }
               />
               <ToggleTile
-                title="Auto Sync"
-                description="이번 단계에서는 설정만 저장하고 실제 주기 실행은 하지 않습니다."
+                title={t("settings.autoSync")}
+                description={t("settings.autoSyncDescription")}
                 checked={settings.integrations.autoSync}
                 onChange={(checked) =>
                   setSettings((prev) => ({
@@ -289,7 +305,7 @@ export function SettingsView() {
             </div>
             <div className="mt-4 grid grid-cols-2 gap-3">
               <SelectField
-                label="승인 필수 위험도"
+                label={t("settings.approvalRisk")}
                 value={settings.integrations.approvalRequiredFrom}
                 options={["high", "critical"]}
                 onChange={(value) =>
@@ -303,7 +319,7 @@ export function SettingsView() {
                 }
               />
               <NumberField
-                label="외부 데이터 보존일"
+                label={t("settings.retentionDays")}
                 value={settings.integrations.retentionDays}
                 onChange={(value) =>
                   setSettings((prev) => ({
@@ -318,30 +334,33 @@ export function SettingsView() {
           <SurfaceCard className="p-6">
             <PanelTitle
               icon={CreditCard}
-              title="Payments"
-              description="국내 결제는 KG이니시스, 해외 결제는 Polar $19 단일 상품으로 라우팅합니다."
+              title={t("settings.payments")}
+              description={t("settings.paymentsDescription")}
             />
             <div className="grid grid-cols-2 gap-3">
-              {listPaymentProviders().map((provider) => (
-                <div
-                  key={provider.id}
-                  className="rounded-app border border-app-border bg-white p-4 shadow-soft"
-                >
-                  <p className="text-xs font-semibold uppercase text-app-muted">
-                    {provider.market}
-                  </p>
-                  <p className="mt-2 text-lg font-semibold text-app-text">
-                    {provider.label}
-                  </p>
-                  <p className="mt-2 text-xs leading-5 text-app-muted">
-                    {provider.description}
-                  </p>
-                </div>
-              ))}
+              {listPaymentProviders().map((provider) => {
+                const providerText = getPaymentProviderText(provider.id, t);
+                return (
+                  <div
+                    key={provider.id}
+                    className="rounded-app border border-app-border bg-white p-4 shadow-soft"
+                  >
+                    <p className="text-xs font-semibold uppercase text-app-muted">
+                      {provider.market}
+                    </p>
+                    <p className="mt-2 text-lg font-semibold text-app-text">
+                      {providerText.label}
+                    </p>
+                    <p className="mt-2 text-xs leading-5 text-app-muted">
+                      {providerText.description}
+                    </p>
+                  </div>
+                );
+              })}
             </div>
             <div className="mt-4 grid grid-cols-[1fr_1fr_auto] gap-3">
               <SelectField
-                label="Domestic"
+                label={t("settings.domestic")}
                 value={settings.payments.domestic}
                 options={listPaymentProviders()
                   .filter((provider) => provider.market === "domestic")
@@ -354,7 +373,7 @@ export function SettingsView() {
                 }
               />
               <SelectField
-                label="International"
+                label={t("settings.international")}
                 value={settings.payments.international}
                 options={listPaymentProviders()
                   .filter((provider) => provider.market === "international")
@@ -375,7 +394,7 @@ export function SettingsView() {
                 disabled={paymentState.loading}
                 className="mt-6 h-11 rounded-app bg-app-primary px-4 text-sm font-semibold text-white disabled:bg-slate-200"
               >
-                {paymentState.loading ? "Opening" : "Pay"}
+                {paymentState.loading ? t("settings.opening") : t("settings.pay")}
               </button>
             </div>
             {paymentState.error ? (
@@ -384,11 +403,11 @@ export function SettingsView() {
               </p>
             ) : null}
             <div className="mt-4 grid gap-2 rounded-app border border-app-border bg-app-bg p-4 text-xs">
-              <SettingsUrl label="Polar 성공 URL" value={POLAR_CHECKOUT_SETTINGS.successUrl} />
-              <SettingsUrl label="Polar 반환 URL" value={POLAR_CHECKOUT_SETTINGS.returnUrl} />
-              <SettingsUrl label="Polar 웹훅 URL" value={POLAR_CHECKOUT_SETTINGS.webhookUrl} />
+              <SettingsUrl label={t("settings.successUrl")} value={POLAR_CHECKOUT_SETTINGS.successUrl} />
+              <SettingsUrl label={t("settings.returnUrl")} value={POLAR_CHECKOUT_SETTINGS.returnUrl} />
+              <SettingsUrl label={t("settings.webhookUrl")} value={POLAR_CHECKOUT_SETTINGS.webhookUrl} />
               <SettingsUrl
-                label="Polar 상품"
+                label={t("settings.product")}
                 value={`${POLAR_CHECKOUT_SETTINGS.planName} - $${POLAR_CHECKOUT_SETTINGS.amountUsd}`}
               />
             </div>
@@ -397,8 +416,8 @@ export function SettingsView() {
           <SurfaceCard className="p-6">
             <PanelTitle
               icon={HardDrive}
-              title="Storage & Backup"
-              description="Local First 저장소와 백업 경로입니다."
+              title={t("settings.storageBackup")}
+              description={t("settings.storageBackupDescription")}
             />
             <div className="grid grid-cols-[minmax(0,1fr)_220px] gap-3">
               <input
@@ -415,7 +434,7 @@ export function SettingsView() {
                 className="inline-flex items-center justify-center gap-2 rounded-app bg-app-primary px-4 text-sm font-semibold text-white disabled:bg-slate-200"
               >
                 <TimerReset size={16} />
-                지금 백업
+                {t("settings.backupNow")}
               </button>
             </div>
             {backupState.message ? (
@@ -433,23 +452,23 @@ export function SettingsView() {
 
         <div className="space-y-5">
           <SurfaceCard className="p-5">
-            <PanelTitle icon={Palette} title="Appearance" description="표시 환경" />
+            <PanelTitle icon={Palette} title={t("settings.appearance")} description={t("settings.appearanceDescription")} />
             <div className="grid grid-cols-3 gap-2">
               <IconChoice
                 icon={Palette}
-                label="System"
+                label={t("settings.system")}
                 active={settings.theme === "system"}
                 onClick={() => setSettings((prev) => ({ ...prev, theme: "system" }))}
               />
               <IconChoice
                 icon={Sun}
-                label="Light"
+                label={t("settings.light")}
                 active={settings.theme === "light"}
                 onClick={() => setSettings((prev) => ({ ...prev, theme: "light" }))}
               />
               <IconChoice
                 icon={Moon}
-                label="Dark"
+                label={t("settings.dark")}
                 active={settings.theme === "dark"}
                 onClick={() => setSettings((prev) => ({ ...prev, theme: "dark" }))}
               />
@@ -459,33 +478,36 @@ export function SettingsView() {
           <SurfaceCard className="p-5">
             <PanelTitle
               icon={Languages}
-              title="Language"
-              description="사이트 언어를 한국어, English, 日本語 중에서 선택합니다."
+              title={t("settings.language")}
+              description={t("settings.languageDescription")}
             />
             <SelectField
-              label="Language"
+              label={t("settings.language")}
               value={settings.language}
               options={LANGUAGE_OPTIONS}
-              onChange={(value) =>
-                setSettings((prev) => ({ ...prev, language: value as LanguageMode }))
-              }
+              onChange={changeLanguage}
             />
+            {languageNotice ? (
+              <p className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700" aria-live="polite">
+                {languageNotice}
+              </p>
+            ) : null}
           </SurfaceCard>
 
           <SurfaceCard className="p-5">
-            <PanelTitle icon={LockKeyhole} title="Security" description="외부 호출 정책" />
+            <PanelTitle icon={LockKeyhole} title={t("settings.security")} description={t("settings.securityDescription")} />
             <div className="space-y-3">
               <ToggleTile
-                title="로컬 전용"
-                description="켜면 외부 AI 호출을 제한합니다."
+                title={t("settings.localOnly")}
+                description={t("settings.localOnlyDescription")}
                 checked={settings.localOnly}
                 onChange={(checked) =>
                   setSettings((prev) => ({ ...prev, localOnly: checked }))
                 }
               />
               <ToggleTile
-                title="외부 AI 허용"
-                description="선택한 무료 Provider 호출을 허용합니다."
+                title={t("settings.allowExternalAI")}
+                description={t("settings.allowExternalAIDescription")}
                 checked={settings.allowExternalAI}
                 onChange={(checked) =>
                   setSettings((prev) => ({ ...prev, allowExternalAI: checked }))
@@ -495,7 +517,7 @@ export function SettingsView() {
           </SurfaceCard>
 
           <SurfaceCard className="p-5">
-            <PanelTitle icon={Database} title="Storage Status" description="로컬 저장소" />
+            <PanelTitle icon={Database} title={t("settings.storageStatus")} description={t("settings.storageStatusDescription")} />
             <StorageStatus />
           </SurfaceCard>
         </div>
@@ -511,6 +533,22 @@ function SettingsUrl({ label, value }: { label: string; value: string }) {
       <span className="break-all font-medium text-app-text">{value}</span>
     </div>
   );
+}
+
+function getPaymentProviderText(
+  providerId: PaymentProviderId,
+  t: (key: string, values?: Record<string, string>) => string
+) {
+  if (providerId === "kg_inicis") {
+    return {
+      label: t("settings.kgInicisLabel"),
+      description: t("settings.kgInicisDescription")
+    };
+  }
+  return {
+    label: t("settings.polarLabel"),
+    description: t("settings.polarDescription")
+  };
 }
 
 function PanelTitle({

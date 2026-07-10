@@ -4,6 +4,7 @@ import { FileText, Link2, Network, Plus, Sparkles, Tags, Upload } from "lucide-r
 import { useEffect, useMemo, useRef, useState } from "react";
 import { EmptyState } from "@/components/Common/EmptyState";
 import { SurfaceCard } from "@/components/Common/SurfaceCard";
+import { useAppLanguage } from "@/src/lib/i18n/use-app-language";
 import type { KnowledgeNote } from "@/src/lib/knowledge/knowledge.repository";
 import {
   KNOWLEDGE_MEMORY_TABS,
@@ -27,6 +28,7 @@ export function KnowledgeView() {
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState({ title: "", body: "", tags: "" });
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const { t } = useAppLanguage();
   const selectedNode = graph.find((node) => node.id === selected) || graph[0] || null;
   const tabModel = useMemo(() => buildKnowledgeTabModel(notes), [notes]);
 
@@ -94,26 +96,26 @@ export function KnowledgeView() {
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-app-text">Knowledge</h1>
-          <p className="mt-2 text-sm text-app-muted">저장된 지식과 파일 기반 노트를 지식 그래프로 연결합니다.</p>
+          <h1 className="text-2xl font-semibold text-app-text">{t("knowledgePage.title")}</h1>
+          <p className="mt-2 text-sm text-app-muted">{t("knowledgePage.description")}</p>
         </div>
         <div className="flex gap-2">
           <button type="button" onClick={() => fileInputRef.current?.click()} className="inline-flex h-11 items-center gap-2 rounded-2xl border border-app-border bg-white px-4 text-sm font-semibold text-app-text shadow-soft hover:bg-app-hover">
-            <Upload size={16} />파일 추가
+            <Upload size={16} />{t("knowledgePage.addFile")}
           </button>
           <button type="button" onClick={() => setModalOpen(true)} className="inline-flex h-11 items-center gap-2 rounded-2xl bg-app-primary px-4 text-sm font-semibold text-white shadow-soft">
-            <Plus size={16} />새 지식 추가
+            <Plus size={16} />{t("knowledgePage.addKnowledge")}
           </button>
         </div>
         <input ref={fileInputRef} type="file" accept=".md,.txt,.json,.csv,.tsv" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) void createFromFile(file); event.currentTarget.value = ""; }} />
       </div>
 
       <div className="grid grid-cols-5 gap-4">
-        <Metric icon={FileText} label="전체 노트" value={String(notes.length)} />
-        <Metric icon={Link2} label="파일 연결" value={String(notes.filter((note) => note.sourceFileId).length)} />
-        <Metric icon={Network} label="지식 네트워크" value={String(graph.length)} />
-        <Metric icon={Sparkles} label="프로젝트 지식" value={String(notes.filter((note) => note.projectId).length)} />
-        <Metric icon={Plus} label="최근 추가" value={notes[0] ? new Date(notes[0].createdAt).toLocaleDateString("ko-KR") : "-"} />
+        <Metric icon={FileText} label={t("knowledgePage.totalNotes")} value={String(notes.length)} />
+        <Metric icon={Link2} label={t("knowledgePage.linkedFiles")} value={String(notes.filter((note) => note.sourceFileId).length)} />
+        <Metric icon={Network} label={t("knowledgePage.knowledgeNetwork")} value={String(graph.length)} />
+        <Metric icon={Sparkles} label={t("knowledgePage.projectKnowledge")} value={String(notes.filter((note) => note.projectId).length)} />
+        <Metric icon={Plus} label={t("knowledgePage.recentlyAdded")} value={notes[0] ? new Date(notes[0].createdAt).toLocaleDateString("ko-KR") : "-"} />
       </div>
 
       <div className="grid grid-cols-[minmax(0,1fr)_330px] gap-5">
@@ -137,7 +139,7 @@ export function KnowledgeView() {
               ))}
             </div>
             <div className="flex gap-6 text-sm font-semibold">
-              {["지식 그래프", "지식 네트워크", "문서 목록", "태그", "연결 추천"].map((tab, index) => <span key={tab} className={index === 0 ? "text-app-primary" : "text-app-muted"}>{tab}</span>)}
+              {[t("knowledgePage.graph"), t("knowledgePage.knowledgeNetwork"), t("knowledgePage.documents"), t("knowledgePage.tags"), t("knowledgePage.recommendations")].map((tab, index) => <span key={tab} className={index === 0 ? "text-app-primary" : "text-app-muted"}>{tab}</span>)}
             </div>
           </div>
           <div className="relative h-[520px] bg-[radial-gradient(circle,#e8eaf2_1px,transparent_1px)] [background-size:18px_18px]">
@@ -173,7 +175,7 @@ export function KnowledgeView() {
               </div>
             ) : graph.length === 0 ? (
               <div className="flex h-full items-center justify-center p-6">
-                <EmptyState icon={Network} title="지식 그래프 없음" description="새 지식을 추가하면 그래프가 생성됩니다." />
+                <EmptyState icon={Network} title={t("knowledgePage.graphEmptyTitle")} description={t("knowledgePage.graphEmptyDescription")} />
               </div>
             ) : (
               <>
@@ -181,8 +183,8 @@ export function KnowledgeView() {
                   {graph.map((node) => <line key={node.id} x1="50%" y1="50%" x2={`${node.x + 8}%`} y2={`${node.y + 5}%`} stroke="#6D5DF6" strokeOpacity="0.45" strokeWidth="1.4" />)}
                 </svg>
                 <button className="absolute left-1/2 top-1/2 z-10 w-40 -translate-x-1/2 -translate-y-1/2 rounded-app bg-app-primary p-4 text-left text-white shadow-app">
-                  <p className="text-sm font-semibold">지식 중심</p>
-                  <p className="mt-2 text-xs text-white/80">프로젝트/일반 지식</p>
+                  <p className="text-sm font-semibold">{t("knowledgePage.centralNode")}</p>
+                  <p className="mt-2 text-xs text-white/80">{t("knowledgePage.centralNodeDescription")}</p>
                 </button>
                 {graph.map((node) => <KnowledgeNode key={node.id} node={node} active={selected === node.id} onClick={() => setSelected(node.id)} />)}
               </>
@@ -192,29 +194,29 @@ export function KnowledgeView() {
 
         <div className="space-y-5">
           <SurfaceCard className="p-5">
-            <h2 className="mb-4 text-base font-semibold text-app-text">선택 노드</h2>
+            <h2 className="mb-4 text-base font-semibold text-app-text">{t("knowledgePage.selectedNode")}</h2>
             {selectedNode ? (
               <>
                 <p className="text-lg font-semibold text-app-text">{selectedNode.title}</p>
-                <p className="mt-2 text-sm leading-6 text-app-muted">태그: {selectedNode.tag}</p>
+                <p className="mt-2 text-sm leading-6 text-app-muted">{t("knowledgePage.tagLabel")}: {selectedNode.tag}</p>
               </>
             ) : (
-              <p className="text-sm leading-6 text-app-muted">선택된 지식이 없습니다.</p>
+              <p className="text-sm leading-6 text-app-muted">{t("knowledgePage.noSelected")}</p>
             )}
           </SurfaceCard>
           <SurfaceCard className="p-5">
-            <h2 className="mb-4 text-base font-semibold text-app-text">최근 노트</h2>
-            {notes.length === 0 ? <p className="text-sm text-app-muted">저장된 노트가 없습니다.</p> : notes.slice(0, 5).map((note) => <div key={note.id} className="border-b border-app-border py-3 last:border-b-0"><p className="text-sm font-semibold text-app-text">{note.title}</p><p className="mt-1 line-clamp-2 text-xs text-app-muted">{note.body}</p></div>)}
+            <h2 className="mb-4 text-base font-semibold text-app-text">{t("knowledgePage.recentNotes")}</h2>
+            {notes.length === 0 ? <p className="text-sm text-app-muted">{t("knowledgePage.noNotes")}</p> : notes.slice(0, 5).map((note) => <div key={note.id} className="border-b border-app-border py-3 last:border-b-0"><p className="text-sm font-semibold text-app-text">{note.title}</p><p className="mt-1 line-clamp-2 text-xs text-app-muted">{note.body}</p></div>)}
           </SurfaceCard>
         </div>
       </div>
 
       {modalOpen ? (
-        <Modal title="새 지식 추가" onClose={() => setModalOpen(false)}>
-          <Input label="제목" value={form.title} onChange={(title) => setForm((prev) => ({ ...prev, title }))} />
-          <Input label="태그(쉼표 구분)" value={form.tags} onChange={(tags) => setForm((prev) => ({ ...prev, tags }))} />
-          <textarea value={form.body} onChange={(event) => setForm((prev) => ({ ...prev, body: event.target.value }))} className="mb-3 min-h-32 w-full rounded-app border border-app-border bg-app-bg px-4 py-3 text-sm outline-none focus:border-app-primary" placeholder="본문" />
-          <button type="button" onClick={() => void createNote()} className="h-11 w-full rounded-app bg-app-primary text-sm font-semibold text-white">저장</button>
+        <Modal title={t("knowledgePage.addKnowledge")} closeLabel={t("common.close")} onClose={() => setModalOpen(false)}>
+          <Input label={t("knowledgePage.titleField")} value={form.title} onChange={(title) => setForm((prev) => ({ ...prev, title }))} />
+          <Input label={t("knowledgePage.tagsField")} value={form.tags} onChange={(tags) => setForm((prev) => ({ ...prev, tags }))} />
+          <textarea value={form.body} onChange={(event) => setForm((prev) => ({ ...prev, body: event.target.value }))} className="mb-3 min-h-32 w-full rounded-app border border-app-border bg-app-bg px-4 py-3 text-sm outline-none focus:border-app-primary" placeholder={t("knowledgePage.bodyField")} />
+          <button type="button" onClick={() => void createNote()} className="h-11 w-full rounded-app bg-app-primary text-sm font-semibold text-white">{t("common.save")}</button>
         </Modal>
       ) : null}
     </div>
@@ -229,8 +231,8 @@ function KnowledgeNode({ node, active, onClick }: { node: GraphNode; active: boo
   return <button type="button" onClick={onClick} className={`absolute z-10 w-36 rounded-app border border-app-border bg-white p-3 text-left shadow-soft ${active ? "ring-2 ring-app-primary" : ""}`} style={{ left: `${node.x}%`, top: `${node.y}%` }}><p className="text-xs font-semibold text-app-text">{node.title}</p><p className="mt-2 flex items-center gap-2 text-[11px] text-app-muted"><Tags size={11} />{node.tag}</p></button>;
 }
 
-function Modal({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
-  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 px-4"><div className="w-[520px] rounded-app border border-app-border bg-white p-5 shadow-app"><div className="mb-4 flex items-center justify-between"><h2 className="text-base font-semibold text-app-text">{title}</h2><button type="button" onClick={onClose} className="rounded-2xl border border-app-border px-3 py-1 text-xs font-semibold text-app-muted">닫기</button></div>{children}</div></div>;
+function Modal({ title, closeLabel, children, onClose }: { title: string; closeLabel: string; children: React.ReactNode; onClose: () => void }) {
+  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 px-4"><div className="w-[520px] rounded-app border border-app-border bg-white p-5 shadow-app"><div className="mb-4 flex items-center justify-between"><h2 className="text-base font-semibold text-app-text">{title}</h2><button type="button" onClick={onClose} className="rounded-2xl border border-app-border px-3 py-1 text-xs font-semibold text-app-muted">{closeLabel}</button></div>{children}</div></div>;
 }
 
 function Input({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {

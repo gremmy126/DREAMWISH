@@ -12,6 +12,7 @@ import { RelatedNotesPanel } from "@/components/context/RelatedNotesPanel";
 import { RelatedProjectsPanel } from "@/components/context/RelatedProjectsPanel";
 import { SuggestedConnectionsPanel } from "@/components/context/SuggestedConnectionsPanel";
 import type { ContextPayload } from "@/components/context/types";
+import { readApiResponse } from "@/src/lib/api/api-response";
 import { useAppLanguage } from "@/src/lib/i18n/use-app-language";
 import type { SearchResult } from "@/src/lib/search/search.types";
 
@@ -37,8 +38,8 @@ export function ConnectedContextWorkspace({ query }: { query: string }) {
       body: JSON.stringify({ query }),
       signal: controller.signal
     })
-      .then((response) => response.json())
-      .then((data: ContextPayload) => {
+      .then((response) => readApiResponse<ContextPayload>(response))
+      .then((data) => {
         setPayload(data);
         setPreview(data.results?.[0] || data.conversationMatches?.[0] || data.webResults?.[0] || null);
       })
@@ -109,15 +110,17 @@ export function ConnectedContextWorkspace({ query }: { query: string }) {
                   <a
                     href={preview.url}
                     target="_blank"
-                    rel="noreferrer"
-                    className="mb-3 block truncate text-xs font-semibold text-app-primary"
+                    rel="noopener noreferrer"
+                    className="mb-3 block text-xs font-semibold text-app-primary [overflow-wrap:anywhere]"
                   >
                     {preview.url}
                   </a>
                 ) : (
                   <p className="mb-3 truncate text-xs text-app-muted">{preview.path}</p>
                 )}
-                <p className="text-xs leading-5 text-slate-600">{preview.snippet}</p>
+                <p className="text-xs leading-5 text-slate-600 [overflow-wrap:anywhere]">
+                  {preview.snippet}
+                </p>
               </section>
             ) : null}
           </div>

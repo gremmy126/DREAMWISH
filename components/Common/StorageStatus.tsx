@@ -20,8 +20,7 @@ export function StorageStatus({ compact = false }: StorageStatusProps) {
     usageBytes: null,
     quotaBytes: null
   });
-  const { language } = useAppLanguage();
-  const labels = storageLabels(language);
+  const { t } = useAppLanguage();
 
   useEffect(() => {
     let active = true;
@@ -60,7 +59,7 @@ export function StorageStatus({ compact = false }: StorageStatusProps) {
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <HardDrive size={compact ? 14 : 16} className="text-app-primary" />
-          <p className="text-xs font-semibold text-app-text">{labels.title}</p>
+          <p className="text-xs font-semibold text-app-text">{t("storage.title")}</p>
         </div>
         {percent !== null ? (
           <span className="text-xs font-semibold text-app-primary">{percent}%</span>
@@ -76,19 +75,19 @@ export function StorageStatus({ compact = false }: StorageStatusProps) {
 
       <div className="mt-3 space-y-1 text-xs text-app-muted">
         <div className="flex items-center justify-between gap-2">
-          <span>{labels.used}</span>
+          <span>{t("storage.used")}</span>
           <span className="font-medium text-app-text">{formatBytes(usage)}</span>
         </div>
         <div className="flex items-center justify-between gap-2">
-          <span>{labels.browser}</span>
+          <span>{t("storage.browser")}</span>
           <span className="font-medium text-app-text">
             {formatBytes(info.localStorageBytes)}
           </span>
         </div>
         <div className="flex items-center justify-between gap-2">
-          <span>{labels.limit}</span>
+          <span>{t("storage.limit")}</span>
           <span className="font-medium text-app-text">
-            {quota ? formatBytes(quota) : labels.unknown}
+            {quota ? formatBytes(quota) : t("storage.unknown")}
           </span>
         </div>
       </div>
@@ -121,32 +120,4 @@ function formatBytes(bytes: number) {
   const mb = kb / 1024;
   if (mb < 1024) return `${mb.toFixed(1)} MB`;
   return `${(mb / 1024).toFixed(1)} GB`;
-}
-
-function storageLabels(language: string) {
-  if (language === "en") {
-    return {
-      title: "Local storage",
-      used: "Used",
-      browser: "Browser storage",
-      limit: "Limit",
-      unknown: "Unknown"
-    };
-  }
-  if (language === "ja") {
-    return {
-      title: "ローカルストレージ",
-      used: "使用中",
-      browser: "ブラウザ保存",
-      limit: "上限",
-      unknown: "不明"
-    };
-  }
-  return {
-    title: "로컬 스토리지",
-    used: "사용 중",
-    browser: "브라우저 저장",
-    limit: "한도",
-    unknown: "확인 불가"
-  };
 }

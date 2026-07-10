@@ -1,4 +1,4 @@
-import { readJsonStore, writeJsonStore } from "@/src/lib/local-db/json-store";
+import { readJsonStore, writeJsonStore } from "../local-db/json-store";
 import type {
   ApprovedMemory,
   EmbeddingRecord,
@@ -47,6 +47,17 @@ export async function addApprovedMemory(memory: ApprovedMemory, embedding: Embed
   const db = await readMemoryDb();
   db.memories.unshift(memory);
   db.embeddings.unshift(embedding);
+  db.candidates = db.candidates.map((candidate) =>
+    candidate.id === memory.id ? { ...candidate, status: "approved", updatedAt: memory.updatedAt } : candidate
+  );
+  await writeMemoryDb(db);
+  return memory;
+}
+
+export async function upsertApprovedMemory(memory: ApprovedMemory, embedding: EmbeddingRecord) {
+  const db = await readMemoryDb();
+  db.memories = [memory, ...db.memories.filter((item) => item.id !== memory.id)];
+  db.embeddings = [embedding, ...db.embeddings.filter((item) => item.memoryId !== memory.id)];
   db.candidates = db.candidates.map((candidate) =>
     candidate.id === memory.id ? { ...candidate, status: "approved", updatedAt: memory.updatedAt } : candidate
   );

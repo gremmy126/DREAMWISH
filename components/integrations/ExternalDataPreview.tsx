@@ -1,22 +1,27 @@
+"use client";
+
 import type { ConnectorExecutionPreview } from "@/src/lib/integrations/types";
+import { useAppLanguage } from "@/src/lib/i18n/use-app-language";
 
 export function ExternalDataPreview({
   preview
 }: {
   preview: ConnectorExecutionPreview | null;
 }) {
+  const { t } = useAppLanguage();
+
   return (
     <div className="rounded-app border border-app-border bg-white p-4">
-      <h3 className="text-sm font-semibold text-app-text">External Data Preview</h3>
+      <h3 className="text-sm font-semibold text-app-text">{t("integrations.externalDataPreview")}</h3>
       {preview ? (
         <dl className="mt-3 space-y-2 text-xs">
-          <PreviewRow label="읽을 데이터" value={preview.readableData.join(", ") || "-"} />
-          <PreviewRow label="생성 데이터" value={preview.createdData.join(", ") || "-"} />
-          <PreviewRow label="저장 위치" value={preview.recordLocation} />
+          <PreviewRow label={t("integrations.readableData")} value={preview.readableData.join(", ") || "-"} />
+          <PreviewRow label={t("integrations.createdData")} value={preview.createdData.join(", ") || "-"} />
+          <PreviewRow label={t("integrations.recordLocation")} value={preview.recordLocation} />
         </dl>
       ) : (
         <p className="mt-2 text-xs leading-5 text-app-muted">
-          실행 미리보기를 만들면 읽기/쓰기 범위와 저장 위치가 표시됩니다.
+          {t("integrations.previewEmpty")}
         </p>
       )}
     </div>

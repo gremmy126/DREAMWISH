@@ -21,6 +21,8 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { EmptyState } from "@/components/Common/EmptyState";
 import { SurfaceCard } from "@/components/Common/SurfaceCard";
+import { useAppLanguage } from "@/src/lib/i18n/use-app-language";
+import type { AppLanguage } from "@/src/lib/i18n/translations";
 import type {
   KnowledgeEntity,
   MemoryCandidate,
@@ -41,6 +43,7 @@ export function MemoryView() {
   const [knowledgeNotes, setKnowledgeNotes] = useState<KnowledgeNote[]>([]);
   const [knowledgeTab, setKnowledgeTab] = useState<KnowledgeTabId>("network");
   const [connectionMessage, setConnectionMessage] = useState<string | null>(null);
+  const { language, t } = useAppLanguage();
 
   useEffect(() => {
     void loadDashboard();
@@ -84,7 +87,7 @@ export function MemoryView() {
     recommendation: (typeof knowledgeModel.recommendations)[number]
   ) {
     if (recommendation.targetType !== "app" && recommendation.targetType !== "website") {
-      setConnectionMessage(`${recommendation.title} is now pinned as related knowledge.`);
+      setConnectionMessage(t("memory.connectionPinned", { title: recommendation.title }));
       return;
     }
 
@@ -99,13 +102,13 @@ export function MemoryView() {
       })
     });
     const data = (await response.json()) as { message?: string };
-    setConnectionMessage(data.message || "Connection accepted and saved.");
+    setConnectionMessage(data.message || t("memory.connectionAccepted"));
   }
 
   if (loading && !snapshot) {
     return (
       <SurfaceCard className="min-h-[520px] p-6">
-        <EmptyState icon={Brain} title="Memory 로딩 중" description="로컬 Memory 캐시와 Markdown 원본을 확인하고 있습니다." />
+        <EmptyState icon={Brain} title={t("memory.loadingTitle")} description={t("memory.loadingDescription")} />
       </SurfaceCard>
     );
   }
@@ -113,7 +116,7 @@ export function MemoryView() {
   if (!snapshot) {
     return (
       <SurfaceCard className="min-h-[520px] p-6">
-        <EmptyState icon={AlertTriangle} title="Memory를 불러올 수 없음" description="로컬 Memory API 응답을 확인해야 합니다." />
+        <EmptyState icon={AlertTriangle} title={t("memory.loadFailedTitle")} description={t("memory.loadFailedDescription")} />
       </SurfaceCard>
     );
   }
@@ -122,9 +125,9 @@ export function MemoryView() {
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-app-text">Memory</h1>
+          <h1 className="text-2xl font-semibold text-app-text">{t("memory.title")}</h1>
           <p className="mt-2 text-sm text-app-muted">
-            승인된 기억만 Markdown 원본으로 저장하고, 후보는 Inbox에서 검토합니다.
+            {t("memory.description")}
           </p>
         </div>
         <button
@@ -133,20 +136,20 @@ export function MemoryView() {
           className="inline-flex h-10 items-center gap-2 rounded-2xl border border-app-border bg-white px-3 text-xs font-semibold text-app-text shadow-soft transition hover:bg-app-hover hover:text-app-primary"
         >
           <RefreshCw size={14} />
-          새로고침
+          {t("memory.refresh")}
         </button>
       </div>
 
       <div className="grid grid-cols-5 gap-4">
-        <Metric icon={Inbox} label="Inbox" value={snapshot.statistics.totalCandidates} />
-        <Metric icon={Brain} label="Approved Memory" value={snapshot.statistics.totalMemories} />
-        <Metric icon={UserRound} label="People" value={snapshot.statistics.totalPeople} />
-        <Metric icon={FolderOpen} label="Projects" value={snapshot.statistics.totalProjects} />
-        <Metric icon={Network} label="Edges" value={snapshot.statistics.totalEdges} />
+        <Metric icon={Inbox} label={t("memory.inbox")} value={snapshot.statistics.totalCandidates} />
+        <Metric icon={Brain} label={t("memory.approvedMemory")} value={snapshot.statistics.totalMemories} />
+        <Metric icon={UserRound} label={t("memory.people")} value={snapshot.statistics.totalPeople} />
+        <Metric icon={FolderOpen} label={t("memory.projects")} value={snapshot.statistics.totalProjects} />
+        <Metric icon={Network} label={t("memory.edges")} value={snapshot.statistics.totalEdges} />
       </div>
 
       <SurfaceCard className="p-5">
-        <PanelTitle icon={Network} title="Knowledge" detail={`${knowledgeNotes.length} documents`} />
+        <PanelTitle icon={Network} title={t("memory.knowledge")} detail={`${knowledgeNotes.length} ${t("memory.documents")}`} />
         <div className="mb-4 flex flex-wrap gap-2">
           {KNOWLEDGE_MEMORY_TABS.map((tab) => (
             <button
@@ -185,7 +188,7 @@ export function MemoryView() {
               </div>
             ))}
             {knowledgeModel.documents.length === 0 ? (
-              <p className="text-sm text-app-muted">No knowledge documents yet.</p>
+              <p className="text-sm text-app-muted">{t("memory.noDocuments")}</p>
             ) : null}
           </div>
         ) : null}
@@ -197,7 +200,7 @@ export function MemoryView() {
               </span>
             ))}
             {knowledgeModel.tags.length === 0 ? (
-              <p className="text-sm text-app-muted">No tags yet.</p>
+              <p className="text-sm text-app-muted">{t("memory.noTags")}</p>
             ) : null}
           </div>
         ) : null}
@@ -216,7 +219,7 @@ export function MemoryView() {
                   onClick={() => void acceptKnowledgeRecommendation(recommendation)}
                   className="mt-3 rounded-xl bg-app-primary px-3 py-1.5 text-[11px] font-semibold text-white"
                 >
-                  Accept connection
+                  {t("memory.acceptConnection")}
                 </button>
               </div>
             ))}
@@ -226,9 +229,9 @@ export function MemoryView() {
 
       <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)] gap-5">
         <SurfaceCard className="p-5">
-          <PanelTitle icon={Inbox} title="Memory Inbox" detail={`${snapshot.inbox.length} pending`} />
+          <PanelTitle icon={Inbox} title={t("memory.memoryInbox")} detail={`${snapshot.inbox.length} ${t("memory.pending")}`} />
           {snapshot.inbox.length === 0 ? (
-            <EmptyState icon={CheckCircle2} title="승인 대기 없음" description="AI가 중요하다고 판단한 정보가 생기면 여기에 후보로 표시됩니다." compact />
+            <EmptyState icon={CheckCircle2} title={t("memory.noPendingTitle")} description={t("memory.noPendingDescription")} compact />
           ) : (
             <div className="space-y-3">
               {snapshot.inbox.map((candidate) => (
@@ -244,14 +247,14 @@ export function MemoryView() {
                       disabled={approvingId === candidate.id}
                       className="h-9 shrink-0 rounded-2xl bg-app-primary px-3 text-xs font-semibold text-white disabled:opacity-60"
                     >
-                      {approvingId === candidate.id ? "승인 중" : "승인"}
+                      {approvingId === candidate.id ? t("memory.approving") : t("memory.approve")}
                     </button>
                   </div>
                   <div className="mt-3 grid grid-cols-4 gap-2 text-[11px] font-semibold text-app-muted">
-                    <Score label="중요도" value={candidate.importance} />
-                    <Score label="최신성" value={candidate.recency} />
-                    <Score label="빈도" value={candidate.frequency} raw />
-                    <Score label="확신" value={candidate.confidence} />
+                    <Score label={t("memory.importance")} value={candidate.importance} />
+                    <Score label={t("memory.recency")} value={candidate.recency} />
+                    <Score label={t("memory.frequency")} value={candidate.frequency} raw />
+                    <Score label={t("memory.confidence")} value={candidate.confidence} />
                   </div>
                 </div>
               ))}
@@ -260,22 +263,22 @@ export function MemoryView() {
         </SurfaceCard>
 
         <SurfaceCard className="p-5">
-          <PanelTitle icon={CalendarDays} title="Daily Brief" detail={snapshot.dailyBrief.date} />
-          <BriefList title="오늘 할 일" items={snapshot.dailyBrief.todayTasks} />
-          <BriefList title="최근 프로젝트" items={snapshot.dailyBrief.recentProjects} />
-          <BriefList title="미해결 이슈" items={snapshot.dailyBrief.unresolvedIssues} />
-          <BriefList title="잊기 쉬운 정보" items={snapshot.dailyBrief.likelyForgotten} />
+          <PanelTitle icon={CalendarDays} title={t("memory.dailyBrief")} detail={snapshot.dailyBrief.date} />
+          <BriefList title={t("memory.todayTasks")} items={snapshot.dailyBrief.todayTasks} empty={t("memory.noItems")} />
+          <BriefList title={t("memory.recentProjects")} items={snapshot.dailyBrief.recentProjects} empty={t("memory.noItems")} />
+          <BriefList title={t("memory.unresolvedIssues")} items={snapshot.dailyBrief.unresolvedIssues} empty={t("memory.noItems")} />
+          <BriefList title={t("memory.likelyForgotten")} items={snapshot.dailyBrief.likelyForgotten} empty={t("memory.noItems")} />
         </SurfaceCard>
       </div>
 
       <div className="grid grid-cols-[minmax(0,1fr)_330px] gap-5">
         <SurfaceCard className="overflow-hidden">
           <div className="flex items-center justify-between border-b border-app-border px-5 py-4">
-            <PanelTitle icon={Network} title="Knowledge Network" detail={`${snapshot.knowledgeNetwork.nodes.length} nodes`} compact />
+            <PanelTitle icon={Network} title={t("memory.knowledgeNetwork")} detail={`${snapshot.knowledgeNetwork.nodes.length} ${t("memory.networkNodes")}`} compact />
           </div>
           <div className="relative h-[420px] bg-[radial-gradient(circle,#e8eaf2_1px,transparent_1px)] [background-size:18px_18px]">
             {snapshot.knowledgeNetwork.nodes.length === 0 ? (
-              <EmptyState icon={Network} title="네트워크 없음" description="승인된 Memory나 Knowledge 문서가 생기면 엔티티와 연결이 표시됩니다." />
+              <EmptyState icon={Network} title={t("memory.networkEmptyTitle")} description={t("memory.networkEmptyDescription")} />
             ) : (
               <>
                 <svg className="absolute inset-0 h-full w-full">
@@ -315,41 +318,41 @@ export function MemoryView() {
 
         <div className="space-y-5">
           <SurfaceCard className="p-5">
-            <PanelTitle icon={ShieldCheck} title="Selected Entity" detail={selectedNode?.type || "-"} />
+            <PanelTitle icon={ShieldCheck} title={t("memory.selectedEntity")} detail={selectedNode?.type || "-"} />
             {selectedNode ? (
               <div className="space-y-3 text-sm">
                 <p className="text-lg font-semibold text-app-text">{selectedNode.label}</p>
-                <Detail label="Confidence" value={`${Math.round(selectedNode.confidence * 100)}%`} />
-                <Detail label="Sources" value={String(selectedNode.sourceIds.length)} />
+                <Detail label={t("memory.confidence")} value={`${Math.round(selectedNode.confidence * 100)}%`} />
+                <Detail label={t("memory.sources")} value={String(selectedNode.sourceIds.length)} />
               </div>
             ) : (
-              <p className="text-sm text-app-muted">선택된 엔티티가 없습니다.</p>
+              <p className="text-sm text-app-muted">{t("memory.noSelectedEntity")}</p>
             )}
           </SurfaceCard>
-          <EntityList title="People" icon={UserRound} items={snapshot.people} />
-          <EntityList title="Projects" icon={FolderOpen} items={snapshot.projects} />
+          <EntityList title={t("memory.people")} icon={UserRound} items={snapshot.people} emptySuffix={t("memory.noItems")} />
+          <EntityList title={t("memory.projects")} icon={FolderOpen} items={snapshot.projects} emptySuffix={t("memory.noItems")} />
         </div>
       </div>
 
       <div className="grid grid-cols-3 gap-5">
         <SurfaceCard className="p-5">
-          <PanelTitle icon={Brain} title="Recent Memory" detail={`${snapshot.recentMemory.length}`} />
-          <SimpleList items={snapshot.recentMemory.map((memory) => memory.title)} empty="승인된 Memory가 없습니다." />
+          <PanelTitle icon={Brain} title={t("memory.recentMemory")} detail={`${snapshot.recentMemory.length}`} />
+          <SimpleList items={snapshot.recentMemory.map((memory) => memory.title)} empty={t("memory.noMemory")} />
         </SurfaceCard>
         <SurfaceCard className="p-5">
-          <PanelTitle icon={Clock3} title="Timeline" detail={`${snapshot.timeline.length}`} />
-          <SimpleList items={snapshot.timeline.map((item) => `${item.title} · ${formatDate(item.createdAt)}`)} empty="Timeline 이벤트가 없습니다." />
+          <PanelTitle icon={Clock3} title={t("memory.timeline")} detail={`${snapshot.timeline.length}`} />
+          <SimpleList items={snapshot.timeline.map((item) => `${item.title} · ${formatDate(item.createdAt, language)}`)} empty={t("memory.noTimeline")} />
         </SurfaceCard>
         <SurfaceCard className="p-5">
-          <PanelTitle icon={BarChart3} title="Memory Health" detail="Local First" />
-          <Detail label="Approval Queue" value={String(snapshot.health.approvalQueueSize)} />
-          <Detail label="Duplicate Suggestions" value={String(snapshot.health.duplicateSuggestions.length)} />
-          <Detail label="Broken Links" value={String(snapshot.health.brokenLinkCount)} />
+          <PanelTitle icon={BarChart3} title={t("memory.memoryHealth")} detail={t("memory.localFirst")} />
+          <Detail label={t("memory.approvalQueue")} value={String(snapshot.health.approvalQueueSize)} />
+          <Detail label={t("memory.duplicateSuggestions")} value={String(snapshot.health.duplicateSuggestions.length)} />
+          <Detail label={t("memory.brokenLinks")} value={String(snapshot.health.brokenLinkCount)} />
           {snapshot.health.brokenLinks.length > 0 ? (
             <div className="mt-4 rounded-2xl border border-red-100 bg-red-50 p-3 text-xs text-red-700">
               <div className="mb-2 flex items-center gap-2 font-semibold">
                 <Link2Off size={13} />
-                Broken Links
+                {t("memory.brokenLinks")}
               </div>
               {snapshot.health.brokenLinks.slice(0, 4).map((link) => (
                 <p key={link} className="truncate">{link}</p>
@@ -419,20 +422,20 @@ function Score({ label, value, raw = false }: { label: string; value: number; ra
   );
 }
 
-function BriefList({ title, items }: { title: string; items: string[] }) {
+function BriefList({ title, items, empty }: { title: string; items: string[]; empty: string }) {
   return (
     <div className="border-b border-app-border py-3 last:border-b-0">
       <p className="text-xs font-semibold text-app-muted">{title}</p>
-      <SimpleList items={items} empty="항목 없음" compact />
+      <SimpleList items={items} empty={empty} compact />
     </div>
   );
 }
 
-function EntityList({ title, icon: Icon, items }: { title: string; icon: typeof UserRound; items: KnowledgeEntity[] }) {
+function EntityList({ title, icon: Icon, items, emptySuffix }: { title: string; icon: typeof UserRound; items: KnowledgeEntity[]; emptySuffix: string }) {
   return (
     <SurfaceCard className="p-5">
       <PanelTitle icon={Icon} title={title} detail={String(items.length)} />
-      <SimpleList items={items.slice(0, 6).map((item) => item.label)} empty={`${title} 없음`} compact />
+      <SimpleList items={items.slice(0, 6).map((item) => item.label)} empty={emptySuffix} compact />
     </SurfaceCard>
   );
 }
@@ -476,8 +479,9 @@ function nodePosition(index: number, edgeOffset = 0) {
   return positions[(index + edgeOffset) % positions.length];
 }
 
-function formatDate(value: string) {
-  return new Date(value).toLocaleDateString("ko-KR", {
+function formatDate(value: string, language: AppLanguage) {
+  const locale = language === "en" ? "en-US" : language === "ja" ? "ja-JP" : "ko-KR";
+  return new Date(value).toLocaleDateString(locale, {
     month: "2-digit",
     day: "2-digit"
   });

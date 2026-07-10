@@ -15,6 +15,9 @@ export async function writeApprovedMemoryMarkdown(memory: Omit<ApprovedMemory, "
 
 function renderMemoryMarkdown(memory: Omit<ApprovedMemory, "markdownPath">) {
   const tags = memory.signals.map((signal) => `memory/${signal}`).join(", ");
+  const semanticTags = memory.tags?.join(", ") || "";
+  const relatedConcepts = memory.relatedConcepts?.join(" -> ") || "";
+  const relatedLinks = memory.relatedLinks?.map((link) => `${link.type}:${link.label}`).join(", ") || "";
   return `---
 id: ${memory.id}
 type: memory
@@ -22,6 +25,10 @@ status: approved
 source: ${memory.source}
 source_id: ${memory.sourceId || ""}
 project_id: ${memory.projectId || ""}
+category: ${memory.category || ""}
+semantic_tags: ${semanticTags}
+related_concepts: ${relatedConcepts}
+related_links: ${relatedLinks}
 importance: ${memory.importance}
 recency: ${memory.recency}
 frequency: ${memory.frequency}
@@ -33,6 +40,7 @@ tags: [${tags}]
 
 # ${memory.title}
 
+${memory.summary ? `## Summary\n\n${memory.summary}\n\n` : ""}${semanticTags ? `## Tags\n\n${semanticTags}\n\n` : ""}${relatedConcepts ? `## Related Concepts\n\n${relatedConcepts}\n\n` : ""}${relatedLinks ? `## Related Links\n\n${relatedLinks}\n\n` : ""}
 ${memory.content}
 
 ## Metadata

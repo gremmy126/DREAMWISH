@@ -2,6 +2,7 @@
 
 import { Clock3 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useAppLanguage } from "@/src/lib/i18n/use-app-language";
 
 type QueueItem = {
   id: string;
@@ -12,6 +13,7 @@ type QueueItem = {
 
 export function ApprovalQueue() {
   const [queue, setQueue] = useState<QueueItem[]>([]);
+  const { t } = useAppLanguage();
 
   useEffect(() => {
     async function load() {
@@ -26,12 +28,12 @@ export function ApprovalQueue() {
     <div className="rounded-app border border-app-border bg-white p-4">
       <div className="mb-3 flex items-center gap-2">
         <Clock3 size={15} className="text-app-primary" />
-        <h3 className="text-sm font-semibold text-app-text">Approval Queue</h3>
+        <h3 className="text-sm font-semibold text-app-text">{t("memory.approvalQueue")}</h3>
       </div>
       <div className="space-y-2">
         {queue.length === 0 ? (
           <p className="text-xs leading-5 text-app-muted">
-            승인 대기 실행이 없습니다.
+            {t("integrations.approvalQueueEmpty")}
           </p>
         ) : (
           queue.map((item) => (

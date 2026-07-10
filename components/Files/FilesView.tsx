@@ -5,19 +5,20 @@ import { useEffect, useRef, useState } from "react";
 import { EmptyState } from "@/components/Common/EmptyState";
 import { SectionHeader } from "@/components/Common/SectionHeader";
 import { SurfaceCard } from "@/components/Common/SurfaceCard";
+import { useAppLanguage } from "@/src/lib/i18n/use-app-language";
 import type { FileRecord } from "@/src/lib/files/file.repository";
-
-const fileTypes = [
-  { label: "Folders", icon: Folder },
-  { label: "PDF", icon: FileText },
-  { label: "Word", icon: File },
-  { label: "Excel", icon: FileSpreadsheet },
-  { label: "Image", icon: FileImage }
-];
 
 export function FilesView() {
   const [files, setFiles] = useState<FileRecord[]>([]);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const { t } = useAppLanguage();
+  const fileTypes = [
+    { label: t("files.folders"), icon: Folder },
+    { label: "PDF", icon: FileText },
+    { label: t("files.word"), icon: File },
+    { label: t("files.excel"), icon: FileSpreadsheet },
+    { label: t("files.image"), icon: FileImage }
+  ];
 
   useEffect(() => {
     void loadFiles();
@@ -51,11 +52,11 @@ export function FilesView() {
       <SurfaceCard className="p-6">
         <SectionHeader
           icon={Folder}
-          title="파일"
-          description="Files 페이지와 AI Chat에서 첨부한 파일이 함께 저장됩니다."
+          title={t("files.title")}
+          description={t("files.description")}
           action={
             <button type="button" onClick={() => fileInputRef.current?.click()} className="inline-flex h-10 items-center gap-2 rounded-2xl bg-app-primary px-3 text-xs font-semibold text-white">
-              <Plus size={14} />파일 추가
+              <Plus size={14} />{t("files.addFile")}
             </button>
           }
         />
@@ -70,11 +71,11 @@ export function FilesView() {
 
       <SurfaceCard className="min-h-[560px] p-6">
         <div className="mb-5 flex items-center justify-between">
-          <p className="text-base font-semibold text-app-text">저장된 파일</p>
-          <span className="rounded-full border border-app-border bg-app-bg px-3 py-1 text-xs font-medium text-app-muted">{files.length}개</span>
+          <p className="text-base font-semibold text-app-text">{t("files.storedFiles")}</p>
+          <span className="rounded-full border border-app-border bg-app-bg px-3 py-1 text-xs font-medium text-app-muted">{files.length}{t("files.countSuffix")}</span>
         </div>
         {files.length === 0 ? (
-          <EmptyState icon={Image} title="파일 없음" description="파일 추가 또는 AI Chat 첨부를 통해 파일을 저장하세요." />
+          <EmptyState icon={Image} title={t("files.emptyTitle")} description={t("files.emptyDescription")} />
         ) : (
           <div className="grid grid-cols-3 gap-3">
             {files.map((file) => <article key={file.id} className="rounded-app border border-app-border bg-white p-4 shadow-soft"><div className="mb-3 flex items-center gap-2"><Upload size={15} className="text-app-primary" /><p className="truncate text-sm font-semibold text-app-text">{file.name}</p></div><p className="text-xs text-app-muted">{file.mimeType}</p><p className="mt-2 text-xs text-app-muted">{formatBytes(file.size)} · {file.source}</p>{file.textPreview ? <p className="mt-3 line-clamp-3 text-xs leading-5 text-slate-600">{file.textPreview}</p> : null}</article>)}
