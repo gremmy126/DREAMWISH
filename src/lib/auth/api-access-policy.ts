@@ -27,7 +27,7 @@ const ADMIN_API_PREFIX = "/api/admin";
 export function classifyApiAccess(pathname: string): ApiAccessClass {
   const path = normalizePathname(pathname);
 
-  if (!path.startsWith("/api/")) return "public";
+  if (!isPathOrChild(path, "/api")) return "public";
   if (PUBLIC_API_PATHS.has(path) || OAUTH_CALLBACK_PATTERN.test(path)) return "public";
   if (isPathOrChild(path, POLAR_CHECKOUT_PREFIX)) return "checkout";
   if (isPathOrChild(path, ADMIN_API_PREFIX)) return "admin";

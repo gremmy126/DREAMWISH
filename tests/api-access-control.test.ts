@@ -91,6 +91,7 @@ test("API access policy classifies public, checkout, protected, and admin paths"
     ["/api/payments/polar/checkout", "checkout"],
     ["/api/payments/polar/checkout/ch_123", "checkout"],
     ["/api/admin/audit-log", "admin"],
+    ["/api", "protected"],
     ["/api/ai/chat", "protected"]
   ]);
 
