@@ -37,6 +37,7 @@ The feature must prevent one Firebase account from reading, searching, approving
 - Owner scoping for the project, knowledge-note, and file records that may supply memory or graph context.
 - Source provenance from a memory to its originating session and message IDs.
 - Explicit candidate approval, edit-and-approve, reject, and approved-memory forget actions.
+- Correction of approved memory with provenance and version history preserved.
 - Retrieval of approved memory for later chat requests.
 - Memory citations in chat answers.
 - Idempotent administrator migration of legacy unowned JSON data.
@@ -105,9 +106,14 @@ Memory records add:
 - `status: "pending" | "approved" | "rejected" | "forgotten"`
 - `approvedAt`, `rejectedAt`, or `forgottenAt` when applicable
 - `approvedBy`
+- `version`, incremented on every accepted mutation
 - an append-only history entry for approval, edit, rejection, and forgetting
 
 Every candidate source ID must resolve to a chat message owned by the same UID. Approval fails if provenance is missing or crosses an owner boundary.
+
+Candidate mutations include `expectedVersion`. A stale version returns a conflict without changing the record. This prevents two tabs from silently overwriting approval or edits.
+
+Each completed exchange also has a capture job containing `ownerId`, `sourceSessionId`, `sourceMessageIds`, `status`, `attempts`, `lastErrorCode`, and timestamps. Its status is `pending`, `completed`, or `failed`. A failed job is the durable retry record; retrying the same job is idempotent and cannot create duplicate candidates for the same normalized fact and source messages.
 
 ### Knowledge graph
 
@@ -138,9 +144,9 @@ Pending, rejected, forgotten, unowned, or foreign records cannot contribute grap
 
 ### Recall and citations
 
-Approved-memory retrieval combines the existing local lexical/vector score with recency and graph/entity overlap. It returns at most six memories and enforces a combined context budget of 2,400 characters. Results below the minimum relevance threshold are omitted.
+Approved-memory retrieval combines the existing local lexical/vector score with recency and graph/entity overlap. It returns at most six memories and enforces a combined context budget of 2,400 characters. Results with a normalized score below `0.25` are omitted.
 
-The prompt labels recalled memory as user-owned reference data, not executable instructions. Each recalled item carries a stable `memory://<memoryId>` source plus its source session and message IDs. The final chat response exposes those sources through the existing source-card pattern.
+The prompt labels recalled memory as user-owned reference data, not executable instructions. Each recalled item carries a stable `memory://<memoryId>` source plus its source session and message IDs. The final chat response exposes those sources through the existing source-card pattern. Memory sources add `sourceType: "memory"`, `sourceId`, `sessionId`, and `messageIds` to the existing source shape. The completed stream payload also reports `memoryStatus: "used" | "empty" | "degraded"` and any newly created candidate summaries, so the UI does not infer capture or retrieval state.
 
 Raw chats, pending candidates, rejected memories, and forgotten memories are never injected into the prompt.
 
@@ -152,7 +158,7 @@ Raw chats, pending candidates, rejected memories, and forgotten memories are nev
 - Candidate mutation supports approve, edit-and-approve, and reject.
 - Approved-memory mutation supports forget.
 - Responses never include foreign records or accept a client-supplied owner ID.
-- Stable response codes distinguish authentication, not-found, conflict, extraction degradation, retrieval degradation, and migration failure.
+- Stable response codes are `AUTH_REQUIRED`, `MEMORY_NOT_FOUND`, `MEMORY_CONFLICT`, `MEMORY_EXTRACTION_FAILED`, `MEMORY_RETRIEVAL_DEGRADED`, and `MIGRATION_FAILED`.
 
 ### Chat UI
 
@@ -165,14 +171,14 @@ Raw chats, pending candidates, rejected memories, and forgotten memories are nev
 
 - The existing Inbox remains the full review surface.
 - Pending items support approve, edit-and-approve, and reject.
-- Approved items show provenance and support forget.
+- Approved items show provenance and support correction or forget.
 - Forgotten items are excluded from active memory and graph counts.
 
 ## Legacy Migration
 
 Migration identifier: `owner-v1`.
 
-The migration runs only after a verified administrator session is established. A non-administrator never claims unowned records and sees no unowned content.
+The migration runs during the first successful administrator login or session refresh after Firebase verification and before protected user content is returned. A non-administrator never claims unowned records and sees no unowned content.
 
 Before rewriting affected JSON files, the migration copies them into a timestamped directory under `DATA_DIR/.migration-backups/owner-v1/`. If any backup fails, no source file is rewritten. Rewrites use the existing temp-file-and-rename pattern.
 
@@ -217,8 +223,10 @@ Required coverage:
 - a completed exchange preserves raw messages and creates source-linked pending candidates when durable memory is detected;
 - pending and rejected candidates never enter recall;
 - approval makes the edited memory retrievable with correct provenance;
+- stale approval or correction versions fail without overwriting the current memory;
+- a failed capture job can be retried idempotently without duplicate candidates;
 - forgetting removes a memory from retrieval and graph output without deleting its chat sources;
-- retrieval respects the result count, relevance threshold, and context budget;
+- retrieval respects the six-result limit, the `0.25` relevance threshold, and the 2,400-character context budget;
 - memory citations resolve to records owned by the current UID;
 - extraction and retrieval degradation do not fail a successful chat response;
 - `owner-v1` creates a backup, assigns legacy data only to the administrator, is idempotent, and fails closed on a conflicting or invalid marker;
