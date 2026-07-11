@@ -21,6 +21,16 @@ type LocalChatDb = {
 
 const DB_PATH = () => path.join(getDataDirectory(), "chat.json");
 
+export class ChatSessionNotFoundError extends Error {
+  readonly code = "CHAT_SESSION_NOT_FOUND" as const;
+  readonly status = 404 as const;
+
+  constructor() {
+    super("Chat session not found");
+    this.name = "ChatSessionNotFoundError";
+  }
+}
+
 export async function createSession(ownerId: string, title = "새 대화") {
   const db = await readDb();
   const now = new Date().toISOString();
@@ -79,7 +89,7 @@ export async function addMessage(input: {
       item.owner_id === input.ownerId &&
       !item.archived_at
   );
-  if (!session) throw new Error("Chat session not found");
+  if (!session) throw new ChatSessionNotFoundError();
 
   const now = new Date().toISOString();
   const message: ChatMessageRecord = {
@@ -186,9 +196,10 @@ export async function ensureSession(
   sessionId: string | undefined,
   message: string
 ) {
-  if (sessionId) {
+  if (sessionId !== undefined) {
     const existing = await getSession(ownerId, sessionId);
-    if (existing) return existing.session;
+    if (!existing) throw new ChatSessionNotFoundError();
+    return existing.session;
   }
 
   return createSession(ownerId, makeSessionTitle(message));

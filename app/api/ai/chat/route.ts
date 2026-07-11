@@ -20,7 +20,11 @@ import {
   type AnswerVerification,
   type SourceDocument
 } from "@/src/lib/chat/chat.types";
-import { addMessage, ensureSession } from "@/src/lib/db/repositories/chat.repository";
+import {
+  addMessage,
+  ChatSessionNotFoundError,
+  ensureSession
+} from "@/src/lib/db/repositories/chat.repository";
 import { runAutoMemoryEngineQuietly } from "@/src/lib/memory/auto-memory-engine";
 import {
   checkDocumentQuality,
@@ -50,6 +54,12 @@ export async function POST(request: Request) {
 
     const body = parsed.data;
     const message = typeof body.message === "string" ? body.message.trim() : "";
+    if (
+      Object.prototype.hasOwnProperty.call(body, "sessionId") &&
+      typeof body.sessionId !== "string"
+    ) {
+      throw new ChatSessionNotFoundError();
+    }
     const sessionId = typeof body.sessionId === "string" ? body.sessionId : undefined;
     const providerName = parseProviderName(body.model || body.provider);
 
@@ -160,9 +170,15 @@ export async function POST(request: Request) {
     }));
   } catch (error) {
     const clientError = toClientAIError(error);
+    const status =
+      error instanceof ChatSessionNotFoundError
+        ? error.status
+        : clientError.code === "PROVIDER_NOT_CONFIGURED"
+          ? 503
+          : 500;
     return NextResponse.json(
       { ok: false, error: clientError },
-      { status: clientError.code === "PROVIDER_NOT_CONFIGURED" ? 503 : 500 }
+      { status }
     );
   }
 }

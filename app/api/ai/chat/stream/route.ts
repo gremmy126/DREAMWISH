@@ -19,7 +19,11 @@ import {
 } from "@/src/lib/ai/web-answer";
 import { toClientAIError } from "@/src/lib/ai/errors";
 import { emptyAnswerVerification } from "@/src/lib/ai/graph/chat-state";
-import { addMessage, ensureSession } from "@/src/lib/db/repositories/chat.repository";
+import {
+  addMessage,
+  ChatSessionNotFoundError,
+  ensureSession
+} from "@/src/lib/db/repositories/chat.repository";
 import { runAutoMemoryEngineQuietly } from "@/src/lib/memory/auto-memory-engine";
 import {
   checkDocumentQuality,
@@ -64,6 +68,25 @@ export async function POST(request: Request) {
   }
 
   const sessionId = typeof body.sessionId === "string" ? body.sessionId : undefined;
+  let session: Awaited<ReturnType<typeof ensureSession>>;
+  try {
+    if (
+      Object.prototype.hasOwnProperty.call(body, "sessionId") &&
+      typeof body.sessionId !== "string"
+    ) {
+      throw new ChatSessionNotFoundError();
+    }
+    session = await ensureSession(owner.uid, sessionId, message);
+  } catch (error) {
+    if (error instanceof ChatSessionNotFoundError) {
+      return Response.json(
+        { ok: false, error: toClientAIError(error) },
+        { status: error.status }
+      );
+    }
+    throw error;
+  }
+
   const providerName = parseProviderName(body.model || body.provider);
   const encoder = new TextEncoder();
 
@@ -77,7 +100,6 @@ export async function POST(request: Request) {
 
       try {
         send("status", { status: "submitting" });
-        const session = await ensureSession(owner.uid, sessionId, message);
         send("session", { sessionId: session.id, session });
         await addMessage({
           ownerId: owner.uid,
