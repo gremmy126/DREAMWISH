@@ -5,6 +5,7 @@ export function createEmbeddingRecord(memory: ApprovedMemory): EmbeddingRecord {
   const chunks = chunkText(memory.content);
   return {
     id: randomUUID(),
+    ownerId: memory.ownerId,
     memoryId: memory.id,
     textHash: createHash("sha256").update(memory.content).digest("hex"),
     vector: createLocalVector(memory.content),

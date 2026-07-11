@@ -6,11 +6,30 @@ import type { ConnectableOAuthProviderId } from "./oauth.types";
 
 export function getOAuthRedirectUri(provider: ConnectableOAuthProviderId, requestUrl: string) {
   const config = getOAuthProviderConfig(assertConnectableOAuthProvider(provider));
-  const configured = firstEnv([config.redirectUriEnv]);
-  if (configured) return validateRedirectUri(provider, configured);
-
   const baseUrl = getPublicAppUrl(requestUrl);
   return new URL(config.redirectPath, baseUrl).toString();
+}
+
+export type OAuthRedirectDiagnostic = {
+  matches: boolean;
+  expected: string;
+  configured: string | null;
+};
+
+export function getOAuthRedirectDiagnostic(
+  provider: ConnectableOAuthProviderId,
+  requestUrl: string
+): OAuthRedirectDiagnostic {
+  const config = getOAuthProviderConfig(assertConnectableOAuthProvider(provider));
+  const expected = getOAuthRedirectUri(provider, requestUrl);
+  const configuredValue = firstEnv([config.redirectUriEnv]);
+  const configured = configuredValue ? sanitizeConfiguredRedirect(configuredValue) : null;
+
+  return {
+    matches: configured === null || configured === expected,
+    expected,
+    configured
+  };
 }
 
 export function getPublicAppUrl(requestUrl: string) {
@@ -39,14 +58,14 @@ function stripTrailingSlash(value: string) {
   return value.replace(/\/+$/u, "");
 }
 
-function validateRedirectUri(provider: ConnectableOAuthProviderId, value: string) {
-  const config = getOAuthProviderConfig(provider);
-  const url = new URL(value);
-  validateAppUrl(url.origin, `${config.redirectUriEnv} origin`);
-  if (url.pathname !== config.redirectPath) {
-    throw new Error(`${config.redirectUriEnv} must use ${config.redirectPath}`);
+function sanitizeConfiguredRedirect(value: string) {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    return stripTrailingSlash(`${url.origin}${url.pathname}`);
+  } catch {
+    return null;
   }
-  return stripTrailingSlash(url.toString());
 }
 
 function validateAppUrl(value: string, label: string) {

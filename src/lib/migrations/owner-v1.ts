@@ -1,7 +1,10 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { OwnerContext } from "../auth/owner-context";
-import { getDataDirectory } from "../local-db/json-store";
+import {
+  getDataDirectory,
+  withJsonStorePathLock
+} from "../local-db/json-store";
 
 const OWNER_V1_FILES = [
   "chat.json",
@@ -13,6 +16,9 @@ const OWNER_V1_FILES = [
 
 type OwnerV1FileName = (typeof OWNER_V1_FILES)[number];
 type OwnerField = "ownerId" | "owner_id";
+
+export const OWNER_V1_QUARANTINE_ENVELOPE_TYPE = "owner-v1/quarantined-memory";
+export const OWNER_V1_QUARANTINE_ENVELOPE_VERSION = 1;
 
 type OwnerV1Marker = {
   migration: "owner-v1";
@@ -29,6 +35,7 @@ const OWNER_ARRAYS_BY_FILE: Record<OwnerV1FileName, Array<[string, OwnerField]>>
   "memory.json": [
     ["candidates", "ownerId"],
     ["memories", "ownerId"],
+    ["quarantinedMemories", "ownerId"],
     ["embeddings", "ownerId"],
     ["changes", "ownerId"],
     ["captureJobs", "ownerId"]
@@ -69,6 +76,15 @@ export async function runOwnerV1Migration(owner: OwnerContext): Promise<OwnerV1R
 }
 
 async function runOwnerV1MigrationLocked(
+  dataDir: string,
+  owner: OwnerContext
+): Promise<OwnerV1Result> {
+  return withJsonStorePathLock(path.join(dataDir, "memory.json"), () =>
+    runOwnerV1MigrationWithStoreLock(dataDir, owner)
+  );
+}
+
+async function runOwnerV1MigrationWithStoreLock(
   dataDir: string,
   owner: OwnerContext
 ): Promise<OwnerV1Result> {
@@ -145,10 +161,26 @@ function assignOwner(
   const next = { ...value };
   for (const [key, ownerKey] of OWNER_ARRAYS_BY_FILE[fileName]) {
     next[key] = Array.isArray(value[key])
-      ? (value[key] as unknown[]).map((item) => own(item, ownerKey))
+      ? (value[key] as unknown[]).map((item) =>
+          fileName === "memory.json" && key === "quarantinedMemories"
+            ? ownQuarantinedMemory(item, ownerId)
+            : own(item, ownerKey)
+        )
       : [];
   }
   return next;
+}
+
+function ownQuarantinedMemory(value: unknown, ownerId: string) {
+  if (isRecord(value)) {
+    return { ...value, ownerId: value.ownerId || ownerId };
+  }
+  return {
+    envelopeType: OWNER_V1_QUARANTINE_ENVELOPE_TYPE,
+    envelopeVersion: OWNER_V1_QUARANTINE_ENVELOPE_VERSION,
+    ownerId,
+    raw: value
+  };
 }
 
 function parseMarker(raw: Buffer): OwnerV1Marker {

@@ -29,6 +29,7 @@ const BASE_TRANSLATIONS = {
     nav: {
       chat: "AI 채팅",
       memory: "메모리",
+      business: "비즈니스",
       crm: "CRM",
       automation: "자동화",
       calendar: "캘린더",
@@ -223,6 +224,7 @@ const BASE_TRANSLATIONS = {
     nav: {
       chat: "AI Chat",
       memory: "Memory",
+      business: "Business",
       crm: "CRM",
       automation: "Automation",
       calendar: "Calendar",
@@ -419,6 +421,7 @@ const BASE_TRANSLATIONS = {
     nav: {
       chat: "AIチャット",
       memory: "メモリ",
+      business: "ビジネス",
       crm: "CRM",
       automation: "自動化",
       calendar: "カレンダー",

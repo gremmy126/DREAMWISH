@@ -1,5 +1,5 @@
-import type { SearchResult } from "@/src/lib/search/search.types";
-import { normalizeSearchText, safeExternalUrl } from "@/src/lib/search/search-text";
+import type { SearchResult } from "../search/search.types";
+import { normalizeSearchText, safeExternalUrl } from "../search/search-text";
 import type { WebSearchResult } from "./web-search.types";
 
 type DuckDuckGoTopic = {

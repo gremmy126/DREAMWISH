@@ -19,7 +19,7 @@ export type MemorySignal =
   | "company"
   | "relationship";
 
-export type MemoryStatus = "pending" | "approved" | "rejected";
+export type MemoryStatus = "pending" | "approved" | "rejected" | "forgotten";
 
 export type MemoryCategory =
   | "Projects"
@@ -54,10 +54,13 @@ export type MemoryRelatedLink = {
 
 export type MemoryCandidate = {
   id: string;
+  ownerId: string;
   title: string;
   content: string;
   source: MemorySource;
   sourceId: string | null;
+  sourceSessionId: string | null;
+  sourceMessageIds: string[];
   projectId: string | null;
   signals: MemorySignal[];
   importance: number;
@@ -65,8 +68,10 @@ export type MemoryCandidate = {
   frequency: number;
   confidence: number;
   status: MemoryStatus;
+  version: number;
   createdAt: string;
   updatedAt: string;
+  rejectedAt?: string | null;
   preview: string;
   category?: MemoryCategory;
   summary?: string;
@@ -78,8 +83,9 @@ export type MemoryCandidate = {
   executionTrail?: ExternalCaptureStep[];
 };
 
-export type ApprovedMemory = MemoryCandidate & {
-  status: "approved";
+export type ApprovedMemory = Omit<MemoryCandidate, "status"> & {
+  status: "approved" | "forgotten";
+  forgottenAt?: string | null;
   approvedAt: string;
   approvedBy: string;
   approvalNote: string | null;
@@ -90,11 +96,30 @@ export type ApprovedMemory = MemoryCandidate & {
 
 export type EmbeddingRecord = {
   id: string;
+  ownerId: string;
   memoryId: string;
   textHash: string;
   vector: number[];
   chunks: string[];
   createdAt: string;
+};
+
+export type MemoryCaptureJob = {
+  id: string;
+  ownerId: string;
+  sourceSessionId: string;
+  sourceMessageIds: string[];
+  status: "pending" | "completed" | "failed";
+  attempts: number;
+  lastErrorCode: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type MemoryCaptureResult = {
+  status: MemoryCaptureJob["status"];
+  job: MemoryCaptureJob;
+  candidates: MemoryCandidate[];
 };
 
 export type KnowledgeEntityType =
@@ -218,11 +243,13 @@ export type MemoryChangeAction = "capture" | "update" | "delete";
 
 export type MemoryChangePreview = {
   id: string;
+  ownerId: string;
   action: MemoryChangeAction;
   targetId: string | null;
   proposedContent: string;
   approvalRequired: true;
   status: "preview" | "approved" | "undone";
+  version: number;
   createdAt: string;
   updatedAt: string;
   history: Array<{

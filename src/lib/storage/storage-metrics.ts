@@ -5,22 +5,10 @@ export type StoragePercent = {
 
 export function calculateStoragePercent(usageBytes: number, quotaBytes: number | null): StoragePercent | null {
   if (!quotaBytes || quotaBytes <= 0) return null;
-  if (usageBytes <= 0) return { label: "0%", widthPercent: 0 };
-
-  const rawPercent = (usageBytes / quotaBytes) * 100;
-  if (rawPercent > 0 && rawPercent < 1) {
-    return { label: `${formatSmallPercent(rawPercent)}%`, widthPercent: 1 };
-  }
-
-  const rounded = Math.min(100, Math.round(rawPercent));
+  const rawPercent = (Math.max(0, usageBytes) / quotaBytes) * 100;
+  const clamped = Math.min(100, rawPercent);
   return {
-    label: `${rounded}%`,
-    widthPercent: rounded
+    label: `${clamped.toFixed(2)}%`,
+    widthPercent: clamped > 0 && clamped < 1 ? 1 : clamped
   };
-}
-
-function formatSmallPercent(rawPercent: number) {
-  const decimals = rawPercent < 0.01 ? 3 : 2;
-  const rounded = rawPercent.toFixed(decimals);
-  return rounded.replace(/\.?0+$/u, "") || "0";
 }

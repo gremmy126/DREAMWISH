@@ -103,6 +103,7 @@ async function loadSourceDocuments(
   const memories = memoryDb.memories.filter(
     (memory) =>
       (memory as typeof memory & { ownerId?: string }).ownerId === ownerId &&
+      memory.status === "approved" &&
       (projectId === undefined || memory.projectId === projectId)
   );
 

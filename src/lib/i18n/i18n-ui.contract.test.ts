@@ -8,7 +8,7 @@ const languages: AppLanguage[] = ["ko", "en", "ja"];
 const expectedSidebarOrder: readonly [
   "chat",
   "memory",
-  "crm",
+  "business",
   "automation",
   "calendar",
   "files",

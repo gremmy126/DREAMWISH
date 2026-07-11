@@ -21,6 +21,7 @@ export type ChatGraphState = {
   retrievedDocuments: unknown[];
   contextText: string;
   contextAvailable: boolean;
+  memoryContextText: string;
   answer?: string;
   citations: SourceDocument[];
   confidence?: AnswerConfidence;

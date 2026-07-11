@@ -1,9 +1,9 @@
 import type { Customer, CustomerMemory } from "./crm.types";
 import { listCustomers, upsertCustomer, upsertCustomerMemory } from "./crm.repository";
 
-export async function searchCustomers(query: string) {
+export async function searchCustomers(ownerId: string, query: string) {
   const terms = tokenize(query);
-  const customers = await listCustomers();
+  const customers = await listCustomers(ownerId);
   if (terms.length === 0) return customers;
 
   return customers.filter((customer) => {

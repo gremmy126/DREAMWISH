@@ -1,8 +1,8 @@
+import { randomUUID } from "node:crypto";
 import { createMemoryCandidate } from "@/src/lib/memory/memory-engine";
 import {
   buildMemoryDashboardSnapshot,
-  generateDailyMemoryBrief,
-  listApprovedMemories
+  generateDailyMemoryBrief
 } from "@/src/lib/memory/memory-engine";
 import { createMemoryChangePreview } from "@/src/lib/memory/memory-execution";
 import { buildKnowledgeNetwork, extractKnowledgeEntities } from "@/src/lib/memory/knowledge-network";
@@ -33,15 +33,21 @@ export function listMemoryMcpTools() {
   return TOOLS;
 }
 
-export async function runMemoryMcpTool(name: string, payload: Record<string, unknown> = {}) {
+export async function runMemoryMcpTool(
+  ownerId: string,
+  name: string,
+  payload: Record<string, unknown> = {}
+) {
   try {
     switch (name) {
       case "memory.search":
-        return ok(await quickMemorySearch(asString(payload.query), { projectId: asNullableString(payload.projectId) }));
+        return ok(await quickMemorySearch(asString(payload.query), { ownerId, projectId: asNullableString(payload.projectId) }));
       case "memory.capture":
         return ok(
           await createMemoryCandidate({
+            ownerId,
             source: asMemorySource(payload.source),
+            sourceId: asOptionalString(payload.sourceId) || `mcp:${randomUUID()}`,
             content: asString(payload.content),
             title: asOptionalString(payload.title),
             projectId: asNullableString(payload.projectId),
@@ -50,7 +56,7 @@ export async function runMemoryMcpTool(name: string, payload: Record<string, unk
         );
       case "memory.update":
         return ok(
-          await createMemoryChangePreview({
+          await createMemoryChangePreview(ownerId, {
             action: "update",
             targetId: asNullableString(payload.targetId),
             proposedContent: asString(payload.proposedContent)
@@ -58,48 +64,48 @@ export async function runMemoryMcpTool(name: string, payload: Record<string, unk
         );
       case "memory.delete":
         return ok(
-          await createMemoryChangePreview({
+          await createMemoryChangePreview(ownerId, {
             action: "delete",
             targetId: asNullableString(payload.targetId),
             proposedContent: "Delete requested. Awaiting user approval."
           })
         );
       case "memory.timeline":
-        return ok((await buildMemoryDashboardSnapshot()).timeline);
+        return ok((await buildMemoryDashboardSnapshot(ownerId)).timeline);
       case "memory.people":
-        return ok((await buildMemoryDashboardSnapshot()).people);
+        return ok((await buildMemoryDashboardSnapshot(ownerId)).people);
       case "memory.projects":
-        return ok((await buildMemoryDashboardSnapshot()).projects);
+        return ok((await buildMemoryDashboardSnapshot(ownerId)).projects);
       case "memory.graph":
       case "knowledge.graph":
-        return ok(await buildKnowledgeNetwork({ projectId: asNullableString(payload.projectId) }));
+        return ok(await buildKnowledgeNetwork({ ownerId, projectId: asNullableString(payload.projectId) }));
       case "memory.related":
       case "memory.similar":
-        return ok(await quickMemorySearch(asString(payload.query), { projectId: asNullableString(payload.projectId), limit: 6 }));
+        return ok(await quickMemorySearch(asString(payload.query), { ownerId, projectId: asNullableString(payload.projectId), limit: 6 }));
       case "memory.daily":
-        return ok(await generateDailyMemoryBrief({ date: asOptionalString(payload.date) }));
+        return ok(await generateDailyMemoryBrief(ownerId, { date: asOptionalString(payload.date) }));
       case "memory.summary":
       case "memory.query":
-        return ok(await deepThinkSearch(asString(payload.query), { projectId: asNullableString(payload.projectId) }));
+        return ok(await deepThinkSearch(asString(payload.query), { ownerId, projectId: asNullableString(payload.projectId) }));
       case "knowledge.entities":
         return ok(extractKnowledgeEntities(asString(payload.markdown || payload.content)));
       case "knowledge.relationships":
-        return ok((await buildKnowledgeNetwork({ projectId: asNullableString(payload.projectId) })).edges);
+        return ok((await buildKnowledgeNetwork({ ownerId, projectId: asNullableString(payload.projectId) })).edges);
       case "knowledge.timeline":
-        return ok((await buildMemoryDashboardSnapshot()).timeline);
+        return ok((await buildMemoryDashboardSnapshot(ownerId)).timeline);
       default:
-        return { ok: false, error: `Unknown MCP tool: ${name}` };
+        return { ok: false as const, error: `Unknown MCP tool: ${name}` };
     }
   } catch (error) {
     return {
-      ok: false,
+      ok: false as const,
       error: error instanceof Error ? error.message : "MCP tool failed"
     };
   }
 }
 
 function ok(data: unknown) {
-  return { ok: true, data };
+  return { ok: true as const, data };
 }
 
 function asString(value: unknown) {

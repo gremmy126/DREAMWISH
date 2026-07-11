@@ -20,10 +20,14 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { EmptyState } from "@/components/Common/EmptyState";
+import { MemoryCandidateCard } from "@/components/Memory/MemoryCandidateCard";
 import { SurfaceCard } from "@/components/Common/SurfaceCard";
+import { readApiResponse } from "@/src/lib/api/api-response";
+import { stringifyUnknownError } from "@/src/lib/auth/access-control";
 import { useAppLanguage } from "@/src/lib/i18n/use-app-language";
 import type { AppLanguage } from "@/src/lib/i18n/translations";
 import type {
+  ApprovedMemory,
   KnowledgeEntity,
   MemoryCandidate,
   MemoryDashboardSnapshot
@@ -39,10 +43,11 @@ export function MemoryView() {
   const [snapshot, setSnapshot] = useState<MemoryDashboardSnapshot | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [mutatingId, setMutatingId] = useState<string | null>(null);
   const [knowledgeNotes, setKnowledgeNotes] = useState<KnowledgeNote[]>([]);
   const [knowledgeTab, setKnowledgeTab] = useState<KnowledgeTabId>("network");
   const [connectionMessage, setConnectionMessage] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const { language, t } = useAppLanguage();
 
   useEffect(() => {
@@ -51,26 +56,75 @@ export function MemoryView() {
 
   async function loadDashboard() {
     setLoading(true);
-    const [response, knowledgeResponse] = await Promise.all([
-      fetch("/api/memory/dashboard"),
-      fetch("/api/knowledge/notes")
-    ]);
-    const data = (await response.json()) as MemoryDashboardSnapshot;
-    const knowledgeData = (await knowledgeResponse.json()) as { notes?: KnowledgeNote[] };
-    setSnapshot(data);
-    setKnowledgeNotes(knowledgeData.notes || []);
-    setSelectedNodeId(data.knowledgeNetwork.nodes[0]?.id || null);
-    setLoading(false);
+    setLoadError(null);
+    try {
+      const [response, knowledgeResponse] = await Promise.all([
+        fetch("/api/memory/dashboard"),
+        fetch("/api/knowledge/notes")
+      ]);
+      const data = await readApiResponse<MemoryDashboardSnapshot>(response);
+      setSnapshot(data);
+      setSelectedNodeId(data.knowledgeNetwork.nodes[0]?.id || null);
+
+      try {
+        const knowledgeData = await readApiResponse<{ notes?: KnowledgeNote[] }>(knowledgeResponse);
+        setKnowledgeNotes(knowledgeData.notes || []);
+      } catch (caught) {
+        setKnowledgeNotes([]);
+        setConnectionMessage(stringifyUnknownError(caught));
+      }
+    } catch (caught) {
+      setLoadError(stringifyUnknownError(caught));
+    } finally {
+      setLoading(false);
+    }
   }
 
-  async function approveCandidate(candidate: MemoryCandidate) {
-    setApprovingId(candidate.id);
+  async function approveCandidate(candidate: MemoryCandidate, content: string) {
+    setMutatingId(candidate.id);
     const response = await fetch(`/api/memory/candidates/${candidate.id}/approve`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ approvedBy: "user", note: "Approved from Memory Inbox" })
+      body: JSON.stringify({
+        expectedVersion: candidate.version,
+        content,
+        note: "Approved from Memory Inbox"
+      })
     });
-    setApprovingId(null);
+    setMutatingId(null);
+    if (response.ok) await loadDashboard();
+  }
+
+  async function rejectCandidate(candidate: MemoryCandidate) {
+    setMutatingId(candidate.id);
+    const response = await fetch(`/api/memory/candidates/${candidate.id}/reject`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ expectedVersion: candidate.version })
+    });
+    setMutatingId(null);
+    if (response.ok) await loadDashboard();
+  }
+
+  async function correctMemory(memory: ApprovedMemory, content: string) {
+    setMutatingId(memory.id);
+    const response = await fetch(`/api/memory/${memory.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ expectedVersion: memory.version, content })
+    });
+    setMutatingId(null);
+    if (response.ok) await loadDashboard();
+  }
+
+  async function forgetMemory(memory: ApprovedMemory) {
+    setMutatingId(memory.id);
+    const response = await fetch(`/api/memory/${memory.id}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ expectedVersion: memory.version })
+    });
+    setMutatingId(null);
     if (response.ok) await loadDashboard();
   }
 
@@ -117,6 +171,10 @@ export function MemoryView() {
     return (
       <SurfaceCard className="min-h-[520px] p-6">
         <EmptyState icon={AlertTriangle} title={t("memory.loadFailedTitle")} description={t("memory.loadFailedDescription")} />
+        {loadError ? <p className="text-center text-xs text-red-600">{loadError}</p> : null}
+        <button type="button" onClick={() => void loadDashboard()} className="mx-auto mt-3 block rounded-xl bg-app-primary px-4 py-2 text-xs font-semibold text-white">
+          Retry
+        </button>
       </SurfaceCard>
     );
   }
@@ -235,28 +293,15 @@ export function MemoryView() {
           ) : (
             <div className="space-y-3">
               {snapshot.inbox.map((candidate) => (
-                <div key={candidate.id} className="rounded-app border border-app-border bg-white p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-app-text">{candidate.title}</p>
-                      <p className="mt-1 line-clamp-2 text-xs leading-5 text-app-muted">{candidate.preview}</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => void approveCandidate(candidate)}
-                      disabled={approvingId === candidate.id}
-                      className="h-9 shrink-0 rounded-2xl bg-app-primary px-3 text-xs font-semibold text-white disabled:opacity-60"
-                    >
-                      {approvingId === candidate.id ? t("memory.approving") : t("memory.approve")}
-                    </button>
-                  </div>
-                  <div className="mt-3 grid grid-cols-4 gap-2 text-[11px] font-semibold text-app-muted">
-                    <Score label={t("memory.importance")} value={candidate.importance} />
-                    <Score label={t("memory.recency")} value={candidate.recency} />
-                    <Score label={t("memory.frequency")} value={candidate.frequency} raw />
-                    <Score label={t("memory.confidence")} value={candidate.confidence} />
-                  </div>
-                </div>
+                <MemoryCandidateCard
+                  key={candidate.id}
+                  candidate={candidate}
+                  language={language}
+                  busy={mutatingId === candidate.id}
+                  onApprove={(content) => void approveCandidate(candidate, content)}
+                  onReject={() => void rejectCandidate(candidate)}
+                  onDefer={() => setConnectionMessage(memoryActionLabels(language).deferred)}
+                />
               ))}
             </div>
           )}
@@ -337,7 +382,22 @@ export function MemoryView() {
       <div className="grid grid-cols-3 gap-5">
         <SurfaceCard className="p-5">
           <PanelTitle icon={Brain} title={t("memory.recentMemory")} detail={`${snapshot.recentMemory.length}`} />
-          <SimpleList items={snapshot.recentMemory.map((memory) => memory.title)} empty={t("memory.noMemory")} />
+          {snapshot.recentMemory.length === 0 ? (
+            <p className="text-sm text-app-muted">{t("memory.noMemory")}</p>
+          ) : (
+            <div className="space-y-3">
+              {snapshot.recentMemory.map((memory) => (
+                <ApprovedMemoryRow
+                  key={memory.id}
+                  memory={memory}
+                  language={language}
+                  busy={mutatingId === memory.id}
+                  onCorrect={(content) => void correctMemory(memory, content)}
+                  onForget={() => void forgetMemory(memory)}
+                />
+              ))}
+            </div>
+          )}
         </SurfaceCard>
         <SurfaceCard className="p-5">
           <PanelTitle icon={Clock3} title={t("memory.timeline")} detail={`${snapshot.timeline.length}`} />
@@ -363,6 +423,84 @@ export function MemoryView() {
       </div>
     </div>
   );
+}
+
+function ApprovedMemoryRow({
+  memory,
+  language,
+  busy,
+  onCorrect,
+  onForget
+}: {
+  memory: ApprovedMemory;
+  language: AppLanguage;
+  busy: boolean;
+  onCorrect: (content: string) => void;
+  onForget: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [content, setContent] = useState(memory.content);
+  const labels = memoryActionLabels(language);
+  return (
+    <article className="rounded-2xl border border-app-border bg-app-bg p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-app-text">{memory.title}</p>
+          <p className="mt-1 text-[11px] text-app-muted">
+            {memory.category || labels.approved} · v{memory.version}
+          </p>
+        </div>
+        <div className="flex shrink-0 gap-1">
+          <button
+            type="button"
+            onClick={() => setEditing((value) => !value)}
+            disabled={busy}
+            className="rounded-xl border border-app-border bg-white px-2 py-1 text-[11px] font-semibold text-app-muted"
+          >
+            {labels.correct}
+          </button>
+          <button
+            type="button"
+            onClick={onForget}
+            disabled={busy}
+            className="rounded-xl border border-red-200 bg-white px-2 py-1 text-[11px] font-semibold text-red-600"
+          >
+            {labels.forget}
+          </button>
+        </div>
+      </div>
+      {editing ? (
+        <div className="mt-3">
+          <textarea
+            value={content}
+            onChange={(event) => setContent(event.target.value)}
+            rows={4}
+            className="w-full resize-y rounded-xl border border-app-border bg-white p-2 text-xs leading-5 outline-none focus:border-app-primary"
+          />
+          <button
+            type="button"
+            onClick={() => onCorrect(content)}
+            disabled={busy || !content.trim() || content === memory.content}
+            className="mt-2 rounded-xl bg-app-primary px-3 py-1.5 text-[11px] font-semibold text-white disabled:opacity-50"
+          >
+            {labels.saveCorrection}
+          </button>
+        </div>
+      ) : (
+        <p className="mt-2 line-clamp-3 text-xs leading-5 text-slate-600">{memory.preview}</p>
+      )}
+    </article>
+  );
+}
+
+function memoryActionLabels(language: AppLanguage) {
+  if (language === "en") {
+    return { approved: "Approved", correct: "Correct", forget: "Forget", saveCorrection: "Save correction", deferred: "Kept in the review queue." };
+  }
+  if (language === "ja") {
+    return { approved: "承認済み", correct: "修正", forget: "忘却", saveCorrection: "修正を保存", deferred: "レビュー待ちに残しました。" };
+  }
+  return { approved: "승인됨", correct: "수정", forget: "망각", saveCorrection: "수정 저장", deferred: "나중에 검토하도록 대기함에 유지했습니다." };
 }
 
 function Metric({ icon: Icon, label, value }: { icon: typeof Inbox; label: string; value: number }) {

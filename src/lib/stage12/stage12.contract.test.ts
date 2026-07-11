@@ -31,8 +31,10 @@ import {
 async function assertStage12Contracts() {
   const crmSummary = getCrmPipelineSummary([
     {
+      ownerId: "stage12-contract-owner",
       id: "customer_1",
       companyId: "company_1",
+      companyName: "Example",
       name: "Ada",
       email: "ada@example.com",
       phone: "",
@@ -40,8 +42,15 @@ async function assertStage12Contracts() {
       tags: ["vip"],
       status: "lead",
       importance: "high",
+      customerType: "company",
+      memo: "",
+      expectedValue: 0,
+      relationshipScore: 70,
+      lastContactAt: null,
+      nextContactAt: null,
       createdAt: "2026-07-09T00:00:00.000Z",
-      updatedAt: "2026-07-09T00:00:00.000Z"
+      updatedAt: "2026-07-09T00:00:00.000Z",
+      deletedAt: null
     }
   ]);
   crmSummary.leads satisfies number;
@@ -75,7 +84,7 @@ async function assertStage12Contracts() {
   automationTemplate.triggerHelp satisfies string;
   triggerExamples[0].label satisfies string;
 
-  const connectorAuth = await getConnectorAuthState("github");
+  const connectorAuth = await getConnectorAuthState("contract-owner", "github");
   connectorAuth.status satisfies "connected" | "not_connected" | "mock_mode";
   const aiState = getAIProviderKeyState();
   aiState.providers[0].connected satisfies boolean;

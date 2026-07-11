@@ -3,6 +3,7 @@ import { apiFailure, apiSuccess } from "@/src/lib/api/api-response";
 import { parseJsonRequestBody } from "@/src/lib/api/json-request";
 import { requireOwnerContext } from "@/src/lib/auth/owner-context";
 import { chatWithAI } from "@/src/lib/ai/ai.service";
+import { appendApprovedMemoryToMessages } from "@/src/lib/ai/prompts";
 import { toClientAIError } from "@/src/lib/ai/errors";
 import { runChatGraph } from "@/src/lib/ai/graph/chat-graph";
 import { emptyAnswerVerification } from "@/src/lib/ai/graph/chat-state";
@@ -12,12 +13,12 @@ import {
   appendWebAnswerReferences,
   buildWebAnswerMessages,
   buildWebAnswerReferences,
-  createInsufficientWebAnswer,
   selectWebAnswerContext
 } from "@/src/lib/ai/web-answer";
 import {
   type AnswerConfidence,
   type AnswerVerification,
+  type ChatMessageRecord,
   type SourceDocument
 } from "@/src/lib/chat/chat.types";
 import {
@@ -27,11 +28,18 @@ import {
 } from "@/src/lib/db/repositories/chat.repository";
 import { runAutoMemoryEngineQuietly } from "@/src/lib/memory/auto-memory-engine";
 import {
+  buildApprovedMemoryContext,
+  type ApprovedMemoryContext
+} from "@/src/lib/memory/approved-memory-context";
+import {
   checkDocumentQuality,
   formatQualityReport,
   isQualityCommand
 } from "@/src/lib/quality/document-quality.service";
-import { searchWeb } from "@/src/lib/web-search/web-search.service";
+import {
+  buildUnverifiedWebFallbackMessages,
+  searchWebSafely
+} from "@/src/lib/web-search/web-search-outcome";
 
 type ChatRequestBody = {
   message?: unknown;
@@ -77,12 +85,20 @@ export async function POST(request: Request) {
     }
 
     const session = await ensureSession(owner.uid, sessionId, message);
-    await addMessage({
+    const userMessageRecord = await addMessage({
       ownerId: owner.uid,
       sessionId: session.id,
       role: "user",
       content: message
     });
+    const memoryContext = await buildApprovedMemoryContext(owner.uid, message).catch(
+      (): ApprovedMemoryContext => ({
+        status: "degraded",
+        contextText: "",
+        memories: [],
+        sources: []
+      })
+    );
 
     if (isQualityCommand(message)) {
       const report = await checkDocumentQuality(message);
@@ -93,9 +109,10 @@ export async function POST(request: Request) {
         reason: "Local document quality report."
       };
       const verification = emptyAnswerVerification();
-      await saveAssistantExchange(
+      const capture = await saveAssistantExchange(
         owner.uid,
         session.id,
+        userMessageRecord,
         message,
         answer,
         [],
@@ -107,7 +124,9 @@ export async function POST(request: Request) {
         sources: [],
         confidence,
         verification,
-        sessionId: session.id
+        sessionId: session.id,
+        memoryStatus: capture?.status || memoryContext.status,
+        memoryCandidates: summarizeCandidates(capture?.candidates || [])
       }));
     }
 
@@ -122,14 +141,29 @@ export async function POST(request: Request) {
     let verification: AnswerVerification = emptyAnswerVerification();
 
     if (plan.intent === "WEB") {
-      const webResults = await searchWeb(getWebSearchQuery(message));
-      const webContext = selectWebAnswerContext(message, webResults);
+      const webOutcome = await searchWebSafely(getWebSearchQuery(message));
+      const webContext = selectWebAnswerContext(message, webOutcome.results);
       const references = buildWebAnswerReferences(webContext);
       answer =
         webContext.length === 0
-          ? createInsufficientWebAnswer()
+          ? await chatWithAI(
+              appendApprovedMemoryToMessages(
+                buildUnverifiedWebFallbackMessages(
+                  message,
+                  webOutcome.warning || "No usable live web sources were found."
+                ),
+                memoryContext.contextText
+              ),
+              providerName
+            )
           : appendWebAnswerReferences(
-              await chatWithAI(buildWebAnswerMessages(message, webContext), providerName),
+              await chatWithAI(
+                appendApprovedMemoryToMessages(
+                  buildWebAnswerMessages(message, webContext),
+                  memoryContext.contextText
+                ),
+                providerName
+              ),
               references
             );
       confidence = {
@@ -137,12 +171,20 @@ export async function POST(request: Request) {
         score: references.length > 0 ? 0.72 : 0,
         reason: references.length > 0 ? "Web search context was used." : "No web context was found."
       };
+      if (webContext.length === 0) {
+        verification = {
+          ...verification,
+          warning: webOutcome.warning || "Live web sources could not be verified."
+        };
+      }
     } else {
       const graphResult = await runChatGraph({
+        userId: owner.uid,
         conversationId: session.id,
         userMessage: message,
         provider: providerName,
-        shouldUseRag: plan.intent === "LOCAL"
+        shouldUseRag: plan.intent === "LOCAL",
+        memoryContextText: memoryContext.contextText
       });
       if (graphResult.error) throw graphResult.error;
       answer = graphResult.answer || "";
@@ -150,10 +192,12 @@ export async function POST(request: Request) {
       confidence = graphResult.confidence || confidence;
       verification = graphResult.verification || verification;
     }
+    sources = mergeSources(sources, memoryContext.sources);
 
-    await saveAssistantExchange(
+    const capture = await saveAssistantExchange(
       owner.uid,
       session.id,
+      userMessageRecord,
       message,
       answer,
       sources,
@@ -166,7 +210,9 @@ export async function POST(request: Request) {
       sources,
       confidence,
       verification,
-      sessionId: session.id
+      sessionId: session.id,
+      memoryStatus: capture?.status || memoryContext.status,
+      memoryCandidates: summarizeCandidates(capture?.candidates || [])
     }));
   } catch (error) {
     const clientError = toClientAIError(error);
@@ -186,13 +232,14 @@ export async function POST(request: Request) {
 async function saveAssistantExchange(
   ownerId: string,
   sessionId: string,
+  userMessageRecord: ChatMessageRecord,
   userMessage: string,
   answer: string,
   sources: SourceDocument[],
   confidence: AnswerConfidence,
   verification: AnswerVerification
 ) {
-  await addMessage({
+  const assistantMessageRecord = await addMessage({
     ownerId,
     sessionId,
     role: "assistant",
@@ -201,9 +248,35 @@ async function saveAssistantExchange(
     confidence,
     verification
   });
-  await runAutoMemoryEngineQuietly({
+  return runAutoMemoryEngineQuietly({
+    ownerId,
     sessionId,
+    userMessageId: userMessageRecord.id,
+    assistantMessageId: assistantMessageRecord.id,
     userMessage,
     assistantAnswer: answer
   });
+}
+
+function mergeSources(primary: SourceDocument[], memory: SourceDocument[]) {
+  const seen = new Map<string, SourceDocument>();
+  for (const source of [...primary, ...memory]) seen.set(source.path, source);
+  return [...seen.values()];
+}
+
+function summarizeCandidates(candidates: Array<{
+  id: string;
+  title: string;
+  content: string;
+  preview: string;
+  version: number;
+  category?: string;
+  importance: number;
+  recency: number;
+  frequency: number;
+  confidence: number;
+}>) {
+  return candidates.map(({ id, title, content, preview, version, category, importance, recency, frequency, confidence }) => ({
+    id, title, content, preview, version, category, importance, recency, frequency, confidence
+  }));
 }

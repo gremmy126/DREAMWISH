@@ -3,17 +3,20 @@ import { apiFailure } from "@/src/lib/api/api-response";
 import { parseJsonRequestBody } from "@/src/lib/api/json-request";
 import { requireOwnerContext } from "@/src/lib/auth/owner-context";
 import { parseProviderName } from "@/src/lib/ai/provider-options";
-import { buildContextAwareChatMessages } from "@/src/lib/ai/prompts";
+import {
+  appendApprovedMemoryToMessages,
+  buildContextAwareChatMessages
+} from "@/src/lib/ai/prompts";
 import { getChatExecutionPlan, getWebSearchQuery } from "@/src/lib/ai/question-classifier";
 import {
   type AnswerConfidence,
   type AnswerVerification,
+  type ChatMessageRecord,
   type SourceDocument
 } from "@/src/lib/chat/chat.types";
 import {
   buildWebAnswerMessages,
   buildWebAnswerReferences,
-  createInsufficientWebAnswer,
   formatWebAnswerReferences,
   selectWebAnswerContext
 } from "@/src/lib/ai/web-answer";
@@ -26,6 +29,10 @@ import {
 } from "@/src/lib/db/repositories/chat.repository";
 import { runAutoMemoryEngineQuietly } from "@/src/lib/memory/auto-memory-engine";
 import {
+  buildApprovedMemoryContext,
+  type ApprovedMemoryContext
+} from "@/src/lib/memory/approved-memory-context";
+import {
   checkDocumentQuality,
   formatQualityReport,
   isQualityCommand
@@ -34,7 +41,10 @@ import { buildRagContext } from "@/src/lib/rag/context-builder";
 import { calculateConfidence } from "@/src/lib/rag/confidence";
 import { hybridSearch } from "@/src/lib/rag/rag.service";
 import { verifyAnswer } from "@/src/lib/rag/verification";
-import { searchWeb } from "@/src/lib/web-search/web-search.service";
+import {
+  buildUnverifiedWebFallbackMessages,
+  searchWebSafely
+} from "@/src/lib/web-search/web-search-outcome";
 
 type ChatRequestBody = {
   message?: unknown;
@@ -101,12 +111,20 @@ export async function POST(request: Request) {
       try {
         send("status", { status: "submitting" });
         send("session", { sessionId: session.id, session });
-        await addMessage({
+        const userMessageRecord = await addMessage({
           ownerId: owner.uid,
           sessionId: session.id,
           role: "user",
           content: message
         });
+        const memoryContext = await buildApprovedMemoryContext(owner.uid, message).catch(
+          (): ApprovedMemoryContext => ({
+            status: "degraded",
+            contextText: "",
+            memories: [],
+            sources: []
+          })
+        );
 
         if (isQualityCommand(message)) {
           const report = await checkDocumentQuality(message);
@@ -119,16 +137,25 @@ export async function POST(request: Request) {
           const verification = emptyAnswerVerification();
           send("sources", { sources: [], confidence });
           send("delta", { text: answer });
-          await saveAssistantExchange(
+          const capture = await saveAssistantExchange(
             owner.uid,
             session.id,
+            userMessageRecord,
             message,
             answer,
             [],
             confidence,
             verification
           );
-          send("done", { answer, sources: [], confidence, verification, sessionId: session.id });
+          send("done", {
+            answer,
+            sources: memoryContext.sources,
+            confidence,
+            verification,
+            sessionId: session.id,
+            memoryStatus: capture?.status || memoryContext.status,
+            memoryCandidates: summarizeCandidates(capture?.candidates || [])
+          });
           return;
         }
 
@@ -146,8 +173,8 @@ export async function POST(request: Request) {
 
         if (plan.intent === "WEB") {
           send("status", { status: "searching-web" });
-          const webResults = await searchWeb(getWebSearchQuery(message));
-          const webContext = selectWebAnswerContext(message, webResults);
+          const webOutcome = await searchWebSafely(getWebSearchQuery(message));
+          const webContext = selectWebAnswerContext(message, webOutcome.results);
           const references = buildWebAnswerReferences(webContext);
           confidence = {
             level: references.length > 0 ? "medium" : "none",
@@ -157,12 +184,31 @@ export async function POST(request: Request) {
           send("sources", { sources, confidence });
 
           if (webContext.length === 0) {
-            answer = createInsufficientWebAnswer();
-            send("delta", { text: answer });
+            verification = {
+              ...verification,
+              warning: webOutcome.warning || "Live web sources could not be verified."
+            };
+            send("status", { status: "streaming" });
+            for await (const token of streamChatWithAI(
+              appendApprovedMemoryToMessages(
+                buildUnverifiedWebFallbackMessages(
+                  message,
+                  webOutcome.warning || "No usable live web sources were found."
+                ),
+                memoryContext.contextText
+              ),
+              providerName
+            )) {
+              answer += token;
+              send("delta", { text: token });
+            }
           } else {
             send("status", { status: "streaming" });
             for await (const token of streamChatWithAI(
-              buildWebAnswerMessages(message, webContext),
+              appendApprovedMemoryToMessages(
+                buildWebAnswerMessages(message, webContext),
+                memoryContext.contextText
+              ),
               providerName
             )) {
               answer += token;
@@ -191,7 +237,8 @@ export async function POST(request: Request) {
             buildContextAwareChatMessages({
               question: message,
               contextText: context.contextText,
-              contextAvailable: context.sources.length > 0
+              contextAvailable: context.sources.length > 0,
+              memoryContextText: memoryContext.contextText
             }),
             providerName
           )) {
@@ -201,17 +248,27 @@ export async function POST(request: Request) {
           verification =
             context.sources.length > 0 ? verifyAnswer(answer, sources) : emptyAnswerVerification();
         }
+        sources = mergeSources(sources, memoryContext.sources);
 
-        await saveAssistantExchange(
+        const capture = await saveAssistantExchange(
           owner.uid,
           session.id,
+          userMessageRecord,
           message,
           answer,
           sources,
           confidence,
           verification
         );
-        send("done", { answer, sources, confidence, verification, sessionId: session.id });
+        send("done", {
+          answer,
+          sources,
+          confidence,
+          verification,
+          sessionId: session.id,
+          memoryStatus: capture?.status || memoryContext.status,
+          memoryCandidates: summarizeCandidates(capture?.candidates || [])
+        });
       } catch (error) {
         send("error", toClientAIError(error));
       } finally {
@@ -232,13 +289,14 @@ export async function POST(request: Request) {
 async function saveAssistantExchange(
   ownerId: string,
   sessionId: string,
+  userMessageRecord: ChatMessageRecord,
   userMessage: string,
   answer: string,
   sources: SourceDocument[],
   confidence: AnswerConfidence,
   verification: AnswerVerification
 ) {
-  await addMessage({
+  const assistantMessageRecord = await addMessage({
     ownerId,
     sessionId,
     role: "assistant",
@@ -247,9 +305,35 @@ async function saveAssistantExchange(
     confidence,
     verification
   });
-  await runAutoMemoryEngineQuietly({
+  return runAutoMemoryEngineQuietly({
+    ownerId,
     sessionId,
+    userMessageId: userMessageRecord.id,
+    assistantMessageId: assistantMessageRecord.id,
     userMessage,
     assistantAnswer: answer
   });
+}
+
+function mergeSources(primary: SourceDocument[], memory: SourceDocument[]) {
+  const seen = new Map<string, SourceDocument>();
+  for (const source of [...primary, ...memory]) seen.set(source.path, source);
+  return [...seen.values()];
+}
+
+function summarizeCandidates(candidates: Array<{
+  id: string;
+  title: string;
+  content: string;
+  preview: string;
+  version: number;
+  category?: string;
+  importance: number;
+  recency: number;
+  frequency: number;
+  confidence: number;
+}>) {
+  return candidates.map(({ id, title, content, preview, version, category, importance, recency, frequency, confidence }) => ({
+    id, title, content, preview, version, category, importance, recency, frequency, confidence
+  }));
 }

@@ -8,6 +8,7 @@ import type {
   ConnectableOAuthProviderId,
   OAuthServiceId
 } from "@/src/lib/oauth/oauth.types";
+import { readApiResponse } from "@/src/lib/api/api-response";
 
 export function IntegrationDisconnectButton({
   provider,
@@ -23,7 +24,7 @@ export function IntegrationDisconnectButton({
     const response = await fetch(getIntegrationDisconnectPath({ provider, service }), {
       method: "POST"
     });
-    const data = (await response.json()) as { revoked?: boolean };
+    const data = await readApiResponse<{ revoked?: boolean }>(response);
     setMessage(data.revoked ? t("integrations.disconnected") : t("integrations.noStoredConnection"));
   }
 

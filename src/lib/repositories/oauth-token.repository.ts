@@ -4,8 +4,8 @@ import type {
   OAuthTokenRecord,
   OAuthTokenSaveInput
 } from "@/src/lib/oauth/oauth.types";
-import { encryptToken } from "@/src/lib/oauth/token-encryption";
-import { readJsonStore, writeJsonStore } from "@/src/lib/local-db/json-store";
+import { encryptToken } from "../oauth/token-encryption";
+import { readJsonStore, writeJsonStore } from "../local-db/json-store";
 
 type OAuthTokenDb = {
   tokens: OAuthTokenRecord[];
@@ -19,6 +19,7 @@ export async function saveOAuthToken(input: OAuthTokenSaveInput) {
   const service = input.service || defaultServiceForProvider(input.provider);
   const existingIndex = db.tokens.findIndex(
     (token) =>
+      token.ownerId === input.ownerId &&
       token.provider === input.provider &&
       (token.service || defaultServiceForProvider(token.provider)) === service &&
       (!input.providerAccountId || token.providerAccountId === input.providerAccountId)
@@ -29,6 +30,7 @@ export async function saveOAuthToken(input: OAuthTokenSaveInput) {
       existingIndex >= 0
         ? db.tokens[existingIndex].id
         : `oauth_token_${input.provider}_${service}_${Date.now()}`,
+    ownerId: input.ownerId,
     provider: input.provider,
     service,
     providerAccountId: input.providerAccountId || previous?.providerAccountId || null,
@@ -45,6 +47,12 @@ export async function saveOAuthToken(input: OAuthTokenSaveInput) {
     expiresAt: input.expiresAt || null,
     scope: input.scope,
     status: "active",
+    verifiedAt:
+      input.verifiedAt === undefined ? previous?.verifiedAt || null : input.verifiedAt,
+    lastVerificationError:
+      input.lastVerificationError === undefined
+        ? previous?.lastVerificationError || null
+        : input.lastVerificationError,
     createdAt: existingIndex >= 0 ? db.tokens[existingIndex].createdAt : now,
     updatedAt: now
   };
@@ -56,17 +64,19 @@ export async function saveOAuthToken(input: OAuthTokenSaveInput) {
   return record;
 }
 
-export async function listOAuthTokens() {
-  return (await readDb()).tokens;
+export async function listOAuthTokens(ownerId: string) {
+  return (await readDb()).tokens.filter((token) => token.ownerId === ownerId);
 }
 
 export async function revokeOAuthToken(
+  ownerId: string,
   provider: ConnectableOAuthProviderId,
   service?: OAuthServiceId | null
 ) {
   const db = await readDb();
   const token = db.tokens.find(
     (item) =>
+      item.ownerId === ownerId &&
       item.provider === provider &&
       (!service || (item.service || defaultServiceForProvider(item.provider)) === service)
   );
@@ -87,14 +97,18 @@ function writeDb(db: OAuthTokenDb) {
 }
 
 function normalizeTokenRecord(token: OAuthTokenRecord): OAuthTokenRecord {
+  const legacy = token as OAuthTokenRecord & { ownerId?: string };
   return {
     ...token,
+    ownerId: legacy.ownerId || null,
     service: token.service || defaultServiceForProvider(token.provider),
     providerAccountId: token.providerAccountId || null,
     accountName: token.accountName || token.accountEmail || null,
     accountAvatarUrl: token.accountAvatarUrl || null,
     workspaceId: token.workspaceId || null,
-    workspaceName: token.workspaceName || null
+    workspaceName: token.workspaceName || null,
+    verifiedAt: token.verifiedAt || null,
+    lastVerificationError: token.lastVerificationError || null
   };
 }
 

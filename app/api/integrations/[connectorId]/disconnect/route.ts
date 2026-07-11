@@ -4,6 +4,7 @@ import {
   resolveOAuthService
 } from "@/src/lib/oauth/oauth.service";
 import { revokeOAuthToken } from "@/src/lib/repositories/oauth-token.repository";
+import { requireOwnerContext } from "@/src/lib/auth/owner-context";
 
 type RouteContext = {
   params: Promise<{ connectorId: string }>;
@@ -11,11 +12,12 @@ type RouteContext = {
 
 export async function POST(request: Request, context: RouteContext) {
   try {
+    const owner = await requireOwnerContext(request);
     const { connectorId } = await context.params;
     const provider = assertConnectableOAuthProvider(connectorId);
     const url = new URL(request.url);
     const service = resolveOAuthService(provider, url.searchParams.get("service"));
-    const token = await revokeOAuthToken(provider, service);
+    const token = await revokeOAuthToken(owner.uid, provider, service);
     return NextResponse.json({ ok: true, revoked: Boolean(token), provider, service });
   } catch (error) {
     return NextResponse.json(

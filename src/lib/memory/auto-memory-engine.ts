@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import type {
   ApprovedMemory,
   MemoryCategory,
@@ -8,9 +8,12 @@ import type {
 } from "./memory.types";
 
 export type AutoMemoryConversationInput = {
+  ownerId?: string;
   userMessage: string;
   assistantAnswer: string;
   sessionId?: string;
+  userMessageId?: string;
+  assistantMessageId?: string;
   createdAt?: string;
 };
 
@@ -149,35 +152,25 @@ export function analyzeConversationForMemory(
 
 export async function runAutoMemoryEngine(
   input: AutoMemoryConversationInput
-): Promise<ApprovedMemory | null> {
-  const extraction = analyzeConversationForMemory(input);
-  if (!extraction) return null;
-
-  const [{ createEmbeddingRecord }, { writeApprovedMemoryMarkdown }, { readMemoryDb, upsertApprovedMemory }] =
-    await Promise.all([
-      import("./memory-embedding"),
-      import("./memory-markdown"),
-      import("./memory-repository")
-    ]);
-  const db = await readMemoryDb();
-  const now = input.createdAt || new Date().toISOString();
-  const existing = findAutoMemoryTarget(db.memories, extraction);
-  const memory = existing
-    ? mergeAutoMemoryMetadata(existing, extraction, now)
-    : createApprovedAutoMemory(extraction, now);
-  const embedding = createEmbeddingRecord({ ...memory, embeddingId: "", markdownPath: "" });
-  const markdownPath = await writeApprovedMemoryMarkdown({
-    ...memory,
-    embeddingId: embedding.id
+) {
+  if (
+    !input.ownerId ||
+    !input.sessionId ||
+    !input.userMessageId ||
+    !input.assistantMessageId
+  ) {
+    return null;
+  }
+  const { captureConversationMemory } = await import("./memory-lifecycle");
+  return captureConversationMemory({
+    ownerId: input.ownerId,
+    sessionId: input.sessionId,
+    userMessageId: input.userMessageId,
+    assistantMessageId: input.assistantMessageId,
+    userMessage: input.userMessage,
+    assistantAnswer: input.assistantAnswer,
+    createdAt: input.createdAt
   });
-  const savedMemory: ApprovedMemory = {
-    ...memory,
-    embeddingId: embedding.id,
-    markdownPath,
-    graphUpdatedAt: now
-  };
-
-  return upsertApprovedMemory(savedMemory, embedding);
 }
 
 export async function runAutoMemoryEngineQuietly(input: AutoMemoryConversationInput) {
@@ -233,45 +226,6 @@ export function mergeAutoMemoryMetadata(
     relatedConcepts: unique([...(existing.relatedConcepts || []), ...extraction.relatedConcepts]),
     relatedLinks: uniqueLinks([...(existing.relatedLinks || []), ...extraction.relatedLinks]),
     history
-  };
-}
-
-function createApprovedAutoMemory(extraction: AutoMemoryExtraction, now: string): ApprovedMemory {
-  return {
-    id: randomUUID(),
-    title: extraction.title,
-    content: extraction.content,
-    source: "chat",
-    sourceId: extraction.sourceId,
-    projectId: extraction.projectId,
-    signals: extraction.signals,
-    importance: extraction.importance,
-    recency: 1,
-    frequency: 1,
-    confidence: extraction.confidence,
-    status: "approved",
-    createdAt: now,
-    updatedAt: now,
-    preview: extraction.summary.slice(0, 220),
-    approvedAt: now,
-    approvedBy: "auto-memory-engine",
-    approvalNote: null,
-    markdownPath: "",
-    embeddingId: "",
-    graphUpdatedAt: now,
-    category: extraction.category,
-    summary: extraction.summary,
-    tags: extraction.tags,
-    relatedConcepts: extraction.relatedConcepts,
-    relatedLinks: extraction.relatedLinks,
-    history: [
-      {
-        at: now,
-        event: "Auto memory created",
-        sourceId: extraction.sourceId,
-        summary: extraction.summary
-      }
-    ]
   };
 }
 
@@ -453,7 +407,7 @@ function mergeContent(existingContent: string, nextContent: string, now: string)
 }
 
 function appendHistory(history: MemoryHistoryEntry[] | undefined, next: MemoryHistoryEntry) {
-  return [...(history || []), next].slice(-50);
+  return [...(history || []), next];
 }
 
 function scoreImportance(text: string, category: MemoryCategory, tags: string[]) {

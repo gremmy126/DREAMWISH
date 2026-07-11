@@ -1,6 +1,7 @@
 import { AIProviderError } from "@/src/lib/ai/errors";
 
 export type VerifiedFirebaseUser = {
+  uid: string;
   email: string;
   name: string | null;
   providerUserInfo: Array<{ providerId?: string }>;
@@ -8,6 +9,7 @@ export type VerifiedFirebaseUser = {
 
 type FirebaseLookupResponse = {
   users?: Array<{
+    localId?: string;
     email?: string;
     displayName?: string;
     providerUserInfo?: Array<{ providerId?: string }>;
@@ -36,7 +38,7 @@ export async function verifyFirebaseIdToken(idToken: string): Promise<VerifiedFi
   );
   const data = (await response.json()) as FirebaseLookupResponse;
 
-  if (!response.ok || !data.users?.[0]?.email) {
+  if (!response.ok || !data.users?.[0]?.localId || !data.users[0].email) {
     throw new AIProviderError({
       code: "UNAUTHORIZED",
       message: "Firebase authentication failed.",
@@ -47,6 +49,7 @@ export async function verifyFirebaseIdToken(idToken: string): Promise<VerifiedFi
 
   const user = data.users[0];
   return {
+    uid: user.localId || "",
     email: user.email || "",
     name: user.displayName || null,
     providerUserInfo: user.providerUserInfo || []

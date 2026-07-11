@@ -19,8 +19,18 @@ export type OAuthServiceId =
 
 export type OAuthTokenScope = string;
 
+export type OAuthConnectionState =
+  | "connected"
+  | "configured_unverified"
+  | "configuration_only"
+  | "expired"
+  | "revoked"
+  | "error"
+  | "not_connected";
+
 export type OAuthTokenRecord = {
   id: string;
+  ownerId: string | null;
   provider: OAuthProviderId;
   service: OAuthServiceId | null;
   providerAccountId: string | null;
@@ -34,11 +44,14 @@ export type OAuthTokenRecord = {
   expiresAt: string | null;
   scope: OAuthTokenScope[];
   status: "active" | "expired" | "revoked";
+  verifiedAt: string | null;
+  lastVerificationError: string | null;
   createdAt: string;
   updatedAt: string;
 };
 
 export type OAuthTokenSaveInput = {
+  ownerId: string;
   provider: ConnectableOAuthProviderId;
   service?: OAuthServiceId | null;
   providerAccountId?: string | null;
@@ -51,6 +64,8 @@ export type OAuthTokenSaveInput = {
   refreshToken?: string | null;
   expiresAt?: string | null;
   scope: OAuthTokenScope[];
+  verifiedAt?: string | null;
+  lastVerificationError?: string | null;
 };
 
 export type OAuthAuthorizationRequest = {

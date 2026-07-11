@@ -41,9 +41,18 @@ export function apiFailure(
 
 export async function readApiResponse<T>(response: Response): Promise<T> {
   let payload: unknown;
+  const raw = await response.text();
+
+  if (!raw.trim()) {
+    throw createClientError(
+      response.ok ? "EMPTY_RESPONSE" : "INTERNAL_SERVER_ERROR",
+      response.ok ? "Response body is empty." : `Request failed with status ${response.status}`,
+      response.status
+    );
+  }
 
   try {
-    payload = await response.json();
+    payload = JSON.parse(raw);
   } catch {
     throw createClientError(
       response.ok ? "INVALID_JSON" : "INTERNAL_SERVER_ERROR",

@@ -4,7 +4,10 @@ import {
   getIntegrationDisconnectPath
 } from "../src/lib/oauth/oauth-connect-url";
 import { createOAuthAuthorizationUrl } from "../src/lib/oauth/oauth.service";
-import { getOAuthRedirectUri } from "../src/lib/oauth/oauth-redirect";
+import {
+  getOAuthRedirectDiagnostic,
+  getOAuthRedirectUri
+} from "../src/lib/oauth/oauth-redirect";
 import {
   createOAuthSecurityParams,
   createS256CodeChallenge
@@ -20,6 +23,43 @@ test("getOAuthRedirectUri builds canonical integration callback urls from APP_UR
       assert.equal(
         getOAuthRedirectUri("google", "http://127.0.0.1:3100/api/integrations/google/connect"),
         "https://dreamwish.co.kr/api/integrations/google/callback"
+      );
+    }
+  );
+});
+
+test("getOAuthRedirectUri ignores a stale provider redirect and keeps the canonical callback", () => {
+  withEnv(
+    {
+      APP_URL: "https://dreamwish.co.kr",
+      GOOGLE_REDIRECT_URI: "https://old.example.com/oauth/google"
+    },
+    () => {
+      assert.equal(
+        getOAuthRedirectUri("google", "https://dreamwish.co.kr/api/integrations/google/connect"),
+        "https://dreamwish.co.kr/api/integrations/google/callback"
+      );
+    }
+  );
+});
+
+test("getOAuthRedirectDiagnostic reports configured redirect drift without exposing secrets", () => {
+  withEnv(
+    {
+      APP_URL: "https://dreamwish.co.kr",
+      GOOGLE_REDIRECT_URI: "https://old.example.com/oauth/google?token=secret"
+    },
+    () => {
+      assert.deepEqual(
+        getOAuthRedirectDiagnostic(
+          "google",
+          "https://dreamwish.co.kr/api/integrations/google/connect"
+        ),
+        {
+          matches: false,
+          expected: "https://dreamwish.co.kr/api/integrations/google/callback",
+          configured: "https://old.example.com/oauth/google"
+        }
       );
     }
   );

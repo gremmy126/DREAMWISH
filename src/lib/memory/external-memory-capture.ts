@@ -7,6 +7,7 @@ import type {
 } from "@/src/lib/memory/memory.types";
 
 export async function captureExternalMemoryCandidate(input: {
+  ownerId: string;
   connectorId: string;
   sourceId: string;
   title: string;
@@ -14,7 +15,9 @@ export async function captureExternalMemoryCandidate(input: {
   preview: string;
   projectId?: string | null;
 }): Promise<MemoryCandidate & { executionTrail: ExternalCaptureStep[] }> {
+  if (!input.sourceId.trim()) throw new Error("MEMORY_PROVENANCE_INVALID");
   const candidate = await createMemoryCandidate({
+    ownerId: input.ownerId,
     source: connectorToMemorySource(input.connectorId),
     sourceId: input.sourceId,
     title: input.title,

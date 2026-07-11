@@ -20,6 +20,7 @@ import {
 async function assertStage10WorkspaceContracts() {
   const ownerId = "stage10-contract-owner";
   const customer = await createCustomerDraft({
+    ownerId,
     name: "김민수",
     email: "minsu@example.com",
     phone: "010-0000-0000",
@@ -28,7 +29,7 @@ async function assertStage10WorkspaceContracts() {
     memo: "직접 입력한 고객"
   });
   if (customer.status !== "lead") throw new Error("Customer drafts must start as lead");
-  (await listCustomers()).length satisfies number;
+  (await listCustomers(ownerId)).length satisfies number;
 
   const workflow = await createWorkflowWorkspace({
     name: "고객 온보딩",

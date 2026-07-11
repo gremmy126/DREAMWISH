@@ -58,7 +58,10 @@ async function assertStage9ConnectorContracts() {
     throw new Error("Unapproved external action must be blocked");
   }
 
-  const sync = await runManualIntegrationSync("gmail", { days: 30, limit: 10 });
+  const sync = await runManualIntegrationSync("contract-owner", "gmail", {
+    days: 30,
+    limit: 10
+  });
   sync.status satisfies "success" | "blocked" | "failed";
   sync.readCount satisfies number;
 
@@ -79,6 +82,7 @@ async function assertOAuthAndPolarContracts() {
   plain satisfies string;
 
   await saveOAuthToken({
+    ownerId: "contract-owner",
     provider: "google",
     accountEmail: "owner@example.com",
     accessToken: "access-token",
@@ -86,7 +90,7 @@ async function assertOAuthAndPolarContracts() {
     expiresAt: "2026-07-09T00:00:00.000Z",
     scope: ["gmail.readonly", "gmail.compose"]
   });
-  const tokens = await listOAuthTokens();
+  const tokens = await listOAuthTokens("contract-owner");
   tokens[0].accessTokenEncrypted satisfies string;
   tokens[0].provider satisfies "google" | "slack" | "github" | "notion" | "discord" | "firebase";
 

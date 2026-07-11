@@ -1,17 +1,19 @@
 import { NextResponse } from "next/server";
 import { runManualIntegrationSync } from "@/src/lib/integrations/sync-engine";
+import { requireOwnerContext } from "@/src/lib/auth/owner-context";
 
 type RouteContext = {
   params: Promise<{ connectorId: string }>;
 };
 
 export async function POST(request: Request, context: RouteContext) {
+  const owner = await requireOwnerContext(request);
   const { connectorId } = await context.params;
   const body = (await request.json().catch(() => ({}))) as {
     days?: number;
     limit?: number;
   };
-  const result = await runManualIntegrationSync(connectorId, {
+  const result = await runManualIntegrationSync(owner.uid, connectorId, {
     days: clampNumber(body.days, 1, 30, 30),
     limit: clampNumber(body.limit, 1, 50, 20)
   });

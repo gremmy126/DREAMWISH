@@ -3,10 +3,12 @@
 import { initializeApp, getApps } from "firebase/app";
 import {
   createUserWithEmailAndPassword,
+  EmailAuthProvider,
   getAuth,
   GithubAuthProvider,
   GoogleAuthProvider,
   onAuthStateChanged,
+  reauthenticateWithCredential,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signInWithPopup,
@@ -15,6 +17,7 @@ import {
   updateProfile,
   type User
 } from "firebase/auth";
+import { hasPasswordProvider } from "./firebase-password-policy";
 import { getFirebaseAuthClientConfig } from "./firebase-client-config";
 
 export function getFirebaseClientAuth() {
@@ -45,10 +48,22 @@ export async function createFirebasePasswordAccount(input: {
   return credential;
 }
 
-export async function changeFirebasePassword(newPassword: string) {
+export async function changeFirebasePassword(input: {
+  currentPassword: string;
+  newPassword: string;
+}) {
   const auth = requireAuth();
-  if (!auth.currentUser) throw new Error("Sign in again before changing your password.");
-  return updatePassword(auth.currentUser, newPassword);
+  if (!auth.currentUser?.email) {
+    throw new Error("Sign in again before changing your password.");
+  }
+  const credential = EmailAuthProvider.credential(auth.currentUser.email, input.currentPassword);
+  await reauthenticateWithCredential(auth.currentUser, credential);
+  await updatePassword(auth.currentUser, input.newPassword);
+}
+
+export function firebaseUserHasPasswordProvider() {
+  const auth = getFirebaseClientAuth();
+  return hasPasswordProvider(auth?.currentUser?.providerData || []);
 }
 
 export async function signInWithFirebaseGoogle() {

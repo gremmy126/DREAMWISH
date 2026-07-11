@@ -23,6 +23,11 @@ import { SourceCard } from "@/components/Chat/SourceCard";
 import { EmptyState } from "@/components/Common/EmptyState";
 import { SectionHeader } from "@/components/Common/SectionHeader";
 import { SurfaceCard } from "@/components/Common/SurfaceCard";
+import { ConnectedContextWorkspace } from "@/components/context/ConnectedContextWorkspace";
+import {
+  MemoryCandidateCard,
+  type MemoryCandidateCardData
+} from "@/components/Memory/MemoryCandidateCard";
 import { createExecutionPreview } from "@/src/lib/agent/approval";
 import { planAgentExecution } from "@/src/lib/agent/planner";
 import { getErrorCode, readApiResponse } from "@/src/lib/api/api-response";
@@ -63,6 +68,8 @@ type UiMessage = {
   confidence: AnswerConfidence | null;
   verification: AnswerVerification | null;
   pending?: boolean;
+  memoryStatus?: string;
+  memoryCandidates?: MemoryCandidateCardData[];
 };
 
 type ChatAction = {
@@ -160,6 +167,7 @@ export function ChatView() {
   const [lastQuery, setLastQuery] = useState("");
   const [chatStatus, setChatStatus] = useState<ChatStatus>("idle");
   const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false);
+  const [memoryMutatingId, setMemoryMutatingId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
@@ -183,7 +191,7 @@ export function ChatView() {
 
   const currentProject = projects.find((project) => project.id === activeProjectId) || null;
   const fileLabels = chatFileLabels(language);
-  const contextQuery = input.trim() || lastQuery;
+  const contextQuery = lastQuery.trim();
   const visibleSessions = sessions.filter((session) => {
     const link = sessionLinks.find((item) => item.sessionId === session.id);
     return activeProjectId ? link?.projectId === activeProjectId : !link;
@@ -226,14 +234,20 @@ export function ChatView() {
   }
 
   async function loadProjects() {
-    const [projectsResponse, linksResponse] = await Promise.all([
-      fetch("/api/projects"),
-      fetch("/api/projects/session-links")
-    ]);
-    const projectsData = (await projectsResponse.json()) as { projects?: ProjectRecord[] };
-    const linksData = (await linksResponse.json()) as { sessionLinks?: ProjectSessionLink[] };
-    setProjects(projectsData.projects || []);
-    setSessionLinks(linksData.sessionLinks || []);
+    try {
+      const [projectsResponse, linksResponse] = await Promise.all([
+        fetch("/api/projects"),
+        fetch("/api/projects/session-links")
+      ]);
+      const [projectsData, linksData] = await Promise.all([
+        readApiResponse<{ projects?: ProjectRecord[] }>(projectsResponse),
+        readApiResponse<{ sessionLinks?: ProjectSessionLink[] }>(linksResponse)
+      ]);
+      setProjects(projectsData.projects || []);
+      setSessionLinks(linksData.sessionLinks || []);
+    } catch (caught) {
+      setError(stringifyUnknownError(caught));
+    }
   }
 
   async function loadIntegrationApps() {
@@ -269,6 +283,61 @@ export function ChatView() {
     await fetch(`/api/ai/sessions/${sessionId}`, { method: "DELETE" });
     if (sessionId === currentSessionId) startNewChat();
     await loadSessions();
+  }
+
+  async function approveChatMemoryCandidate(
+    messageId: string,
+    candidate: MemoryCandidateCardData,
+    content: string
+  ) {
+    setMemoryMutatingId(candidate.id);
+    try {
+      const response = await fetch(`/api/memory/candidates/${candidate.id}/approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          expectedVersion: candidate.version,
+          content,
+          note: "Approved from AI Chat"
+        })
+      });
+      if (!response.ok) await readApiResponse<unknown>(response);
+      removeChatMemoryCandidate(messageId, candidate.id);
+    } catch (caught) {
+      setError(stringifyUnknownError(caught));
+    } finally {
+      setMemoryMutatingId(null);
+    }
+  }
+
+  async function rejectChatMemoryCandidate(messageId: string, candidate: MemoryCandidateCardData) {
+    setMemoryMutatingId(candidate.id);
+    try {
+      const response = await fetch(`/api/memory/candidates/${candidate.id}/reject`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ expectedVersion: candidate.version })
+      });
+      if (!response.ok) await readApiResponse<unknown>(response);
+      removeChatMemoryCandidate(messageId, candidate.id);
+    } catch (caught) {
+      setError(stringifyUnknownError(caught));
+    } finally {
+      setMemoryMutatingId(null);
+    }
+  }
+
+  function removeChatMemoryCandidate(messageId: string, candidateId: string) {
+    setMessages((previous) => previous.map((message) =>
+      message.id === messageId
+        ? {
+            ...message,
+            memoryCandidates: (message.memoryCandidates || []).filter(
+              (candidate) => candidate.id !== candidateId
+            )
+          }
+        : message
+    ));
   }
 
   async function sendMessage() {
@@ -370,7 +439,7 @@ export function ChatView() {
             )
           );
         },
-        onDone: ({ answer, sources, confidence, verification }) => {
+        onDone: ({ answer, sources, confidence, verification, memoryStatus, memoryCandidates }) => {
           setChatStatus("completed");
           setMessages((prev) =>
             prev.map((item) =>
@@ -381,6 +450,8 @@ export function ChatView() {
                     sources,
                     confidence,
                     verification,
+                    memoryStatus,
+                    memoryCandidates,
                     pending: false
                   }
                 : item
@@ -930,6 +1001,21 @@ export function ChatView() {
                             ))}
                           </div>
                         ) : null}
+                        {message.memoryCandidates?.length ? (
+                          <div className="grid gap-3">
+                            {message.memoryCandidates.map((candidate) => (
+                              <MemoryCandidateCard
+                                key={candidate.id}
+                                candidate={candidate}
+                                language={language}
+                                busy={memoryMutatingId === candidate.id}
+                                onApprove={(content) => void approveChatMemoryCandidate(message.id, candidate, content)}
+                                onReject={() => void rejectChatMemoryCandidate(message.id, candidate)}
+                                onDefer={() => removeChatMemoryCandidate(message.id, candidate.id)}
+                              />
+                            ))}
+                          </div>
+                        ) : null}
                       </div>
                     ) : null}
                   </div>
@@ -1078,6 +1164,8 @@ export function ChatView() {
         </div>
       </SurfaceCard>
 
+      <ConnectedContextWorkspace query={contextQuery} />
+
       {projectModalOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 px-4">
           <div className="w-[420px] rounded-app border border-app-border bg-white p-5 shadow-app">
@@ -1223,6 +1311,8 @@ async function readEventStream(
       confidence: AnswerConfidence;
       verification: AnswerVerification;
       sessionId: string;
+      memoryStatus?: string;
+      memoryCandidates?: MemoryCandidateCardData[];
     }) => void;
     onError: (message: string, code?: string) => void;
   }
@@ -1279,6 +1369,8 @@ function handleSseEvent(
     code?: string;
     error?: string;
     message?: string;
+    memoryStatus?: string;
+    memoryCandidates?: MemoryCandidateCardData[];
   };
 
   try {
@@ -1308,7 +1400,9 @@ function handleSseEvent(
       sources: data.sources,
       confidence: data.confidence,
       verification: data.verification,
-      sessionId: data.sessionId
+      sessionId: data.sessionId,
+      memoryStatus: data.memoryStatus,
+      memoryCandidates: data.memoryCandidates || []
     });
   }
   if (event === "error") handlers.onError(data.message || data.error || "Streaming interrupted", data.code);

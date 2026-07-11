@@ -1,8 +1,17 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { withStoreMutex } from "./store-mutex";
 
 export function getDataDirectory() {
   return process.env.DATA_DIR?.trim() || path.join(process.cwd(), ".local-db");
+}
+
+export function withJsonStoreLock<T>(fileName: string, operation: () => Promise<T>) {
+  return withStoreMutex(path.join(getDataDirectory(), fileName), operation);
+}
+
+export function withJsonStorePathLock<T>(filePath: string, operation: () => Promise<T>) {
+  return withStoreMutex(filePath, operation);
 }
 
 export async function readJsonStore<T>(fileName: string, fallback: T): Promise<T> {

@@ -1,6 +1,7 @@
 import { decryptToken } from "./token-encryption";
 import type {
   ConnectableOAuthProviderId,
+  OAuthConnectionState,
   OAuthProviderId,
   OAuthServiceId
 } from "./oauth.types";
@@ -11,32 +12,34 @@ import {
 import {
   listOAuthTokens,
   saveOAuthToken
-} from "@/src/lib/repositories/oauth-token.repository";
+} from "../repositories/oauth-token.repository";
 
 export async function getActiveAccessToken(
+  ownerId: string,
   provider: OAuthProviderId,
   service?: OAuthServiceId | null
 ) {
   if (provider === "firebase") return null;
 
-  let token = (await listOAuthTokens()).find(
+  let token = (await listOAuthTokens(ownerId)).find(
     (item) =>
       item.provider === provider &&
       item.status === "active" &&
       (!service || (item.service || item.provider) === service)
   );
-  if (!token) return getEnvAccessToken(provider);
+  if (!token || !token.verifiedAt) return null;
   if (token.expiresAt && new Date(token.expiresAt).getTime() <= Date.now() + 60000) {
-    token = (await refreshOAuthToken(provider, service)) || token;
+    token = (await refreshOAuthToken(ownerId, provider, service)) || token;
   }
   return decryptToken(token.accessTokenEncrypted);
 }
 
 export async function getOAuthConnectionStatus(
+  ownerId: string,
   provider: OAuthProviderId,
   service?: OAuthServiceId | null
 ) {
-  const token = (await listOAuthTokens()).find(
+  const token = (await listOAuthTokens(ownerId)).find(
     (item) =>
       item.provider === provider &&
       (!service || (item.service || item.provider) === service)
@@ -49,25 +52,56 @@ export async function getOAuthConnectionStatus(
         process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID?.trim()
     );
 
+  const connectionState = resolveConnectionState({
+    token,
+    envToken: Boolean(envToken),
+    firebaseConfigured
+  });
+
   return {
     provider,
     service: service || null,
-    connected: token?.status === "active" || Boolean(envToken) || firebaseConfigured,
-    accountEmail:
-      token?.accountEmail ||
-      (envToken ? `${provider} token from env` : firebaseConfigured ? "Firebase project configured" : null),
+    connectionState,
+    connected: connectionState === "connected",
+    configured: connectionState !== "not_connected",
+    accountEmail: token?.accountEmail || null,
     accountName: token?.accountName || null,
     workspaceName: token?.workspaceName || null,
     scope: token?.scope || [],
-    expiresAt: token?.expiresAt || null
+    expiresAt: token?.expiresAt || null,
+    verifiedAt: token?.verifiedAt || null,
+    lastVerificationError: token?.lastVerificationError || null
   };
 }
 
+function resolveConnectionState(input: {
+  token: Awaited<ReturnType<typeof listOAuthTokens>>[number] | undefined;
+  envToken: boolean;
+  firebaseConfigured: boolean;
+}): OAuthConnectionState {
+  if (input.token) {
+    if (input.token.status === "revoked") return "revoked";
+    if (
+      input.token.status === "expired" ||
+      (input.token.expiresAt && new Date(input.token.expiresAt).getTime() <= Date.now())
+    ) {
+      return "expired";
+    }
+    if (input.token.lastVerificationError) return "error";
+    if (input.token.status === "active" && input.token.verifiedAt) return "connected";
+    return "configured_unverified";
+  }
+  if (input.firebaseConfigured) return "configuration_only";
+  if (input.envToken) return "configured_unverified";
+  return "not_connected";
+}
+
 export async function refreshOAuthToken(
+  ownerId: string,
   provider: ConnectableOAuthProviderId,
   service?: OAuthServiceId | null
 ) {
-  const token = (await listOAuthTokens()).find(
+  const token = (await listOAuthTokens(ownerId)).find(
     (item) =>
       item.provider === provider &&
       item.status === "active" &&
@@ -98,6 +132,7 @@ export async function refreshOAuthToken(
   };
 
   return saveOAuthToken({
+    ownerId,
     provider: "google",
     service: token.service || "drive",
     providerAccountId: token.providerAccountId,

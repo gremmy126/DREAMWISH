@@ -1,9 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { createEmbeddingRecord } from "@/src/lib/memory/memory-embedding";
 import { buildKnowledgeNetwork } from "@/src/lib/memory/knowledge-network";
-import { writeApprovedMemoryMarkdown } from "@/src/lib/memory/memory-markdown";
 import {
-  addApprovedMemory,
   readMemoryDb,
   upsertMemoryCandidate
 } from "@/src/lib/memory/memory-repository";
@@ -18,6 +15,8 @@ import type {
 } from "@/src/lib/memory/memory.types";
 
 export async function createMemoryCandidate(input: {
+  id?: string;
+  ownerId: string;
   source: MemorySource;
   content: string;
   signals?: MemorySignal[];
@@ -27,21 +26,32 @@ export async function createMemoryCandidate(input: {
   preview?: string;
   importance?: number;
   confidence?: number;
+  sourceSessionId?: string | null;
+  sourceMessageIds?: string[];
+  category?: MemoryCandidate["category"];
+  summary?: string;
+  tags?: string[];
+  relatedConcepts?: string[];
+  relatedLinks?: MemoryCandidate["relatedLinks"];
+  history?: MemoryCandidate["history"];
 }) {
   const now = new Date().toISOString();
   const content = input.content.trim();
   const signals = input.signals?.length ? input.signals : inferSignals(content);
   const db = await readMemoryDb();
   const frequency = countSimilar(content, [
-    ...db.candidates.map((candidate) => candidate.content),
-    ...db.memories.map((memory) => memory.content)
+    ...db.candidates.filter((candidate) => candidate.ownerId === input.ownerId).map((candidate) => candidate.content),
+    ...db.memories.filter((memory) => memory.ownerId === input.ownerId).map((memory) => memory.content)
   ]);
   const candidate: MemoryCandidate = {
-    id: randomUUID(),
+    id: input.id || randomUUID(),
+    ownerId: input.ownerId,
     title: input.title?.trim() || summarizeTitle(content),
     content,
     source: input.source,
     sourceId: input.sourceId || null,
+    sourceSessionId: input.sourceSessionId || null,
+    sourceMessageIds: input.sourceMessageIds ? [...input.sourceMessageIds] : [],
     projectId: input.projectId || null,
     signals,
     importance: clampMetric(input.importance ?? scoreImportance(content, signals, frequency)),
@@ -49,15 +59,27 @@ export async function createMemoryCandidate(input: {
     frequency,
     confidence: clampMetric(input.confidence ?? scoreConfidence(content, signals)),
     status: "pending",
+    version: 1,
     createdAt: now,
     updatedAt: now,
-    preview: input.preview?.trim() || content.slice(0, 220)
+    preview: input.preview?.trim() || content.slice(0, 220),
+    category: input.category,
+    summary: input.summary,
+    tags: input.tags,
+    relatedConcepts: input.relatedConcepts,
+    relatedLinks: input.relatedLinks,
+    history: input.history
   };
   return upsertMemoryCandidate(candidate);
 }
 
-export async function listMemoryCandidates(filter: { status?: MemoryStatus; projectId?: string | null } = {}) {
-  const candidates = (await readMemoryDb()).candidates;
+export async function listMemoryCandidates(
+  ownerId: string,
+  filter: { status?: MemoryStatus; projectId?: string | null } = {}
+) {
+  const candidates = (await readMemoryDb()).candidates.filter(
+    (candidate) => candidate.ownerId === ownerId
+  );
   return candidates.filter((candidate) => {
     if (filter.status && candidate.status !== filter.status) return false;
     if (filter.projectId !== undefined && candidate.projectId !== filter.projectId) return false;
@@ -65,47 +87,24 @@ export async function listMemoryCandidates(filter: { status?: MemoryStatus; proj
   });
 }
 
-export async function approveMemoryCandidate(
-  candidateId: string,
-  approval: { approvedBy: string; note?: string | null }
-) {
-  const db = await readMemoryDb();
-  const existing = db.memories.find((memory) => memory.id === candidateId);
-  if (existing) return existing;
-
-  const candidate = db.candidates.find((item) => item.id === candidateId);
-  if (!candidate) throw new Error("Memory candidate not found");
-  const now = new Date().toISOString();
-  const approvedBase: Omit<ApprovedMemory, "markdownPath"> = {
-    ...candidate,
-    status: "approved",
-    updatedAt: now,
-    approvedAt: now,
-    approvedBy: approval.approvedBy,
-    approvalNote: approval.note || null,
-    embeddingId: "",
-    graphUpdatedAt: now
-  };
-  const embedding = createEmbeddingRecord({ ...approvedBase, markdownPath: "" });
-  const memory: ApprovedMemory = {
-    ...approvedBase,
-    embeddingId: embedding.id,
-    markdownPath: await writeApprovedMemoryMarkdown({ ...approvedBase, embeddingId: embedding.id })
-  };
-  return addApprovedMemory(memory, embedding);
-}
-
-export async function listApprovedMemories(filter: { projectId?: string | null } = {}) {
-  const memories = (await readMemoryDb()).memories;
+export async function listApprovedMemories(ownerId: string, filter: { projectId?: string | null } = {}) {
+  const memories = (await readMemoryDb()).memories.filter(
+    (memory) => memory.ownerId === ownerId && memory.status === "approved"
+  );
   if (filter.projectId === undefined) return memories;
   return memories.filter((memory) => memory.projectId === filter.projectId);
 }
 
-export async function generateDailyMemoryBrief(input: { date?: string } = {}): Promise<DailyMemoryBrief> {
+export async function generateDailyMemoryBrief(
+  ownerId: string,
+  input: { date?: string } = {}
+): Promise<DailyMemoryBrief> {
   const date = input.date || new Date().toISOString().slice(0, 10);
   const db = await readMemoryDb();
-  const graph = await buildKnowledgeNetwork();
-  const memories = db.memories;
+  const graph = await buildKnowledgeNetwork({ ownerId });
+  const memories = db.memories.filter(
+    (memory) => memory.ownerId === ownerId && memory.status === "approved"
+  );
   const tasks = memories
     .filter((memory) => memory.signals.includes("todo") || /(해야|todo|follow[- ]?up|후속|미해결)/iu.test(memory.content))
     .slice(0, 8)
@@ -137,24 +136,28 @@ export async function generateDailyMemoryBrief(input: { date?: string } = {}): P
   };
 }
 
-export async function buildMemoryDashboardSnapshot(): Promise<MemoryDashboardSnapshot> {
+export async function buildMemoryDashboardSnapshot(ownerId: string): Promise<MemoryDashboardSnapshot> {
   const db = await readMemoryDb();
-  const graph = await buildKnowledgeNetwork();
-  const inbox = db.candidates.filter((candidate) => candidate.status === "pending");
+  const graph = await buildKnowledgeNetwork({ ownerId });
+  const candidates = db.candidates.filter((candidate) => candidate.ownerId === ownerId);
+  const memories = db.memories.filter(
+    (memory) => memory.ownerId === ownerId && memory.status === "approved"
+  );
+  const inbox = candidates.filter((candidate) => candidate.status === "pending");
   const people = graph.nodes.filter((node) => node.type === "person");
   const projects = graph.nodes.filter((node) => node.type === "project");
-  const duplicateSuggestions = findDuplicateSuggestions(db.memories);
-  const brokenLinks = db.memories
-    .filter((memory) => memory.markdownPath && !memory.markdownPath.startsWith("SecondBrain/"))
+  const duplicateSuggestions = findDuplicateSuggestions(memories);
+  const brokenLinks = memories
+    .filter((memory) => memory.markdownPath && !memory.markdownPath.startsWith("memory-markdown/"))
     .map((memory) => memory.markdownPath);
   const timeline = [
-    ...db.memories.map((memory) => ({
+    ...memories.map((memory) => ({
       id: memory.id,
       title: memory.title,
       type: "approved" as const,
       createdAt: memory.approvedAt
     })),
-    ...db.candidates.map((candidate) => ({
+    ...candidates.filter((candidate) => candidate.status === "pending" || candidate.status === "rejected").map((candidate) => ({
       id: candidate.id,
       title: candidate.title,
       type: candidate.executionTrail ? ("external" as const) : ("candidate" as const),
@@ -164,11 +167,11 @@ export async function buildMemoryDashboardSnapshot(): Promise<MemoryDashboardSna
 
   return {
     inbox,
-    recentMemory: db.memories.slice(0, 8),
+    recentMemory: memories.slice(0, 8),
     people,
     projects,
     knowledgeNetwork: graph,
-    dailyBrief: await generateDailyMemoryBrief(),
+    dailyBrief: await generateDailyMemoryBrief(ownerId),
     timeline: timeline.slice(0, 20),
     health: {
       duplicateSuggestions,
@@ -177,8 +180,8 @@ export async function buildMemoryDashboardSnapshot(): Promise<MemoryDashboardSna
       approvalQueueSize: inbox.length
     },
     statistics: {
-      totalCandidates: db.candidates.length,
-      totalMemories: db.memories.length,
+      totalCandidates: candidates.length,
+      totalMemories: memories.length,
       totalPeople: people.length,
       totalProjects: projects.length,
       totalEdges: graph.edges.length

@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { IconButton } from "@/components/Common/IconButton";
 import { LanguageSwitcher } from "@/components/layout/LanguageSwitcher";
 import { AUTH_SESSION_KEY } from "@/src/lib/auth/access-control";
+import { logoutFirebaseUser } from "@/src/lib/firebase/firebase-client";
 import { useAppLanguage } from "@/src/lib/i18n/use-app-language";
 import { PAYMENT_STATUS_KEY } from "@/src/lib/payments/payment-state";
 
@@ -23,9 +24,13 @@ export function Topbar() {
     }
   }, []);
 
-  function logout() {
+  async function logout() {
     window.localStorage.removeItem(AUTH_SESSION_KEY);
     window.localStorage.removeItem(PAYMENT_STATUS_KEY);
+    await Promise.allSettled([
+      logoutFirebaseUser(),
+      fetch("/api/auth/logout", { method: "POST" })
+    ]);
     window.location.href = "/login";
   }
 
@@ -69,7 +74,7 @@ export function Topbar() {
               </div>
               <button
                 type="button"
-                onClick={logout}
+                onClick={() => void logout()}
                 className="mt-2 flex w-full items-center gap-2 rounded-2xl px-3 py-2 text-left text-xs font-semibold text-red-600 transition hover:bg-red-50"
               >
                 <LogOut size={14} />

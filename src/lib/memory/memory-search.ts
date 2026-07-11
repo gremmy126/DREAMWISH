@@ -87,6 +87,7 @@ async function loadSearchDocuments(
   const memories = db.memories.filter(
     (memory) =>
       (memory as typeof memory & { ownerId?: string }).ownerId === ownerId &&
+      memory.status === "approved" &&
       (projectId === undefined || memory.projectId === projectId)
   );
   return [

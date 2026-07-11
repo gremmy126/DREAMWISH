@@ -2,9 +2,9 @@
 
 import {
   Brain,
+  BriefcaseBusiness,
   CalendarDays,
   Cable,
-  DatabaseZap,
   File,
   Home,
   Info,
@@ -17,7 +17,8 @@ import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { StorageStatus } from "@/components/Common/StorageStatus";
 import type { ViewId } from "@/components/layout/types";
-import { AUTH_SESSION_KEY, type AccessState } from "@/src/lib/auth/access-control";
+import type { AccessState } from "@/src/lib/auth/access-control";
+import { waitForFirebaseUser } from "@/src/lib/firebase/firebase-client";
 import { useAppLanguage } from "@/src/lib/i18n/use-app-language";
 import { getNavLabel } from "@/src/lib/i18n/translations";
 import { PAYMENT_STATUS_KEY, buildPaymentButtonState } from "@/src/lib/payments/payment-state";
@@ -30,7 +31,7 @@ type SidebarProps = {
 export const SIDEBAR_NAV_ORDER = [
   "chat",
   "memory",
-  "crm",
+  "business",
   "automation",
   "calendar",
   "files",
@@ -44,7 +45,7 @@ const primaryItems: Array<{
 }> = [
   { id: "chat", icon: MessageSquareText },
   { id: "memory", icon: Brain },
-  { id: "crm", icon: DatabaseZap },
+  { id: "business", icon: BriefcaseBusiness },
   { id: "automation", icon: ScrollText },
   { id: "calendar", icon: CalendarDays },
   { id: "files", icon: File },
@@ -168,14 +169,14 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
 
 async function refreshAccessState(localPaymentComplete: boolean) {
   try {
-    const raw = window.localStorage.getItem(AUTH_SESSION_KEY);
-    const session = raw ? (JSON.parse(raw) as { email?: string }) : null;
-    if (!session?.email) return false;
+    const firebaseUser = await waitForFirebaseUser();
+    if (!firebaseUser) return false;
+    const idToken = await firebaseUser.getIdToken();
 
     const response = await fetch("/api/auth/session", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: session.email })
+      body: JSON.stringify({ idToken })
     });
     const data = (await response.json()) as { access?: AccessState };
     if (data.access?.canUseApp) {

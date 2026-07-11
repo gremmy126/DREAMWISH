@@ -255,7 +255,14 @@ test("owner-v1 migration backs up and claims legacy records once", async () => {
     assert.equal(chat.chat_sessions[0].owner_id, "admin-uid");
     assert.equal(chat.chat_messages[0].owner_id, "existing-chat-owner");
     const memory = readJson(path.join(dataDir, "memory.json"));
-    for (const key of ["candidates", "memories", "embeddings", "changes", "captureJobs"]) {
+    for (const key of [
+      "candidates",
+      "memories",
+      "quarantinedMemories",
+      "embeddings",
+      "changes",
+      "captureJobs"
+    ]) {
       assert.equal(memory[key][0].ownerId, "admin-uid");
     }
     const projects = readJson(path.join(dataDir, "projects.json"));
@@ -278,6 +285,172 @@ test("owner-v1 migration backs up and claims legacy records once", async () => {
       }
     );
     assert.equal(fs.readdirSync(backupRoot).length, 1);
+  });
+});
+
+test("owner-v1 backs up and claims an unowned memory quarantined before migration", async () => {
+  await withTempDataDir(async (dataDir) => {
+    const memoryPath = path.join(dataDir, "memory.json");
+    const unknownMemory = {
+      id: "legacy-unknown-memory",
+      status: "unknown",
+      content: "원본 bytes와  공백을\n그대로 보존합니다 🌙",
+      opaque: { source: "legacy", values: [3, 1, 4] }
+    };
+    fs.writeFileSync(
+      memoryPath,
+      JSON.stringify({ candidates: [], memories: [unknownMemory] }, null, 2),
+      "utf8"
+    );
+    const { createMemoryCandidate } = requireProjectModule<
+      typeof import("../src/lib/memory/memory-engine")
+    >("src/lib/memory/memory-engine.ts");
+    const { runOwnerV1Migration } = requireProjectModule<
+      typeof import("../src/lib/migrations/owner-v1")
+    >("src/lib/migrations/owner-v1.ts");
+
+    const runtimeCandidate = await createMemoryCandidate({
+      ownerId: "runtime-user",
+      source: "manual",
+      sourceId: "pre-migration-quarantine-write",
+      content: "Move the unknown record to quarantine before admin migration"
+    });
+    const beforeMigrationBytes = fs.readFileSync(memoryPath);
+    const beforeMigration = JSON.parse(beforeMigrationBytes.toString("utf8")) as {
+      quarantinedMemories: Array<Record<string, unknown>>;
+    };
+    const beforeQuarantine = beforeMigration.quarantinedMemories.find(
+      (memory) => memory.id === unknownMemory.id
+    );
+    assert.equal(beforeQuarantine?.ownerId, undefined);
+    assert.equal(beforeQuarantine?.content, unknownMemory.content);
+    assert.equal(fs.existsSync(path.join(dataDir, ".migrations", "owner-v1.json")), false);
+
+    await runOwnerV1Migration({
+      uid: "admin-uid",
+      email: ADMIN_EMAIL,
+      role: "admin"
+    });
+
+    const backupRoot = path.join(dataDir, ".migration-backups", "owner-v1");
+    const backupDirectory = fs.readdirSync(backupRoot)[0];
+    assert.deepEqual(
+      fs.readFileSync(path.join(backupRoot, backupDirectory, "memory.json")),
+      beforeMigrationBytes
+    );
+    const migrated = readJson(memoryPath);
+    const quarantined = migrated.quarantinedMemories.find(
+      (memory: { id: string }) => memory.id === unknownMemory.id
+    );
+    assert.equal(quarantined.ownerId, "admin-uid");
+    assert.equal(quarantined.status, unknownMemory.status);
+    assert.equal(quarantined.content, unknownMemory.content);
+    assert.deepEqual(quarantined.opaque, unknownMemory.opaque);
+    assert.equal(
+      migrated.candidates.find(
+        (candidate: { id: string }) => candidate.id === runtimeCandidate.id
+      ).ownerId,
+      "runtime-user"
+    );
+    const marker = readJson(path.join(dataDir, ".migrations", "owner-v1.json"));
+    assert.equal(marker.migration, "owner-v1");
+    assert.equal(marker.ownerId, "admin-uid");
+    assert.ok(marker.files.includes("memory.json"));
+  });
+});
+
+test("owner-v1 losslessly envelopes non-record quarantine values and repository rewrites preserve them", async () => {
+  await withTempDataDir(async (dataDir) => {
+    const memoryPath = path.join(dataDir, "memory.json");
+    const rawValues: unknown[] = [
+      ["array-value", 7, { nested: { ok: true } }, [1, 2, 3]],
+      "legacy-string",
+      42,
+      false,
+      null,
+      {
+        id: "legacy-object-record",
+        status: "unknown",
+        content: "Object-shaped quarantine record",
+        nested: { values: ["a", "b"] }
+      }
+    ];
+    fs.writeFileSync(
+      memoryPath,
+      JSON.stringify({ candidates: [], memories: rawValues }, null, 2),
+      "utf8"
+    );
+    const { createMemoryCandidate } = requireProjectModule<
+      typeof import("../src/lib/memory/memory-engine")
+    >("src/lib/memory/memory-engine.ts");
+    const { runOwnerV1Migration } = requireProjectModule<
+      typeof import("../src/lib/migrations/owner-v1")
+    >("src/lib/migrations/owner-v1.ts");
+
+    await createMemoryCandidate({
+      ownerId: "runtime-user",
+      source: "manual",
+      sourceId: "quarantine-non-record-values",
+      content: "Quarantine every unsupported legacy memory shape"
+    });
+    const beforeMigration = readJson(memoryPath);
+    assert.deepEqual(beforeMigration.quarantinedMemories, rawValues);
+    const beforeMigrationBytes = fs.readFileSync(memoryPath);
+    assert.equal(fs.existsSync(path.join(dataDir, ".migrations", "owner-v1.json")), false);
+
+    const firstMigration = await runOwnerV1Migration({
+      uid: "admin-uid",
+      email: ADMIN_EMAIL,
+      role: "admin"
+    });
+    assert.equal(firstMigration.migrated, true);
+    const backupRoot = path.join(dataDir, ".migration-backups", "owner-v1");
+    const backupDirectory = fs.readdirSync(backupRoot)[0];
+    assert.deepEqual(
+      fs.readFileSync(path.join(backupRoot, backupDirectory, "memory.json")),
+      beforeMigrationBytes
+    );
+
+    const migrated = readJson(memoryPath);
+    const entries = migrated.quarantinedMemories as Array<Record<string, any>>;
+    assert.equal(entries.length, rawValues.length);
+    assert.equal(entries[0].envelopeType, "owner-v1/quarantined-memory");
+    assert.equal(entries[0].envelopeVersion, 1);
+    assert.ok(Array.isArray(entries[0].raw));
+    assert.deepEqual(entries[0].raw, rawValues[0]);
+    const unwrapped = entries.map((entry, index) => {
+      assert.equal(entry.ownerId, "admin-uid", `entry ${index}`);
+      const original = rawValues[index];
+      if (original !== null && typeof original === "object" && !Array.isArray(original)) {
+        const { ownerId: _ownerId, ...rawRecord } = entry;
+        return rawRecord;
+      }
+      assert.equal(entry.envelopeType, "owner-v1/quarantined-memory", `entry ${index}`);
+      assert.equal(entry.envelopeVersion, 1, `entry ${index}`);
+      return entry.raw;
+    });
+    assert.deepEqual(unwrapped, rawValues);
+
+    const afterMigrationBytes = fs.readFileSync(memoryPath);
+    const secondMigration = await runOwnerV1Migration({
+      uid: "admin-uid",
+      email: ADMIN_EMAIL,
+      role: "admin"
+    });
+    assert.equal(secondMigration.migrated, false);
+    assert.deepEqual(fs.readFileSync(memoryPath), afterMigrationBytes);
+
+    const migratedEntries = structuredClone(entries);
+    await createMemoryCandidate({
+      ownerId: "post-migration-user",
+      source: "manual",
+      sourceId: "preserve-quarantine-envelopes",
+      content: "A later repository mutation must retain every envelope"
+    });
+    assert.deepEqual(readJson(memoryPath).quarantinedMemories, migratedEntries);
+    const marker = readJson(path.join(dataDir, ".migrations", "owner-v1.json"));
+    assert.equal(marker.ownerId, "admin-uid");
+    assert.ok(marker.files.includes("memory.json"));
   });
 });
 
@@ -497,6 +670,77 @@ test("owner-v1 migration serializes concurrent calls and re-reads the marker", a
   });
 });
 
+test("owner-v1 memory migration and runtime mutation preserve both concurrent writes", async () => {
+  await withTempDataDir(async (dataDir) => {
+    const legacyCandidate = {
+      id: "legacy-candidate",
+      title: "Legacy candidate",
+      content: "Legacy content",
+      status: "pending"
+    };
+    fs.writeFileSync(
+      path.join(dataDir, "memory.json"),
+      JSON.stringify({ candidates: [legacyCandidate], memories: [] }, null, 2),
+      "utf8"
+    );
+    const padding = "x".repeat(4 * 1024 * 1024);
+    fs.writeFileSync(
+      path.join(dataDir, "projects.json"),
+      JSON.stringify({ projects: [], sessionLinks: [], padding }),
+      "utf8"
+    );
+    fs.writeFileSync(
+      path.join(dataDir, "knowledge.json"),
+      JSON.stringify({ notes: [], padding }),
+      "utf8"
+    );
+    fs.writeFileSync(
+      path.join(dataDir, "files.json"),
+      JSON.stringify({ files: [], padding }),
+      "utf8"
+    );
+
+    const { runOwnerV1Migration } = requireProjectModule<
+      typeof import("../src/lib/migrations/owner-v1")
+    >("src/lib/migrations/owner-v1.ts");
+    const { createMemoryCandidate } = requireProjectModule<
+      typeof import("../src/lib/memory/memory-engine")
+    >("src/lib/memory/memory-engine.ts");
+    const migrationPromise = runOwnerV1Migration({
+      uid: "admin-uid",
+      email: ADMIN_EMAIL,
+      role: "admin"
+    });
+
+    await waitForOwnerV1MemoryBackup(dataDir);
+    const candidatePromise = createMemoryCandidate({
+      ownerId: "runtime-owner",
+      source: "manual",
+      sourceId: "concurrent-runtime-candidate",
+      content: "Runtime candidate must survive migration"
+    });
+    const [migration, runtimeCandidate] = await Promise.all([
+      migrationPromise,
+      candidatePromise
+    ]);
+
+    assert.equal(migration.migrated, true);
+    const memory = readJson(path.join(dataDir, "memory.json"));
+    assert.equal(
+      memory.candidates.find((candidate: { id: string }) => candidate.id === legacyCandidate.id)
+        ?.ownerId,
+      "admin-uid"
+    );
+    assert.equal(
+      memory.candidates.find(
+        (candidate: { id: string }) => candidate.id === runtimeCandidate.id
+      )?.ownerId,
+      "runtime-owner"
+    );
+    assert.ok(fs.existsSync(path.join(dataDir, ".migrations", "owner-v1.json")));
+  });
+});
+
 test("verified admin owner context completes owner-v1 before returning", async () => {
   await withTempDataDir(async (dataDir) => {
     await withEnv({ AUTH_SESSION_SECRET: TEST_SESSION_SECRET }, async () => {
@@ -543,6 +787,9 @@ function legacyOwnerFixtures(): Record<string, Record<string, unknown>> {
     "memory.json": {
       candidates: [{ id: "candidate-1" }],
       memories: [{ id: "memory-1" }],
+      quarantinedMemories: [
+        { id: "quarantine-1", status: "unknown", content: "preserve quarantine" }
+      ],
       embeddings: [{ id: "embedding-1" }],
       changes: [{ id: "change-1" }],
       captureJobs: [{ id: "capture-1" }],
@@ -572,6 +819,23 @@ function cookieRequest(url: string, cookie: string) {
 
 function readJson(filePath: string): any {
   return JSON.parse(fs.readFileSync(filePath, "utf8"));
+}
+
+async function waitForOwnerV1MemoryBackup(dataDir: string) {
+  const backupRoot = path.join(dataDir, ".migration-backups", "owner-v1");
+  const deadline = Date.now() + 10_000;
+  while (Date.now() < deadline) {
+    if (fs.existsSync(backupRoot)) {
+      const memoryBackupExists = fs
+        .readdirSync(backupRoot)
+        .some((directory) =>
+          fs.existsSync(path.join(backupRoot, directory, "memory.json"))
+        );
+      if (memoryBackupExists) return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1));
+  }
+  throw new Error("owner-v1 memory backup was not created in time");
 }
 
 async function withTempDataDir(run: (dataDir: string) => void | Promise<void>) {

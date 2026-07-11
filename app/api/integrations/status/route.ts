@@ -6,12 +6,17 @@ import {
 } from "@/src/lib/integrations/connection-status";
 import { listIntegrationSyncSettings } from "@/src/lib/integrations/integration-settings.repository";
 import { connectorRegistry } from "@/src/lib/integrations/registry";
+import { requireOwnerContext } from "@/src/lib/auth/owner-context";
 
-export async function GET() {
+export async function GET(request: Request) {
+  const owner = await requireOwnerContext(request);
   const connectors = connectorRegistry.list();
   const [settings, authStates] = await Promise.all([
     listIntegrationSyncSettings(),
-    getAllConnectorAuthStates([...connectors.map((connector) => connector.id), "firebase"])
+    getAllConnectorAuthStates(owner.uid, [
+      ...connectors.map((connector) => connector.id),
+      "firebase"
+    ], request.url)
   ]);
 
   const items = await Promise.all(

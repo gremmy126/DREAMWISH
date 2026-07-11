@@ -1,6 +1,3 @@
 export function canEnableFirebaseGitHubLogin() {
-  return (
-    process.env.NEXT_PUBLIC_ENABLE_FIREBASE_GITHUB_LOGIN === "true" &&
-    Boolean(process.env.GITHUB_CLIENT_ID?.trim())
-  );
+  return process.env.NEXT_PUBLIC_ENABLE_FIREBASE_GITHUB_LOGIN === "true";
 }

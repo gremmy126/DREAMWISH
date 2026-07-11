@@ -8,6 +8,7 @@ import { getOAuthProviderConfig, validateOAuthProviderConfigured } from "@/src/l
 import { getOAuthRedirectUri } from "@/src/lib/oauth/oauth-redirect";
 import { createOAuthSecurityParams } from "@/src/lib/oauth/oauth-state";
 import { createOAuthSession } from "@/src/lib/repositories/oauth-session.repository";
+import { requireOwnerContext } from "@/src/lib/auth/owner-context";
 
 type RouteContext = {
   params: Promise<{ connectorId: string }>;
@@ -15,6 +16,7 @@ type RouteContext = {
 
 export async function GET(request: Request, context: RouteContext) {
   try {
+    const owner = await requireOwnerContext(request);
     const { connectorId } = await context.params;
     const provider = assertConnectableOAuthProvider(connectorId);
     const url = new URL(request.url);
@@ -26,6 +28,7 @@ export async function GET(request: Request, context: RouteContext) {
     const security = createOAuthSecurityParams();
     const config = getOAuthProviderConfig(provider);
     await createOAuthSession({
+      ownerId: owner.uid,
       provider,
       service,
       state: security.state,

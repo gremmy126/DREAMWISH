@@ -3,10 +3,11 @@ import type {
   ConnectableOAuthProviderId,
   OAuthServiceId
 } from "@/src/lib/oauth/oauth.types";
-import { readJsonStore, writeJsonStore } from "@/src/lib/local-db/json-store";
+import { readJsonStore, writeJsonStore } from "../local-db/json-store";
 
 export type OAuthSessionRecord = {
   id: string;
+  ownerId: string | null;
   provider: ConnectableOAuthProviderId;
   service: OAuthServiceId;
   stateHash: string;
@@ -27,6 +28,7 @@ const EMPTY_DB: OAuthSessionDb = { sessions: [] };
 const SESSION_TTL_MS = 10 * 60 * 1000;
 
 export async function createOAuthSession(input: {
+  ownerId: string;
   provider: ConnectableOAuthProviderId;
   service: OAuthServiceId;
   state: string;
@@ -38,6 +40,7 @@ export async function createOAuthSession(input: {
   const now = new Date();
   const session: OAuthSessionRecord = {
     id: `oauth_session_${input.provider}_${input.service}_${Date.now()}`,
+    ownerId: input.ownerId,
     provider: input.provider,
     service: input.service,
     stateHash: hashOAuthState(input.state),
@@ -65,11 +68,15 @@ export async function completeOAuthSession(state: string) {
 }
 
 export async function consumeOAuthSession(input: {
+  ownerId: string;
   state: string;
   provider: ConnectableOAuthProviderId;
 }) {
   const db = await readDb();
-  const session = db.sessions.find((item) => item.stateHash === hashOAuthState(input.state));
+  const session = db.sessions.find(
+    (item) =>
+      item.ownerId === input.ownerId && item.stateHash === hashOAuthState(input.state)
+  );
   if (!session) throw new Error("OAuth state is invalid or expired.");
   if (session.status !== "created") throw new Error("OAuth state has already been used.");
   if (new Date(session.expiresAt).getTime() <= Date.now()) {
@@ -122,12 +129,14 @@ function pruneExpiredSessions(db: OAuthSessionDb) {
 
 function normalizeSessionRecord(record: OAuthSessionRecord): OAuthSessionRecord {
   const legacy = record as OAuthSessionRecord & {
+    ownerId?: string;
     state?: string;
     service?: OAuthServiceId;
     expiresAt?: string;
   };
   return {
     ...record,
+    ownerId: legacy.ownerId || null,
     service: legacy.service || (record.provider === "google" ? "drive" : record.provider),
     stateHash: record.stateHash || (legacy.state ? hashOAuthState(legacy.state) : ""),
     codeVerifier: record.codeVerifier || null,

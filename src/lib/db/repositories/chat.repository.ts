@@ -73,6 +73,33 @@ export async function getSession(ownerId: string, id: string): Promise<ChatSessi
   };
 }
 
+export async function getOwnedChatMessagesForProvenance(
+  ownerId: string,
+  sessionId: string,
+  messageIds: string[]
+): Promise<ChatMessageRecord[] | null> {
+  const db = await readDb();
+  const session = db.chat_sessions.find(
+    (item) => item.id === sessionId && item.owner_id === ownerId
+  );
+  if (!session || messageIds.length === 0 || new Set(messageIds).size !== messageIds.length) {
+    return null;
+  }
+
+  const messagesById = new Map(
+    db.chat_messages
+      .filter(
+        (message) =>
+          message.owner_id === ownerId && message.session_id === sessionId
+      )
+      .map((message) => [message.id, message])
+  );
+  const messages = messageIds.map((id) => messagesById.get(id));
+  return messages.every((message): message is ChatMessageRecord => Boolean(message))
+    ? messages
+    : null;
+}
+
 export async function addMessage(input: {
   ownerId: string;
   sessionId: string;

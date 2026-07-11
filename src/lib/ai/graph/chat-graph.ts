@@ -40,6 +40,10 @@ const ChatStateAnnotation = Annotation.Root({
     reducer: (_left, right) => right,
     default: () => false
   }),
+  memoryContextText: Annotation<string>({
+    reducer: (_left, right) => right,
+    default: () => ""
+  }),
   answer: Annotation<string | undefined>,
   citations: Annotation<SourceDocument[]>({
     reducer: (_left, right) => right,
@@ -56,6 +60,7 @@ export async function runChatGraph(input: {
   userMessage: string;
   provider?: AIProviderName;
   shouldUseRag: boolean;
+  memoryContextText?: string;
 }) {
   const graph = createChatGraph(input.shouldUseRag);
   return graph.invoke({
@@ -67,6 +72,7 @@ export async function runChatGraph(input: {
     retrievedDocuments: [],
     contextText: "",
     contextAvailable: false,
+    memoryContextText: input.memoryContextText || "",
     citations: []
   });
 }
@@ -147,7 +153,8 @@ async function generateAnswer(state: ChatGraphState): Promise<Partial<ChatGraphS
     const messages = buildContextAwareChatMessages({
       question: state.userMessage,
       contextText: state.contextText,
-      contextAvailable: state.contextAvailable
+      contextAvailable: state.contextAvailable,
+      memoryContextText: state.memoryContextText
     });
     const answer = await chatWithAI(messages, state.provider);
     return { messages, answer };

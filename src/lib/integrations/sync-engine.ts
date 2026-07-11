@@ -26,6 +26,7 @@ export async function runMockSync(
 }
 
 export async function runManualIntegrationSync(
+  ownerId: string,
   connectorId: string,
   options: ManualSyncOptions = { days: 30, limit: 20 }
 ) {
@@ -37,7 +38,7 @@ export async function runManualIntegrationSync(
   }
 
   const tokenProvider = connectorId === "slack" ? "slack" : "google";
-  const accessToken = await getActiveAccessToken(tokenProvider);
+  const accessToken = await getActiveAccessToken(ownerId, tokenProvider);
 
   if (!accessToken) {
     const blocked = createSyncResult(

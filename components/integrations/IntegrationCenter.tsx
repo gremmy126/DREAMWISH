@@ -25,8 +25,10 @@ import type {
   Integration
 } from "@/src/lib/integrations/types";
 import { useAppLanguage } from "@/src/lib/i18n/use-app-language";
+import { readApiResponse } from "@/src/lib/api/api-response";
 import type {
   ConnectableOAuthProviderId,
+  OAuthConnectionState,
   OAuthServiceId
 } from "@/src/lib/oauth/oauth.types";
 import { CalendarIntegrationCard } from "./CalendarIntegrationCard";
@@ -63,6 +65,12 @@ type ConnectorViewState = {
   auth?: {
     configured: boolean;
     detail: string;
+    connectionState: OAuthConnectionState | "mock_mode";
+    canConnect: boolean;
+    canReconnect: boolean;
+    verifiedAt: string | null;
+    expectedRedirectUri: string | null;
+    redirectMatches: boolean | null;
   };
 };
 
@@ -104,9 +112,7 @@ export function IntegrationCenter() {
           }))
         );
         const response = await fetch("/api/integrations/status");
-        const statusData = response.ok
-          ? ((await response.json()) as IntegrationStatusResponse)
-          : null;
+        const statusData = await readApiResponse<IntegrationStatusResponse>(response);
         const statusById = new Map(
           (statusData?.items || []).map((item) => [item.connectorId, item])
         );
@@ -241,7 +247,10 @@ export function IntegrationCenter() {
                 ) : null}
               </div>
 
-              <ConnectorAccountActions connectorId={selected.connector.id} />
+              <ConnectorAccountActions
+                connectorId={selected.connector.id}
+                auth={selected.auth}
+              />
               <PermissionScopeViewer permissions={selected.permissions} />
               <ConnectorPermissionList permissions={selected.permissions} />
               <ConnectionTestPanel connector={selected.connector} />
@@ -319,7 +328,13 @@ function connectorDisplay(connectorId: string, language: string) {
   return table[connectorId]?.[language] || table[connectorId]?.ko || { name: "", description: "" };
 }
 
-function ConnectorAccountActions({ connectorId }: { connectorId: string }) {
+function ConnectorAccountActions({
+  connectorId,
+  auth
+}: {
+  connectorId: string;
+  auth?: ConnectorViewState["auth"];
+}) {
   const { t } = useAppLanguage();
   const target = oauthTargetForConnector(connectorId);
   if (!target) return null;
@@ -340,8 +355,16 @@ function ConnectorAccountActions({ connectorId }: { connectorId: string }) {
         provider={target.provider}
         service={target.service}
         label={labelByConnector[connectorId] || "Connect"}
+        reconnect={Boolean(auth?.canReconnect)}
       />
-      <IntegrationDisconnectButton provider={target.provider} service={target.service} />
+      {auth?.connectionState === "connected" || auth?.connectionState === "configured_unverified" ? (
+        <IntegrationDisconnectButton provider={target.provider} service={target.service} />
+      ) : null}
+      {auth?.expectedRedirectUri ? (
+        <p className="break-all rounded-2xl border border-app-border bg-app-bg px-3 py-2 text-[11px] leading-5 text-app-muted">
+          Expected callback: {auth.expectedRedirectUri}
+        </p>
+      ) : null}
     </div>
   );
 }

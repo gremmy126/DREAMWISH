@@ -10,8 +10,10 @@ const selectedProvider: AIProviderName = parseProviderName("groq") || "groq";
 const providerList: AIProviderName[] = [...SUPPORTED_FREE_PROVIDERS, selectedProvider];
 
 const customer: Customer = {
+  ownerId: "stage7-contract-owner",
   id: "customer_1",
   companyId: "company_1",
+  companyName: "Example",
   name: "고객 A",
   email: "customer@example.com",
   phone: "010-0000-0000",
@@ -19,11 +21,19 @@ const customer: Customer = {
   tags: ["vip"],
   status: "active",
   importance: "high",
+  customerType: "company",
+  memo: "",
+  expectedValue: 0,
+  relationshipScore: 80,
+  lastContactAt: null,
+  nextContactAt: null,
   createdAt: "2026-07-09T00:00:00.000Z",
-  updatedAt: "2026-07-09T00:00:00.000Z"
+  updatedAt: "2026-07-09T00:00:00.000Z",
+  deletedAt: null
 };
 
 const memory: CustomerMemory = {
+  ownerId: customer.ownerId,
   customerId: customer.id,
   preferences: ["간결한 보고"],
   personality: "분석적",

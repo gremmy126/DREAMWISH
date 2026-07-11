@@ -46,9 +46,14 @@ test("Firebase browser config uses statically analyzable public environment refe
 test("Firebase auth client exposes signup and authenticated password change", () => {
   const source = fs.readFileSync("src/lib/firebase/firebase-client.ts", "utf8");
   assert.match(source, /createUserWithEmailAndPassword/u);
+  assert.match(source, /EmailAuthProvider/u);
+  assert.match(source, /reauthenticateWithCredential/u);
+  assert.match(source, /EmailAuthProvider\.credential\(auth\.currentUser\.email, input\.currentPassword\)/u);
   assert.match(source, /updatePassword/u);
   assert.match(source, /export async function createFirebasePasswordAccount/u);
   assert.match(source, /export async function changeFirebasePassword/u);
+  assert.match(source, /export function firebaseUserHasPasswordProvider/u);
+  assert.match(source, /hasPasswordProvider\(auth\?\.currentUser\?\.providerData \|\| \[\]\)/u);
 });
 
 test("login UI exposes account creation, Google login, reset, and password change", () => {
@@ -59,10 +64,31 @@ test("login UI exposes account creation, Google login, reset, and password chang
   assert.match(source, /changeFirebasePassword/u);
 });
 
-test("AI chat uses server provider catalog and omits recommended connections", () => {
+test("login UI uses safe auth errors and an explicit reauthenticated password form", () => {
+  const source = fs.readFileSync("components/auth/AuthGate.tsx", "utf8");
+  assert.match(source, /getFirebaseAuthErrorMessage/u);
+  assert.match(source, /validatePasswordChange/u);
+  assert.match(source, /firebaseUserHasPasswordProvider/u);
+  assert.match(source, /canEnableFirebaseGitHubLogin/u);
+  assert.match(source, /currentPassword/u);
+  assert.match(source, /newPassword/u);
+  assert.match(source, /confirmPassword/u);
+  assert.match(source, /autoComplete="current-password"/u);
+  assert.match(source, /autoComplete="new-password"/u);
+  assert.doesNotMatch(source, /window\.prompt/u);
+  assert.doesNotMatch(source, /process\.env\.NEXT_PUBLIC_ENABLE_FIREBASE_GITHUB_LOGIN/u);
+});
+
+test("AI chat streams answers and renders submitted-query connected context", () => {
   const source = fs.readFileSync("components/Chat/ChatView.tsx", "utf8");
   assert.match(source, /\/api\/ai\/providers/u);
-  assert.doesNotMatch(source, /ConnectedContextWorkspace/u);
+  assert.match(source, /\/api\/ai\/chat\/stream/u);
+  assert.match(source, /ConnectedContextWorkspace/u);
+  assert.match(source, /const contextQuery = lastQuery\.trim\(\)/u);
+  assert.match(source, /<ConnectedContextWorkspace query=\{contextQuery\} \/>/u);
+  assert.match(source, /setLastQuery\(lastUserMessage\?\.content \|\| ""\)/u);
+  assert.match(source, /setLastQuery\(contextualQuery\)/u);
+  assert.doesNotMatch(source, /const contextQuery = input\.trim\(\)/u);
   assert.doesNotMatch(source, /hard=true/u);
 });
 
@@ -109,6 +135,97 @@ test("Firebase GitHub login is exposed only when explicitly enabled and client i
       assert.equal(canEnableFirebaseGitHubLogin(), false);
     }
   );
+});
+
+test("Firebase auth errors map to safe actionable Korean messages", () => {
+  const modulePath = "../src/lib/firebase/firebase-auth-errors";
+  assert.equal(fs.existsSync("src/lib/firebase/firebase-auth-errors.ts"), true);
+  const { getFirebaseAuthErrorMessage } = require(modulePath) as {
+    getFirebaseAuthErrorMessage: (error: unknown) => string;
+  };
+
+  const cases = [
+    ["auth/invalid-credential", "이메일 또는 비밀번호"],
+    ["auth/popup-closed-by-user", "취소"],
+    ["auth/popup-blocked", "팝업"],
+    ["auth/account-exists-with-different-credential", "다른 로그인 방법"],
+    ["auth/requires-recent-login", "다시 로그인"],
+    ["auth/unauthorized-domain", "허용되지 않은 도메인"]
+  ] as const;
+
+  for (const [code, expected] of cases) {
+    assert.match(getFirebaseAuthErrorMessage({ code }), new RegExp(expected, "u"));
+  }
+  assert.equal(
+    getFirebaseAuthErrorMessage({ code: "auth/internal-error", message: "secret-token-value" }),
+    "인증 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
+  );
+});
+
+test("password change policy requires reauthentication inputs and a password provider", () => {
+  const modulePath = "../src/lib/firebase/firebase-password-policy";
+  assert.equal(fs.existsSync("src/lib/firebase/firebase-password-policy.ts"), true);
+  const { validatePasswordChange, hasPasswordProvider } = require(modulePath) as {
+    validatePasswordChange: (input: {
+      currentPassword: string;
+      newPassword: string;
+      confirmPassword: string;
+    }) => string | null;
+    hasPasswordProvider: (providers: Array<{ providerId?: string | null }>) => boolean;
+  };
+
+  assert.match(
+    validatePasswordChange({ currentPassword: "", newPassword: "abcdef", confirmPassword: "abcdef" }) || "",
+    /현재 비밀번호/u
+  );
+  assert.match(
+    validatePasswordChange({ currentPassword: "old-pass", newPassword: "12345", confirmPassword: "12345" }) || "",
+    /6자/u
+  );
+  assert.match(
+    validatePasswordChange({ currentPassword: "old-pass", newPassword: "abcdef", confirmPassword: "abcdeg" }) || "",
+    /일치/u
+  );
+  assert.equal(
+    validatePasswordChange({ currentPassword: "old-pass", newPassword: "abcdef", confirmPassword: "abcdef" }),
+    null
+  );
+  assert.equal(hasPasswordProvider([{ providerId: "google.com" }, { providerId: "password" }]), true);
+  assert.equal(hasPasswordProvider([{ providerId: "google.com" }, { providerId: "github.com" }]), false);
+});
+
+test("Firebase GitHub browser visibility depends only on its public enable flag", () => {
+  withEnv(
+    {
+      NEXT_PUBLIC_ENABLE_FIREBASE_GITHUB_LOGIN: "true",
+      GITHUB_CLIENT_ID: undefined
+    },
+    () => {
+      assert.equal(canEnableFirebaseGitHubLogin(), true);
+    }
+  );
+});
+
+test("authentication configuration documents the server session secret and provider consoles", () => {
+  const exampleEnv = fs.readFileSync(".env.example", "utf8");
+  assert.match(exampleEnv, /# Auth Session - Server Only[\s\S]*AUTH_SESSION_SECRET=""/u);
+  assert.doesNotMatch(exampleEnv, /NEXT_PUBLIC_AUTH_SESSION_SECRET/u);
+
+  assert.equal(fs.existsSync("docs/authentication.md"), true);
+  const guide = fs.readFileSync("docs/authentication.md", "utf8");
+  for (const requirement of [
+    "Email/Password",
+    "Google",
+    "GitHub",
+    "localhost",
+    "dreamwish.co.kr",
+    "Authorized domains",
+    "Authorization callback URL",
+    "AUTH_SESSION_SECRET",
+    "Railway"
+  ]) {
+    assert.match(guide, new RegExp(requirement.replace("/", "\\/"), "u"));
+  }
 });
 
 test("Naver site verification metadata is configured", () => {

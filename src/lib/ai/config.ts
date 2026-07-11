@@ -52,6 +52,14 @@ export function getConfiguredAIProviders(): AIProviderRuntimeConfig[] {
   });
 }
 
+export function getProviderAttemptOrder(
+  requested?: ExternalAIProviderName
+): ExternalAIProviderName[] {
+  const configured = getConfiguredAIProviders().map((config) => config.provider);
+  if (!requested || !configured.includes(requested)) return configured;
+  return [requested, ...configured.filter((provider) => provider !== requested)];
+}
+
 export function getDefaultAIProviderName(): ExternalAIProviderName {
   const explicit = parseExternalProvider(process.env.AI_PROVIDER);
   if (explicit) {

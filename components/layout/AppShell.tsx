@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AutomationView } from "@/components/Automation/AutomationView";
 import { CalendarView } from "@/components/Calendar/CalendarView";
 import { ChatView } from "@/components/Chat/ChatView";
-import { CRMView } from "@/components/CRM/CRMView";
+import { BusinessHub } from "@/components/Business/BusinessHub";
 import { FilesView } from "@/components/Files/FilesView";
 import { IntegrationsView } from "@/components/integrations/IntegrationsView";
 import { KnowledgeView } from "@/components/Knowledge/KnowledgeView";
@@ -26,7 +26,9 @@ export function AppShell() {
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search);
     const requestedView = searchParams.get("view");
-    if (isViewId(requestedView)) setActiveView(requestedView);
+    if (requestedView === "crm") setActiveView("business");
+    else if (isViewId(requestedView)) setActiveView(requestedView);
+    else if (window.location.pathname.startsWith("/business")) setActiveView("business");
   }, []);
 
   const content = useMemo(() => {
@@ -37,8 +39,10 @@ export function AppShell() {
         return <KnowledgeView />;
       case "memory":
         return <MemoryView />;
+      case "business":
+        return <BusinessHub />;
       case "crm":
-        return <CRMView />;
+        return <BusinessHub initialSection="customers" />;
       case "workflow":
         return <WorkflowView />;
       case "automation":
@@ -106,6 +110,7 @@ function isViewId(value: string | null): value is ViewId {
     value === "chat" ||
     value === "knowledge" ||
     value === "memory" ||
+    value === "business" ||
     value === "crm" ||
     value === "workflow" ||
     value === "automation" ||

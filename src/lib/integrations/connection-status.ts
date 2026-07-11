@@ -3,9 +3,11 @@ import { getAIProviderHealth } from "@/src/lib/ai/config";
 import { SUPPORTED_PROVIDER_NAMES } from "@/src/lib/ai/provider-options";
 import type {
   ConnectableOAuthProviderId,
+  OAuthConnectionState,
   OAuthServiceId
 } from "@/src/lib/oauth/oauth.types";
 import { getOAuthConnectionStatus } from "@/src/lib/oauth/token.service";
+import { getOAuthRedirectDiagnostic } from "@/src/lib/oauth/oauth-redirect";
 import type { IntegrationStatus } from "./types";
 
 export type ConnectorAuthState = {
@@ -14,6 +16,12 @@ export type ConnectorAuthState = {
   configured: boolean;
   accountLabel: string | null;
   detail: string;
+  connectionState: OAuthConnectionState | "mock_mode";
+  canConnect: boolean;
+  canReconnect: boolean;
+  verifiedAt: string | null;
+  expectedRedirectUri: string | null;
+  redirectMatches: boolean | null;
 };
 
 export type AIProviderKeyState = {
@@ -31,90 +39,98 @@ export type FirebaseConnectionState = {
 };
 
 export async function getConnectorAuthState(
-  connectorId: string
+  ownerId: string,
+  connectorId: string,
+  requestUrl = "http://localhost:3100/api/integrations/status"
 ): Promise<ConnectorAuthState> {
   if (connectorId === "drive") {
     return oauthStateForConnector(
+      ownerId,
       connectorId,
       "google",
       "drive",
       ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"],
       ["GOOGLE_ACCESS_TOKEN", "GOOGLE_OAUTH_TOKEN"],
-      "Google Drive"
+      "Google Drive",
+      requestUrl
     );
   }
 
   if (connectorId === "gmail") {
     return oauthStateForConnector(
+      ownerId,
       connectorId,
       "google",
       "gmail",
       ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"],
       ["GOOGLE_ACCESS_TOKEN", "GOOGLE_OAUTH_TOKEN", "GMAIL_ACCESS_TOKEN"],
-      "Gmail"
+      "Gmail",
+      requestUrl
     );
   }
 
   if (connectorId === "calendar" || connectorId === "google") {
     return oauthStateForConnector(
+      ownerId,
       connectorId,
       "google",
       "calendar",
       ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"],
       ["GOOGLE_ACCESS_TOKEN", "GOOGLE_OAUTH_TOKEN"],
-      "Google Calendar"
+      "Google Calendar",
+      requestUrl
     );
   }
 
   if (connectorId === "slack") {
-    const oauth = await getOAuthConnectionStatus("slack");
-    const configured =
-      oauth.connected ||
-      hasAnyEnv(["SLACK_BOT_TOKEN", "SLACK_ACCESS_TOKEN"]) ||
-      hasAllEnv(["SLACK_CLIENT_ID", "SLACK_CLIENT_SECRET"]);
-    return {
+    return oauthStateForConnector(
+      ownerId,
       connectorId,
-      status: oauth.connected ? "connected" : "not_connected",
-      configured,
-      accountLabel: oauth.accountEmail || null,
-      detail: configured
-        ? oauth.connected
-          ? "Slack account is connected."
-          : "Slack OAuth app is configured and ready to connect."
-        : "Slack OAuth/API configuration is missing."
-    };
+      "slack",
+      "slack",
+      ["SLACK_CLIENT_ID", "SLACK_CLIENT_SECRET"],
+      ["SLACK_BOT_TOKEN", "SLACK_ACCESS_TOKEN"],
+      "Slack",
+      requestUrl
+    );
   }
 
   if (connectorId === "github") {
     return oauthStateForConnector(
+      ownerId,
       connectorId,
       "github",
       "github",
       ["GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET"],
       ["GITHUB_TOKEN", "GITHUB_OAUTH_TOKEN"],
-      "GitHub"
+      "GitHub",
+      requestUrl
     );
   }
 
   if (connectorId === "notion") {
     return oauthStateForConnector(
+      ownerId,
       connectorId,
       "notion",
       "notion",
       ["NOTION_CLIENT_ID", "NOTION_CLIENT_SECRET"],
       ["NOTION_ACCESS_TOKEN", "NOTION_TOKEN"],
-      "Notion"
+      "Notion",
+      requestUrl
     );
   }
 
   if (connectorId === "discord") {
     return oauthStateForConnector(
+      ownerId,
       connectorId,
       "discord",
       "discord",
       ["DISCORD_CLIENT_ID", "DISCORD_CLIENT_SECRET"],
       ["DISCORD_ACCESS_TOKEN"],
-      "Discord"
+      "Discord",
+      requestUrl
     );
   }
 
@@ -123,9 +139,15 @@ export async function getConnectorAuthState(
     const configured = firebase.clientConfigured || firebase.adminConfigured || firebase.projectIdConfigured;
     return {
       connectorId,
-      status: configured ? "connected" : "not_connected",
+      status: "not_connected",
       configured,
-      accountLabel: configured ? "Firebase project configured" : null,
+      accountLabel: null,
+      connectionState: configured ? "configuration_only" : "not_connected",
+      canConnect: false,
+      canReconnect: false,
+      verifiedAt: null,
+      expectedRedirectUri: null,
+      redirectMatches: null,
       detail: configured
         ? "Firebase project configuration is present."
         : "Firebase configuration is missing."
@@ -137,12 +159,24 @@ export async function getConnectorAuthState(
     status: "mock_mode",
     configured: false,
     accountLabel: `mock-${connectorId}@dreamwish.local`,
+    connectionState: "mock_mode",
+    canConnect: false,
+    canReconnect: false,
+    verifiedAt: null,
+    expectedRedirectUri: null,
+    redirectMatches: null,
     detail: "This connector is running in local mock mode."
   };
 }
 
-export async function getAllConnectorAuthStates(connectorIds: string[]) {
-  const states = await Promise.all(connectorIds.map((id) => getConnectorAuthState(id)));
+export async function getAllConnectorAuthStates(
+  ownerId: string,
+  connectorIds: string[],
+  requestUrl?: string
+) {
+  const states = await Promise.all(
+    connectorIds.map((id) => getConnectorAuthState(ownerId, id, requestUrl))
+  );
   return Object.fromEntries(states.map((state) => [state.connectorId, state]));
 }
 
@@ -187,26 +221,48 @@ export function getFirebaseConnectionState(): FirebaseConnectionState {
 }
 
 async function oauthStateForConnector(
+  ownerId: string,
   connectorId: string,
   provider: ConnectableOAuthProviderId,
   service: OAuthServiceId,
   clientEnvKeys: string[],
   tokenEnvKeys: string[],
-  label: string
+  label: string,
+  requestUrl: string
 ): Promise<ConnectorAuthState> {
-  const oauth = await getOAuthConnectionStatus(provider, service);
-  const configured = oauth.connected || hasAnyEnv(tokenEnvKeys) || hasAllEnv(clientEnvKeys);
+  const oauth = await getOAuthConnectionStatus(ownerId, provider, service);
+  const configured = oauth.configured || hasAnyEnv(tokenEnvKeys) || hasAllEnv(clientEnvKeys);
+  const redirect = getOAuthRedirectDiagnostic(provider, requestUrl);
   return {
     connectorId,
     status: oauth.connected ? "connected" : "not_connected",
     configured,
     accountLabel: oauth.accountEmail || null,
-    detail: configured
-      ? oauth.connected
-        ? `${label} account is connected.`
-        : `${label} OAuth app is configured and ready to connect.`
-      : `${label} account/API configuration is missing.`
+    connectionState: oauth.connectionState,
+    canConnect: hasAllEnv(clientEnvKeys),
+    canReconnect: oauth.connectionState !== "not_connected",
+    verifiedAt: oauth.verifiedAt,
+    expectedRedirectUri: redirect.expected,
+    redirectMatches: redirect.matches,
+    detail: connectionDetail(label, oauth.connectionState, configured, redirect.matches)
   };
+}
+
+function connectionDetail(
+  label: string,
+  state: OAuthConnectionState,
+  configured: boolean,
+  redirectMatches: boolean
+) {
+  if (state === "connected") return `${label} account is verified and connected.`;
+  if (state === "configured_unverified") return `${label} credentials exist but no account is verified. Reconnect the account.`;
+  if (state === "expired") return `${label} authorization expired. Reconnect the account.`;
+  if (state === "revoked") return `${label} authorization was revoked. Reconnect the account.`;
+  if (state === "error") return `${label} account verification failed. Reconnect the account.`;
+  if (!redirectMatches) return `${label} callback configuration differs from the expected URL.`;
+  return configured
+    ? `${label} OAuth app is configured and ready to connect.`
+    : `${label} OAuth client configuration is missing.`;
 }
 
 function hasAnyEnv(keys: string[]) {

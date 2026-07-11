@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { handleOAuthCallback } from "@/src/lib/oauth/oauth-callback";
 import { assertConnectableOAuthProvider } from "@/src/lib/oauth/oauth.service";
 import { consumeOAuthSession } from "@/src/lib/repositories/oauth-session.repository";
+import { requireOwnerContext } from "@/src/lib/auth/owner-context";
 
 type RouteContext = {
   params: Promise<{ connectorId: string }>;
@@ -11,6 +12,7 @@ export async function GET(request: Request, context: RouteContext) {
   const url = new URL(request.url);
 
   try {
+    const owner = await requireOwnerContext(request);
     const { connectorId } = await context.params;
     const provider = assertConnectableOAuthProvider(connectorId);
     const code = url.searchParams.get("code");
@@ -23,8 +25,9 @@ export async function GET(request: Request, context: RouteContext) {
     if (!code) throw new Error("OAuth code is missing.");
     if (!state) throw new Error("OAuth state is missing.");
 
-    const session = await consumeOAuthSession({ state, provider });
+    const session = await consumeOAuthSession({ ownerId: owner.uid, state, provider });
     await handleOAuthCallback({
+      ownerId: owner.uid,
       provider,
       service: session.service,
       code,

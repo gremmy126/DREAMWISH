@@ -18,6 +18,7 @@ import {
 import {
   changeFirebasePassword,
   createFirebasePasswordAccount,
+  firebaseUserHasPasswordProvider,
   getFirebaseClientAuth,
   logoutFirebaseUser,
   sendFirebasePasswordReset,
@@ -26,11 +27,10 @@ import {
   signInWithFirebasePassword,
   waitForFirebaseUser
 } from "@/src/lib/firebase/firebase-client";
+import { getFirebaseAuthErrorMessage } from "@/src/lib/firebase/firebase-auth-errors";
+import { canEnableFirebaseGitHubLogin } from "@/src/lib/firebase/firebase-auth-providers";
+import { validatePasswordChange } from "@/src/lib/firebase/firebase-password-policy";
 import { useAppLanguage } from "@/src/lib/i18n/use-app-language";
-
-type StoredSession = {
-  email: string;
-};
 
 type AuthGateProps = {
   children: ReactNode;
@@ -46,6 +46,12 @@ export function AuthGate({ children }: AuthGateProps) {
   const [error, setError] = useState<string | null>(null);
   const [resetMessage, setResetMessage] = useState<string | null>(null);
   const [creatingAccount, setCreatingAccount] = useState(false);
+  const [canChangePassword, setCanChangePassword] = useState(false);
+  const [showPasswordChange, setShowPasswordChange] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
   const { t } = useAppLanguage();
 
   useEffect(() => {
@@ -56,26 +62,24 @@ export function AuthGate({ children }: AuthGateProps) {
     setLoading(true);
     setError(null);
     try {
-      const raw = window.localStorage.getItem(AUTH_SESSION_KEY);
-      const session = raw ? (JSON.parse(raw) as StoredSession) : null;
       const firebaseUser = await waitForFirebaseUser();
-      if (firebaseUser?.email) {
-        const idToken = await firebaseUser.getIdToken();
-        const nextAccess = await fetchAccess(firebaseUser.email, t("auth.sessionFailed"), idToken);
-        setAccess(nextAccess);
-        setEmail(nextAccess.email);
-        window.localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify({ email: nextAccess.email }));
-        return;
-      }
-      if (!session?.email) {
+      if (!firebaseUser) {
+        window.localStorage.removeItem(AUTH_SESSION_KEY);
         setAccess(null);
+        setEmail("");
+        setCanChangePassword(false);
+        await logoutServerSession();
         return;
       }
-      const nextAccess = await fetchAccess(session.email, t("auth.sessionFailed"));
+
+      const idToken = await firebaseUser.getIdToken();
+      const nextAccess = await fetchAccess(idToken, t("auth.sessionFailed"));
       setAccess(nextAccess);
       setEmail(nextAccess.email);
+      setCanChangePassword(firebaseUserHasPasswordProvider());
+      window.localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify({ email: nextAccess.email }));
     } catch (caught) {
-      setError(stringifyUnknownError(caught));
+      setError(getAuthActionError(caught));
       setAccess(null);
     } finally {
       setLoading(false);
@@ -87,31 +91,16 @@ export function AuthGate({ children }: AuthGateProps) {
     setError(null);
     setResetMessage(null);
     try {
-      let idToken: string | undefined;
       const firebaseAuth = getFirebaseClientAuth();
-      if (firebaseAuth) {
-        if (!password) throw new Error("Password is required.");
-        const credential = await signInWithFirebasePassword({ email, password });
-        idToken = await credential.user.getIdToken();
+      if (!firebaseAuth) {
+        throw new AuthSessionError("Firebase 브라우저 인증 설정을 확인해주세요.");
       }
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, name, idToken })
-      });
-      const data = (await response.json()) as {
-        access?: AccessState;
-        error?: string;
-      };
-      if (!response.ok || !data.access) {
-        throw new Error(data.error || t("auth.failed"));
-      }
-      window.localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify({ email: data.access.email }));
-      setAccess(data.access);
-      setEmail(data.access.email);
-      setPassword("");
+      if (!password) throw new AuthSessionError("비밀번호를 입력해주세요.");
+      const credential = await signInWithFirebasePassword({ email, password });
+      const idToken = await credential.user.getIdToken();
+      await completeFirebaseLogin(idToken);
     } catch (caught) {
-      setError(stringifyUnknownError(caught));
+      setError(getAuthActionError(caught));
     } finally {
       setSubmitting(false);
     }
@@ -122,28 +111,41 @@ export function AuthGate({ children }: AuthGateProps) {
     setError(null);
     setResetMessage(null);
     try {
-      if (password.length < 6) throw new Error("Password must be at least 6 characters.");
+      if (password.length < 6) {
+        throw new AuthSessionError("비밀번호는 6자 이상이어야 합니다.");
+      }
       const credential = await createFirebasePasswordAccount({ email, password, name });
       const idToken = await credential.user.getIdToken();
-      await completeFirebaseLogin(idToken, credential.user.email || email, name);
+      await completeFirebaseLogin(idToken);
     } catch (caught) {
-      setError(stringifyUnknownError(caught));
+      setError(getAuthActionError(caught));
     } finally {
       setSubmitting(false);
     }
   }
 
   async function changePassword() {
-    const newPassword = window.prompt("Enter a new password (at least 6 characters).");
-    if (!newPassword) return;
+    const validationError = validatePasswordChange({
+      currentPassword,
+      newPassword,
+      confirmPassword
+    });
+    if (validationError) {
+      setError(validationError);
+      setPasswordMessage(null);
+      return;
+    }
     setSubmitting(true);
     setError(null);
+    setPasswordMessage(null);
     try {
-      if (newPassword.length < 6) throw new Error("Password must be at least 6 characters.");
-      await changeFirebasePassword(newPassword);
-      setResetMessage("Password changed successfully.");
+      await changeFirebasePassword({ currentPassword, newPassword });
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setPasswordMessage("비밀번호가 안전하게 변경되었습니다.");
     } catch (caught) {
-      setError(stringifyUnknownError(caught));
+      setError(getFirebaseAuthErrorMessage(caught));
     } finally {
       setSubmitting(false);
     }
@@ -156,9 +158,9 @@ export function AuthGate({ children }: AuthGateProps) {
     try {
       const credential = await signInWithFirebaseGoogle();
       const idToken = await credential.user.getIdToken();
-      await completeFirebaseLogin(idToken, credential.user.email || email, credential.user.displayName || name);
+      await completeFirebaseLogin(idToken);
     } catch (caught) {
-      setError(stringifyUnknownError(caught));
+      setError(getAuthActionError(caught));
     } finally {
       setSubmitting(false);
     }
@@ -171,31 +173,36 @@ export function AuthGate({ children }: AuthGateProps) {
     try {
       const credential = await signInWithFirebaseGithub();
       const idToken = await credential.user.getIdToken();
-      await completeFirebaseLogin(idToken, credential.user.email || email, credential.user.displayName || name);
+      await completeFirebaseLogin(idToken);
     } catch (caught) {
-      setError(stringifyUnknownError(caught));
+      setError(getAuthActionError(caught));
     } finally {
       setSubmitting(false);
     }
   }
 
-  async function completeFirebaseLogin(idToken: string, fallbackEmail: string, fallbackName: string) {
+  async function completeFirebaseLogin(idToken: string) {
     const response = await fetch("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: fallbackEmail, name: fallbackName, idToken })
+      body: JSON.stringify({ idToken })
     });
     const data = (await response.json()) as {
       access?: AccessState;
       error?: string;
     };
     if (!response.ok || !data.access) {
-      throw new Error(data.error || t("auth.failed"));
+      throw new AuthSessionError(
+        response.status >= 500
+          ? "서버 인증 설정을 확인해주세요. 잠시 후 다시 시도해주세요."
+          : data.error || t("auth.failed")
+      );
     }
     window.localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify({ email: data.access.email }));
     setAccess(data.access);
     setEmail(data.access.email);
     setPassword("");
+    setCanChangePassword(firebaseUserHasPasswordProvider());
   }
 
   async function resetPassword() {
@@ -203,11 +210,14 @@ export function AuthGate({ children }: AuthGateProps) {
     setError(null);
     setResetMessage(null);
     try {
-      if (!email.trim()) throw new Error("Enter your email first.");
+      if (!email.trim()) {
+        setError("비밀번호를 재설정할 이메일을 먼저 입력해주세요.");
+        return;
+      }
       await sendFirebasePasswordReset(email.trim());
-      setResetMessage("Password reset email sent. Open the email to change your password.");
+      setResetMessage("비밀번호 재설정 이메일을 보냈습니다. 이메일의 링크를 확인해주세요.");
     } catch (caught) {
-      setError(stringifyUnknownError(caught));
+      setError(getFirebaseAuthErrorMessage(caught));
     } finally {
       setSubmitting(false);
     }
@@ -238,14 +248,25 @@ export function AuthGate({ children }: AuthGateProps) {
     }
   }
 
-  function logout() {
+  async function logout() {
     window.localStorage.removeItem(AUTH_SESSION_KEY);
-    void logoutFirebaseUser();
     setAccess(null);
     setEmail("");
     setPassword("");
     setName("");
     setResetMessage(null);
+    setCanChangePassword(false);
+    closePasswordDialog();
+    await Promise.allSettled([logoutFirebaseUser(), logoutServerSession()]);
+  }
+
+  function closePasswordDialog() {
+    setShowPasswordChange(false);
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmPassword("");
+    setPasswordMessage(null);
+    setError(null);
   }
 
   if (loading) {
@@ -274,7 +295,7 @@ export function AuthGate({ children }: AuthGateProps) {
         onModeChange={setCreatingAccount}
         onResetPassword={resetPassword}
         onGoogle={loginWithGoogle}
-        onGithub={process.env.NEXT_PUBLIC_ENABLE_FIREBASE_GITHUB_LOGIN === "true" ? loginWithGithub : undefined}
+        onGithub={canEnableFirebaseGitHubLogin() ? loginWithGithub : undefined}
       />
     );
   }
@@ -294,13 +315,34 @@ export function AuthGate({ children }: AuthGateProps) {
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => void changePassword()}
-        className="fixed bottom-4 right-4 z-50 rounded-2xl border border-app-border bg-white px-3 py-2 text-xs font-semibold text-app-muted shadow-soft hover:text-app-primary"
-      >
-        Change password
-      </button>
+      {canChangePassword ? (
+        <button
+          type="button"
+          onClick={() => {
+            setError(null);
+            setPasswordMessage(null);
+            setShowPasswordChange(true);
+          }}
+          className="fixed bottom-4 right-4 z-50 rounded-2xl border border-app-border bg-white px-3 py-2 text-xs font-semibold text-app-muted shadow-soft hover:text-app-primary"
+        >
+          비밀번호 변경
+        </button>
+      ) : null}
+      {showPasswordChange ? (
+        <PasswordChangeDialog
+          currentPassword={currentPassword}
+          newPassword={newPassword}
+          confirmPassword={confirmPassword}
+          error={error}
+          message={passwordMessage}
+          submitting={submitting}
+          onCurrentPasswordChange={setCurrentPassword}
+          onNewPasswordChange={setNewPassword}
+          onConfirmPasswordChange={setConfirmPassword}
+          onCancel={closePasswordDialog}
+          onSubmit={() => void changePassword()}
+        />
+      ) : null}
       {children}
     </>
   );
@@ -365,6 +407,7 @@ export function LoginShell({
               className="mt-2 h-11 w-full rounded-app border border-app-border bg-app-bg px-4 text-sm font-semibold text-app-text outline-none focus:border-app-primary"
               placeholder="you@example.com"
               type="email"
+              autoComplete="email"
             />
           </label>
           <label className="block">
@@ -375,18 +418,21 @@ export function LoginShell({
               className="mt-2 h-11 w-full rounded-app border border-app-border bg-app-bg px-4 text-sm font-semibold text-app-text outline-none focus:border-app-primary"
               placeholder="Password"
               type="password"
-              autoComplete="current-password"
+              autoComplete={creatingAccount ? "new-password" : "current-password"}
             />
           </label>
-          <label className="block">
-            <span className="text-xs font-semibold text-app-muted">{t("auth.name")}</span>
-            <input
-              value={name}
-              onChange={(event) => onNameChange(event.target.value)}
-              className="mt-2 h-11 w-full rounded-app border border-app-border bg-app-bg px-4 text-sm font-semibold text-app-text outline-none focus:border-app-primary"
-              placeholder={t("auth.namePlaceholder")}
-            />
-          </label>
+          {creatingAccount ? (
+            <label className="block">
+              <span className="text-xs font-semibold text-app-muted">{t("auth.name")}</span>
+              <input
+                value={name}
+                onChange={(event) => onNameChange(event.target.value)}
+                className="mt-2 h-11 w-full rounded-app border border-app-border bg-app-bg px-4 text-sm font-semibold text-app-text outline-none focus:border-app-primary"
+                placeholder={t("auth.namePlaceholder")}
+                autoComplete="name"
+              />
+            </label>
+          ) : null}
         </div>
 
         {error ? (
@@ -449,6 +495,132 @@ export function LoginShell({
         ) : null}
       </section>
     </main>
+  );
+}
+
+function PasswordChangeDialog({
+  currentPassword,
+  newPassword,
+  confirmPassword,
+  error,
+  message,
+  submitting,
+  onCurrentPasswordChange,
+  onNewPasswordChange,
+  onConfirmPasswordChange,
+  onCancel,
+  onSubmit
+}: {
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+  error: string | null;
+  message: string | null;
+  submitting: boolean;
+  onCurrentPasswordChange: (value: string) => void;
+  onNewPasswordChange: (value: string) => void;
+  onConfirmPasswordChange: (value: string) => void;
+  onCancel: () => void;
+  onSubmit: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/40 px-6">
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="password-change-title"
+        className="w-full max-w-md rounded-app border border-app-border bg-white p-6 shadow-soft"
+      >
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-app-hover text-app-primary">
+            <KeyRound size={18} />
+          </div>
+          <div>
+            <h2 id="password-change-title" className="text-lg font-semibold text-app-text">
+              비밀번호 변경
+            </h2>
+            <p className="mt-1 text-xs text-app-muted">현재 비밀번호로 본인 확인 후 변경합니다.</p>
+          </div>
+        </div>
+
+        <div className="mt-5 space-y-4">
+          <PasswordField
+            label="현재 비밀번호"
+            value={currentPassword}
+            autoComplete="current-password"
+            onChange={onCurrentPasswordChange}
+          />
+          <PasswordField
+            label="새 비밀번호"
+            value={newPassword}
+            autoComplete="new-password"
+            onChange={onNewPasswordChange}
+          />
+          <PasswordField
+            label="새 비밀번호 확인"
+            value={confirmPassword}
+            autoComplete="new-password"
+            onChange={onConfirmPasswordChange}
+          />
+        </div>
+
+        {error ? (
+          <p className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+            {error}
+          </p>
+        ) : null}
+        {message ? (
+          <p className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+            {message}
+          </p>
+        ) : null}
+
+        <div className="mt-5 grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={submitting}
+            className="h-11 rounded-app border border-app-border bg-white text-sm font-semibold text-app-muted hover:bg-app-hover disabled:bg-slate-100"
+          >
+            닫기
+          </button>
+          <button
+            type="button"
+            onClick={onSubmit}
+            disabled={submitting || !currentPassword || !newPassword || !confirmPassword}
+            className="flex h-11 items-center justify-center gap-2 rounded-app bg-app-primary text-sm font-semibold text-white disabled:bg-slate-200"
+          >
+            {submitting ? <Loader2 size={16} className="animate-spin" /> : <KeyRound size={16} />}
+            변경하기
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function PasswordField({
+  label,
+  value,
+  autoComplete,
+  onChange
+}: {
+  label: string;
+  value: string;
+  autoComplete: "current-password" | "new-password";
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="block">
+      <span className="text-xs font-semibold text-app-muted">{label}</span>
+      <input
+        type="password"
+        value={value}
+        autoComplete={autoComplete}
+        onChange={(event) => onChange(event.target.value)}
+        className="mt-2 h-11 w-full rounded-app border border-app-border bg-app-bg px-4 text-sm font-semibold text-app-text outline-none focus:border-app-primary"
+      />
+    </label>
   );
 }
 
@@ -537,15 +709,31 @@ export function AccessBadge({ access }: { access: AccessState }) {
   );
 }
 
-async function fetchAccess(email: string, fallback: string, idToken?: string) {
+async function fetchAccess(idToken: string, fallback: string) {
   const response = await fetch("/api/auth/session", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, idToken })
+    body: JSON.stringify({ idToken })
   });
   const data = (await response.json()) as { access?: AccessState; error?: string };
   if (!response.ok || !data.access) {
-    throw new Error(data.error || fallback);
+    throw new AuthSessionError(
+      response.status >= 500
+        ? "서버 인증 설정을 확인해주세요. 잠시 후 다시 시도해주세요."
+        : data.error || fallback
+    );
   }
   return data.access;
+}
+
+async function logoutServerSession() {
+  await fetch("/api/auth/logout", { method: "POST" });
+}
+
+class AuthSessionError extends Error {}
+
+function getAuthActionError(error: unknown) {
+  return error instanceof AuthSessionError
+    ? error.message
+    : getFirebaseAuthErrorMessage(error);
 }

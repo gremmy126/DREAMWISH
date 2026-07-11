@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
 import { listAuditLogEntries } from "@/src/lib/security/audit-log";
 
-export async function GET(request: Request) {
-  const isAdmin = request.headers.get("x-dreamwish-admin") === "true";
+export async function GET() {
   try {
-    const entries = await listAuditLogEntries(isAdmin ? "admin" : "user");
+    const entries = await listAuditLogEntries("admin");
     return NextResponse.json({ entries });
   } catch (error) {
     return NextResponse.json(
