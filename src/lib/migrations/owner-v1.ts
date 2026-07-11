@@ -11,6 +11,38 @@ const OWNER_V1_FILES = [
   "files.json"
 ] as const;
 
+type OwnerV1FileName = (typeof OWNER_V1_FILES)[number];
+type OwnerField = "ownerId" | "owner_id";
+
+type OwnerV1Marker = {
+  migration: "owner-v1";
+  ownerId: string;
+  completedAt: string;
+  files: string[];
+};
+
+const OWNER_ARRAYS_BY_FILE: Record<OwnerV1FileName, Array<[string, OwnerField]>> = {
+  "chat.json": [
+    ["chat_sessions", "owner_id"],
+    ["chat_messages", "owner_id"]
+  ],
+  "memory.json": [
+    ["candidates", "ownerId"],
+    ["memories", "ownerId"],
+    ["embeddings", "ownerId"],
+    ["changes", "ownerId"],
+    ["captureJobs", "ownerId"]
+  ],
+  "projects.json": [
+    ["projects", "ownerId"],
+    ["sessionLinks", "ownerId"]
+  ],
+  "knowledge.json": [["notes", "ownerId"]],
+  "files.json": [["files", "ownerId"]]
+};
+
+const migrationLocks = new Map<string, Promise<void>>();
+
 export type OwnerV1Result = {
   migration: "owner-v1";
   ownerId: string;
@@ -28,30 +60,42 @@ export class OwnerMigrationError extends Error {
 }
 
 export async function runOwnerV1Migration(owner: OwnerContext): Promise<OwnerV1Result> {
-  if (owner.role !== "admin") throw new OwnerMigrationError("MIGRATION_FAILED");
+  if (owner.role !== "admin" || !owner.uid.trim()) {
+    throw new OwnerMigrationError("MIGRATION_FAILED");
+  }
 
-  const dataDir = getDataDirectory();
+  const dataDir = path.resolve(getDataDirectory());
+  return withMigrationLock(dataDir, () => runOwnerV1MigrationLocked(dataDir, owner));
+}
+
+async function runOwnerV1MigrationLocked(
+  dataDir: string,
+  owner: OwnerContext
+): Promise<OwnerV1Result> {
   const markerPath = path.join(dataDir, ".migrations", "owner-v1.json");
-  const marker = await readOptionalJson<{ ownerId?: string; files?: string[] }>(markerPath);
-  if (marker?.ownerId === owner.uid) {
+  const markerRaw = await readOptionalBytes(markerPath);
+  if (markerRaw !== null) {
+    const marker = parseMarker(markerRaw);
+    if (marker.ownerId !== owner.uid) {
+      throw new OwnerMigrationError("owner-v1 belongs to a different uid");
+    }
     return {
       migration: "owner-v1",
       ownerId: owner.uid,
       migrated: false,
-      files: Array.isArray(marker.files) ? marker.files : []
+      files: [...marker.files]
     };
   }
-  if (marker) throw new OwnerMigrationError("owner-v1 belongs to a different uid");
 
   const existing: Array<{
-    name: (typeof OWNER_V1_FILES)[number];
+    name: OwnerV1FileName;
     path: string;
-    value: Record<string, unknown>;
+    raw: Buffer;
   }> = [];
   for (const name of OWNER_V1_FILES) {
     const filePath = path.join(dataDir, name);
-    const value = await readOptionalJson<Record<string, unknown>>(filePath);
-    if (value) existing.push({ name, path: filePath, value });
+    const raw = await readOptionalBytes(filePath);
+    if (raw !== null) existing.push({ name, path: filePath, raw });
   }
 
   const backupDir = path.join(
@@ -62,13 +106,17 @@ export async function runOwnerV1Migration(owner: OwnerContext): Promise<OwnerV1R
   );
   await fs.mkdir(backupDir, { recursive: true });
   for (const file of existing) {
-    await fs.copyFile(file.path, path.join(backupDir, file.name));
+    await fs.writeFile(path.join(backupDir, file.name), file.raw);
   }
 
-  for (const file of existing) {
+  const parsedFiles = existing.map((file) => ({
+    ...file,
+    value: parseStore(file.name, file.raw)
+  }));
+  for (const file of parsedFiles) {
     await writeJsonAtomic(file.path, assignOwner(file.name, file.value, owner.uid));
   }
-  const migratedFiles = existing.map((file) => file.name);
+  const migratedFiles = parsedFiles.map((file) => file.name);
   await writeJsonAtomic(markerPath, {
     migration: "owner-v1",
     ownerId: owner.uid,
@@ -85,39 +133,17 @@ export async function runOwnerV1Migration(owner: OwnerContext): Promise<OwnerV1R
 }
 
 function assignOwner(
-  fileName: (typeof OWNER_V1_FILES)[number],
+  fileName: OwnerV1FileName,
   value: Record<string, unknown>,
   ownerId: string
 ) {
-  const own = (record: unknown, key: "ownerId" | "owner_id") => {
+  const own = (record: unknown, key: OwnerField) => {
     if (!record || typeof record !== "object") return record;
     const current = record as Record<string, unknown>;
     return { ...current, [key]: current[key] || ownerId };
   };
-  const arraysByFile: Record<
-    (typeof OWNER_V1_FILES)[number],
-    Array<[string, "ownerId" | "owner_id"]>
-  > = {
-    "chat.json": [
-      ["chat_sessions", "owner_id"],
-      ["chat_messages", "owner_id"]
-    ],
-    "memory.json": [
-      ["candidates", "ownerId"],
-      ["memories", "ownerId"],
-      ["embeddings", "ownerId"],
-      ["changes", "ownerId"],
-      ["captureJobs", "ownerId"]
-    ],
-    "projects.json": [
-      ["projects", "ownerId"],
-      ["sessionLinks", "ownerId"]
-    ],
-    "knowledge.json": [["notes", "ownerId"]],
-    "files.json": [["files", "ownerId"]]
-  };
   const next = { ...value };
-  for (const [key, ownerKey] of arraysByFile[fileName]) {
+  for (const [key, ownerKey] of OWNER_ARRAYS_BY_FILE[fileName]) {
     next[key] = Array.isArray(value[key])
       ? (value[key] as unknown[]).map((item) => own(item, ownerKey))
       : [];
@@ -125,12 +151,69 @@ function assignOwner(
   return next;
 }
 
-async function readOptionalJson<T>(filePath: string): Promise<T | null> {
+function parseMarker(raw: Buffer): OwnerV1Marker {
+  const value = parseJson(raw, "owner-v1 marker is invalid");
+  if (!isRecord(value)) throw new OwnerMigrationError("owner-v1 marker is invalid");
+  if (
+    value.migration !== "owner-v1" ||
+    typeof value.ownerId !== "string" ||
+    !value.ownerId.trim() ||
+    typeof value.completedAt !== "string" ||
+    !value.completedAt.trim() ||
+    Number.isNaN(Date.parse(value.completedAt)) ||
+    !Array.isArray(value.files) ||
+    !value.files.every((file) => typeof file === "string")
+  ) {
+    throw new OwnerMigrationError("owner-v1 marker is invalid");
+  }
+  return value as OwnerV1Marker;
+}
+
+function parseStore(fileName: OwnerV1FileName, raw: Buffer): Record<string, unknown> {
+  const value = parseJson(raw, `${fileName} is invalid`);
+  if (!isRecord(value)) throw new OwnerMigrationError(`${fileName} is invalid`);
+  for (const [key] of OWNER_ARRAYS_BY_FILE[fileName]) {
+    if (value[key] !== undefined && !Array.isArray(value[key])) {
+      throw new OwnerMigrationError(`${fileName} is invalid`);
+    }
+  }
+  return value;
+}
+
+function parseJson(raw: Buffer, errorMessage: string): unknown {
   try {
-    return JSON.parse(await fs.readFile(filePath, "utf8")) as T;
+    return JSON.parse(raw.toString("utf8")) as unknown;
+  } catch {
+    throw new OwnerMigrationError(errorMessage);
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+async function readOptionalBytes(filePath: string): Promise<Buffer | null> {
+  try {
+    return await fs.readFile(filePath);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw error;
+  }
+}
+
+async function withMigrationLock<T>(key: string, run: () => Promise<T>): Promise<T> {
+  const previous = migrationLocks.get(key) || Promise.resolve();
+  let release = () => {};
+  const current = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  migrationLocks.set(key, current);
+  await previous;
+  try {
+    return await run();
+  } finally {
+    release();
+    if (migrationLocks.get(key) === current) migrationLocks.delete(key);
   }
 }
 

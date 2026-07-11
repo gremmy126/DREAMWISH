@@ -317,7 +317,16 @@ test("owner-v1 migration rejects a conflicting marker without rewriting JSON", a
     fs.writeFileSync(filePath, JSON.stringify({ files: [{ id: "legacy-file" }] }, null, 2));
     fs.writeFileSync(
       markerPath,
-      JSON.stringify({ migration: "owner-v1", ownerId: "different-uid", files: [] }, null, 2)
+      JSON.stringify(
+        {
+          migration: "owner-v1",
+          ownerId: "different-uid",
+          completedAt: "2026-07-11T00:00:00.000Z",
+          files: []
+        },
+        null,
+        2
+      )
     );
     const fileBefore = fs.readFileSync(filePath, "utf8");
     const markerBefore = fs.readFileSync(markerPath, "utf8");
@@ -341,6 +350,150 @@ test("owner-v1 migration rejects a conflicting marker without rewriting JSON", a
     assert.equal(fs.readFileSync(filePath, "utf8"), fileBefore);
     assert.equal(fs.readFileSync(markerPath, "utf8"), markerBefore);
     assert.equal(fs.existsSync(path.join(dataDir, ".migration-backups")), false);
+  });
+});
+
+test("owner-v1 migration rejects every existing invalid marker without rewriting", async () => {
+  const invalidMarkers = [
+    { label: "null", raw: "null" },
+    { label: "false", raw: "false" },
+    { label: "empty object", raw: "{}" },
+    {
+      label: "same-owner incomplete marker",
+      raw: JSON.stringify({ migration: "owner-v1", ownerId: "admin-uid", files: [] })
+    },
+    {
+      label: "wrong migration",
+      raw: JSON.stringify({
+        migration: "owner-v2",
+        ownerId: "admin-uid",
+        completedAt: "2026-07-11T00:00:00.000Z",
+        files: []
+      })
+    },
+    {
+      label: "empty owner",
+      raw: JSON.stringify({
+        migration: "owner-v1",
+        ownerId: "   ",
+        completedAt: "2026-07-11T00:00:00.000Z",
+        files: []
+      })
+    },
+    {
+      label: "invalid completion time",
+      raw: JSON.stringify({
+        migration: "owner-v1",
+        ownerId: "admin-uid",
+        completedAt: "not-a-date",
+        files: []
+      })
+    },
+    {
+      label: "non-string files entry",
+      raw: JSON.stringify({
+        migration: "owner-v1",
+        ownerId: "admin-uid",
+        completedAt: "2026-07-11T00:00:00.000Z",
+        files: [42]
+      })
+    },
+    { label: "invalid JSON", raw: "{" }
+  ];
+  const { OwnerMigrationError, runOwnerV1Migration } = requireProjectModule<
+    typeof import("../src/lib/migrations/owner-v1")
+  >("src/lib/migrations/owner-v1.ts");
+
+  for (const marker of invalidMarkers) {
+    await withTempDataDir(async (dataDir) => {
+      const filePath = path.join(dataDir, "files.json");
+      const markerPath = path.join(dataDir, ".migrations", "owner-v1.json");
+      const sourceBefore = JSON.stringify({ files: [{ id: marker.label }] }, null, 2);
+      fs.mkdirSync(path.dirname(markerPath), { recursive: true });
+      fs.writeFileSync(filePath, sourceBefore, "utf8");
+      fs.writeFileSync(markerPath, marker.raw, "utf8");
+
+      await assert.rejects(
+        () =>
+          runOwnerV1Migration({
+            uid: "admin-uid",
+            email: ADMIN_EMAIL,
+            role: "admin"
+          }),
+        (error: unknown) => {
+          assert.ok(error instanceof OwnerMigrationError, marker.label);
+          assert.equal(error.code, "MIGRATION_FAILED");
+          return true;
+        }
+      );
+      assert.equal(fs.readFileSync(filePath, "utf8"), sourceBefore, marker.label);
+      assert.equal(fs.readFileSync(markerPath, "utf8"), marker.raw, marker.label);
+    });
+  }
+});
+
+test("owner-v1 migration backs up all raw stores before rejecting an invalid shape", async () => {
+  await withTempDataDir(async (dataDir) => {
+    const rawStores: Record<string, Buffer> = {
+      "chat.json": Buffer.from("{invalid-json", "utf8"),
+      "memory.json": Buffer.from("false", "utf8"),
+      "projects.json": Buffer.from("0", "utf8"),
+      "knowledge.json": Buffer.from("null", "utf8"),
+      "files.json": Buffer.from('"primitive"', "utf8")
+    };
+    for (const [name, raw] of Object.entries(rawStores)) {
+      fs.writeFileSync(path.join(dataDir, name), raw);
+    }
+    const { runOwnerV1Migration } = requireProjectModule<
+      typeof import("../src/lib/migrations/owner-v1")
+    >("src/lib/migrations/owner-v1.ts");
+
+    await assert.rejects(() =>
+      runOwnerV1Migration({
+        uid: "admin-uid",
+        email: ADMIN_EMAIL,
+        role: "admin"
+      })
+    );
+
+    const backupRoot = path.join(dataDir, ".migration-backups", "owner-v1");
+    const backupDirectories = fs.readdirSync(backupRoot);
+    assert.equal(backupDirectories.length, 1);
+    const backupDir = path.join(backupRoot, backupDirectories[0]);
+    for (const [name, raw] of Object.entries(rawStores)) {
+      assert.deepEqual(fs.readFileSync(path.join(backupDir, name)), raw);
+      assert.deepEqual(fs.readFileSync(path.join(dataDir, name)), raw);
+    }
+    assert.equal(fs.existsSync(path.join(dataDir, ".migrations", "owner-v1.json")), false);
+  });
+});
+
+test("owner-v1 migration serializes concurrent calls and re-reads the marker", async () => {
+  await withTempDataDir(async (dataDir) => {
+    fs.writeFileSync(
+      path.join(dataDir, "files.json"),
+      JSON.stringify({ files: [{ id: "legacy-file" }] }, null, 2),
+      "utf8"
+    );
+    const { runOwnerV1Migration } = requireProjectModule<
+      typeof import("../src/lib/migrations/owner-v1")
+    >("src/lib/migrations/owner-v1.ts");
+    const owner = { uid: "admin-uid", email: ADMIN_EMAIL, role: "admin" as const };
+
+    const results = await Promise.all([
+      runOwnerV1Migration(owner),
+      runOwnerV1Migration(owner)
+    ]);
+
+    assert.deepEqual(
+      results.map((result) => result.migrated).sort(),
+      [false, true]
+    );
+    assert.equal(
+      fs.readdirSync(path.join(dataDir, ".migration-backups", "owner-v1")).length,
+      1
+    );
+    assert.equal(readJson(path.join(dataDir, "files.json")).files[0].ownerId, "admin-uid");
   });
 });
 
