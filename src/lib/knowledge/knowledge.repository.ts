@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { readJsonStore, writeJsonStore } from "@/src/lib/local-db/json-store";
 
 export type KnowledgeNote = {
+  ownerId: string;
   id: string;
   title: string;
   body: string;
@@ -18,13 +19,16 @@ type KnowledgeDb = {
 
 const EMPTY_DB: KnowledgeDb = { notes: [] };
 
-export async function listKnowledgeNotes(projectId?: string | null) {
-  const notes = (await readDb()).notes;
-  if (projectId === undefined) return notes;
-  return notes.filter((note) => note.projectId === projectId);
+export async function listKnowledgeNotes(ownerId: string, projectId?: string | null) {
+  return (await readDb()).notes.filter(
+    (note) =>
+      note.ownerId === ownerId &&
+      (projectId === undefined || note.projectId === projectId)
+  );
 }
 
 export async function createKnowledgeNote(input: {
+  ownerId: string;
   title: string;
   body: string;
   tags?: string[];
@@ -33,6 +37,7 @@ export async function createKnowledgeNote(input: {
 }) {
   const now = new Date().toISOString();
   const note: KnowledgeNote = {
+    ownerId: input.ownerId,
     id: randomUUID(),
     title: input.title.trim() || "새 지식",
     body: input.body.trim(),

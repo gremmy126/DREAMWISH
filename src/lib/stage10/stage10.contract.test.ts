@@ -18,6 +18,7 @@ import {
 } from "@/src/lib/workflow/workflow.repository";
 
 async function assertStage10WorkspaceContracts() {
+  const ownerId = "stage10-contract-owner";
   const customer = await createCustomerDraft({
     name: "김민수",
     email: "minsu@example.com",
@@ -58,6 +59,7 @@ async function assertStage10WorkspaceContracts() {
   (await listCalendarItems()).length satisfies number;
 
   const file = await saveFileRecord({
+    ownerId,
     name: "proposal.md",
     mimeType: "text/markdown",
     size: 128,
@@ -66,9 +68,10 @@ async function assertStage10WorkspaceContracts() {
     projectId: null
   });
   file.source satisfies "aichat" | "files" | "knowledge";
-  (await listFileRecords()).length satisfies number;
+  (await listFileRecords(ownerId)).length satisfies number;
 
   const note = await createKnowledgeNote({
+    ownerId,
     title: "고객 요구사항",
     body: "프로젝트 지식",
     tags: ["crm"],
@@ -76,7 +79,7 @@ async function assertStage10WorkspaceContracts() {
     sourceFileId: file.id
   });
   note.sourceFileId satisfies string | null;
-  (await listKnowledgeNotes()).length satisfies number;
+  (await listKnowledgeNotes(ownerId)).length satisfies number;
 
   await saveIntegrationSyncSetting({
     connectorId: "gmail",
@@ -88,9 +91,9 @@ async function assertStage10WorkspaceContracts() {
   enabledApps[0].connectorId satisfies string;
   (await listIntegrationSyncSettings()).length satisfies number;
 
-  const project = await createProject({ name: "AI Workspace" });
-  await assignSessionToProject({ projectId: project.id, sessionId: "session_1" });
-  (await listProjects()).length satisfies number;
+  const project = await createProject({ ownerId, name: "AI Workspace" });
+  await assignSessionToProject({ ownerId, projectId: project.id, sessionId: "session_1" });
+  (await listProjects(ownerId)).length satisfies number;
 }
 
 void assertStage10WorkspaceContracts;

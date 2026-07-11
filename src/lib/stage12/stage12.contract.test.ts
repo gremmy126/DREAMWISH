@@ -53,6 +53,7 @@ async function assertStage12Contracts() {
   KNOWLEDGE_MEMORY_TABS[0].id satisfies "network" | "documents" | "tags" | "recommendations";
   const knowledgeTabs = buildKnowledgeTabModel([
     {
+      ownerId: "stage12-contract-owner",
       id: "note_1",
       title: "Firebase notes",
       body: "Use Firebase for sync status only.",

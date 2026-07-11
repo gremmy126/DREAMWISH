@@ -20,9 +20,11 @@ type SearchDocument = {
 
 export async function quickMemorySearch(
   query: string,
-  options: { projectId?: string | null; limit?: number } = {}
+  options: { ownerId?: string; projectId?: string | null; limit?: number } = {}
 ): Promise<QuickMemorySearchResponse> {
-  const documents = await loadSearchDocuments(options.projectId);
+  const documents = options.ownerId
+    ? await loadSearchDocuments(options.ownerId, options.projectId)
+    : [];
   const queryTokens = tokenize(query);
   const results = documents
     .map((document) => toSearchResult(document, queryTokens))
@@ -34,13 +36,16 @@ export async function quickMemorySearch(
 
 export async function deepThinkSearch(
   query: string,
-  options: { projectId?: string | null; limit?: number } = {}
+  options: { ownerId?: string; projectId?: string | null; limit?: number } = {}
 ): Promise<DeepThinkSearchResponse> {
   const quick = await quickMemorySearch(query, {
+    ownerId: options.ownerId,
     projectId: options.projectId,
     limit: options.limit || 8
   });
-  const documents = await loadSearchDocuments(options.projectId);
+  const documents = options.ownerId
+    ? await loadSearchDocuments(options.ownerId, options.projectId)
+    : [];
   const selected = quick.results
     .map((result) => documents.find((document) => document.id === result.sourceId))
     .filter((document): document is SearchDocument => Boolean(document));
@@ -70,14 +75,19 @@ export async function deepThinkSearch(
   };
 }
 
-async function loadSearchDocuments(projectId?: string | null): Promise<SearchDocument[]> {
+async function loadSearchDocuments(
+  ownerId: string,
+  projectId?: string | null
+): Promise<SearchDocument[]> {
   const [db, notes, files] = await Promise.all([
     readMemoryDb(),
-    listKnowledgeNotes(projectId),
-    listFileRecords(projectId)
+    listKnowledgeNotes(ownerId, projectId),
+    listFileRecords(ownerId, projectId)
   ]);
-  const memories = db.memories.filter((memory) =>
-    projectId === undefined ? true : memory.projectId === projectId
+  const memories = db.memories.filter(
+    (memory) =>
+      (memory as typeof memory & { ownerId?: string }).ownerId === ownerId &&
+      (projectId === undefined || memory.projectId === projectId)
   );
   return [
     ...memories.map((memory) => ({

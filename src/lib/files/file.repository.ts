@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { readJsonStore, writeJsonStore } from "@/src/lib/local-db/json-store";
 
 export type FileRecord = {
+  ownerId: string;
   id: string;
   name: string;
   mimeType: string;
@@ -18,13 +19,16 @@ type FileDb = {
 
 const EMPTY_DB: FileDb = { files: [] };
 
-export async function listFileRecords(projectId?: string | null) {
-  const files = (await readDb()).files;
-  if (projectId === undefined) return files;
-  return files.filter((file) => file.projectId === projectId);
+export async function listFileRecords(ownerId: string, projectId?: string | null) {
+  return (await readDb()).files.filter(
+    (file) =>
+      file.ownerId === ownerId &&
+      (projectId === undefined || file.projectId === projectId)
+  );
 }
 
 export async function saveFileRecord(input: {
+  ownerId: string;
   name: string;
   mimeType: string;
   size: number;
@@ -33,6 +37,7 @@ export async function saveFileRecord(input: {
   projectId: string | null;
 }) {
   const file: FileRecord = {
+    ownerId: input.ownerId,
     id: randomUUID(),
     name: input.name.trim() || "untitled",
     mimeType: input.mimeType || "application/octet-stream",

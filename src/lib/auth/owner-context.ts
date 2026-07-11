@@ -23,11 +23,17 @@ export async function getOwnerContext(request: Request): Promise<OwnerContext | 
   const claims = await verifySessionToken(token);
   if (!claims) return null;
 
-  return {
+  const owner: OwnerContext = {
     uid: claims.uid,
     email: claims.email,
     role: claims.role
   };
+  if (owner.role === "admin") {
+    const { runOwnerV1Migration } = await import("../migrations/owner-v1");
+    await runOwnerV1Migration(owner);
+  }
+
+  return owner;
 }
 
 export async function requireOwnerContext(request: Request): Promise<OwnerContext> {

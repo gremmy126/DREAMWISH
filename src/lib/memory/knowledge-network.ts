@@ -55,8 +55,12 @@ export function extractKnowledgeEntities(markdown: string, sourceId = "inline") 
   return Array.from(entities.values());
 }
 
-export async function buildKnowledgeNetwork(options: { projectId?: string | null } = {}): Promise<KnowledgeGraph> {
-  const documents = await loadSourceDocuments(options.projectId);
+export async function buildKnowledgeNetwork(
+  options: { ownerId?: string; projectId?: string | null } = {}
+): Promise<KnowledgeGraph> {
+  const documents = options.ownerId
+    ? await loadSourceDocuments(options.ownerId, options.projectId)
+    : [];
   const nodes = new Map<string, KnowledgeEntity>();
   const edges = new Map<string, KnowledgeEdge>();
 
@@ -87,14 +91,19 @@ export async function buildKnowledgeNetwork(options: { projectId?: string | null
   };
 }
 
-async function loadSourceDocuments(projectId?: string | null): Promise<SourceDocument[]> {
+async function loadSourceDocuments(
+  ownerId: string,
+  projectId?: string | null
+): Promise<SourceDocument[]> {
   const [memoryDb, notes, files] = await Promise.all([
     readMemoryDb(),
-    listKnowledgeNotes(projectId),
-    listFileRecords(projectId)
+    listKnowledgeNotes(ownerId, projectId),
+    listFileRecords(ownerId, projectId)
   ]);
-  const memories = memoryDb.memories.filter((memory) =>
-    projectId === undefined ? true : memory.projectId === projectId
+  const memories = memoryDb.memories.filter(
+    (memory) =>
+      (memory as typeof memory & { ownerId?: string }).ownerId === ownerId &&
+      (projectId === undefined || memory.projectId === projectId)
   );
 
   return [
