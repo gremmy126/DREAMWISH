@@ -66,6 +66,29 @@ test("AI chat uses server provider catalog and omits recommended connections", (
   assert.doesNotMatch(source, /hard=true/u);
 });
 
+test("chat archive routes resolve and pass the authenticated owner", () => {
+  const sessionListRoute = normalizedSource("app/api/ai/sessions/route.ts");
+  const sessionRoute = normalizedSource("app/api/ai/sessions/[id]/route.ts");
+  const chatRoute = normalizedSource("app/api/ai/chat/route.ts");
+  const streamRoute = normalizedSource("app/api/ai/chat/stream/route.ts");
+  const contextRoute = normalizedSource("app/api/local/context/query/route.ts");
+
+  assert.match(sessionListRoute, /requireOwnerContext\(request\)/u);
+  assert.match(sessionListRoute, /listSessions\(owner\.uid\)/u);
+  assert.match(sessionRoute, /getSession\(owner\.uid, id\)/u);
+  assert.match(sessionRoute, /archiveSession\(owner\.uid, id\)/u);
+
+  for (const source of [chatRoute, streamRoute]) {
+    assert.match(source, /requireOwnerContext\(request\)/u);
+    assert.match(source, /ensureSession\(owner\.uid, sessionId, message\)/u);
+    assert.match(source, /ownerId: owner\.uid/u);
+    assert.match(source, /saveAssistantExchange\(\s*owner\.uid,/u);
+  }
+
+  assert.match(contextRoute, /requireOwnerContext\(request\)/u);
+  assert.match(contextRoute, /searchChatMessages\(owner\.uid, query, 8\)/u);
+});
+
 test("Firebase GitHub login is exposed only when explicitly enabled and client id exists", () => {
   withEnv(
     {
@@ -98,6 +121,7 @@ test("Naver site verification metadata is configured", () => {
 test("new chat sessions are inserted into the session list immediately", () => {
   const sessions = upsertOptimisticChatSession([], {
     id: "session-1",
+    owner_id: "uid-a",
     title: "첫 질문",
     created_at: "2026-07-10T00:00:00.000Z",
     updated_at: "2026-07-10T00:00:00.000Z",
@@ -108,6 +132,10 @@ test("new chat sessions are inserted into the session list immediately", () => {
   assert.equal(sessions[0].title, "첫 질문");
   assert.equal(upsertOptimisticChatSession(sessions, { ...sessions[0], title: "수정" }).length, 1);
 });
+
+function normalizedSource(filePath: string) {
+  return fs.readFileSync(filePath, "utf8").replace(/\s+/gu, " ");
+}
 
 function withEnv(values: Record<string, string | undefined>, run: () => void) {
   const original = { ...process.env };

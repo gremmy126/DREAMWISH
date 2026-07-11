@@ -21,11 +21,12 @@ type LocalChatDb = {
 
 const DB_PATH = () => path.join(getDataDirectory(), "chat.json");
 
-export async function createSession(title = "새 대화") {
+export async function createSession(ownerId: string, title = "새 대화") {
   const db = await readDb();
   const now = new Date().toISOString();
   const session: ChatSessionRecord = {
     id: randomUUID(),
+    owner_id: ownerId,
     title,
     created_at: now,
     updated_at: now,
@@ -37,17 +38,17 @@ export async function createSession(title = "새 대화") {
   return session;
 }
 
-export async function listSessions() {
+export async function listSessions(ownerId: string) {
   const db = await readDb();
   return db.chat_sessions
-    .filter((session) => !session.archived_at)
+    .filter((session) => session.owner_id === ownerId && !session.archived_at)
     .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
 }
 
-export async function getSession(id: string): Promise<ChatSessionDetail | null> {
+export async function getSession(ownerId: string, id: string): Promise<ChatSessionDetail | null> {
   const db = await readDb();
   const session = db.chat_sessions.find(
-    (item) => item.id === id && !item.archived_at
+    (item) => item.id === id && item.owner_id === ownerId && !item.archived_at
   );
 
   if (!session) return null;
@@ -55,12 +56,15 @@ export async function getSession(id: string): Promise<ChatSessionDetail | null> 
   return {
     session,
     messages: db.chat_messages
-      .filter((message) => message.session_id === id)
+      .filter(
+        (message) => message.session_id === id && message.owner_id === ownerId
+      )
       .sort((a, b) => a.created_at.localeCompare(b.created_at))
   };
 }
 
 export async function addMessage(input: {
+  ownerId: string;
   sessionId: string;
   role: Exclude<ChatRole, "system">;
   content: string;
@@ -69,29 +73,42 @@ export async function addMessage(input: {
   verification?: AnswerVerification | null;
 }) {
   const db = await readDb();
+  const session = db.chat_sessions.find(
+    (item) =>
+      item.id === input.sessionId &&
+      item.owner_id === input.ownerId &&
+      !item.archived_at
+  );
+  if (!session) throw new Error("Chat session not found");
+
   const now = new Date().toISOString();
   const message: ChatMessageRecord = {
     id: randomUUID(),
+    owner_id: input.ownerId,
     session_id: input.sessionId,
     role: input.role,
     content: input.content,
+    source_message_ids: [],
     sources_json: input.sources || null,
     confidence_json: input.confidence || null,
     verification_json: input.verification || null,
+    provider: null,
+    model: null,
     created_at: now
   };
 
   db.chat_messages.push(message);
-  const session = db.chat_sessions.find((item) => item.id === input.sessionId);
-  if (session) session.updated_at = now;
+  session.updated_at = now;
 
   await writeDb(db);
   return message;
 }
 
-export async function updateSessionTitle(id: string, title: string) {
+export async function updateSessionTitle(ownerId: string, id: string, title: string) {
   const db = await readDb();
-  const session = db.chat_sessions.find((item) => item.id === id);
+  const session = db.chat_sessions.find(
+    (item) => item.id === id && item.owner_id === ownerId
+  );
 
   if (!session) return null;
 
@@ -101,9 +118,11 @@ export async function updateSessionTitle(id: string, title: string) {
   return session;
 }
 
-export async function archiveSession(id: string) {
+export async function archiveSession(ownerId: string, id: string) {
   const db = await readDb();
-  const session = db.chat_sessions.find((item) => item.id === id);
+  const session = db.chat_sessions.find(
+    (item) => item.id === id && item.owner_id === ownerId
+  );
 
   if (!session) return false;
 
@@ -114,19 +133,28 @@ export async function archiveSession(id: string) {
   return true;
 }
 
-export async function deleteSession(id: string) {
-  return archiveSession(id);
+export async function deleteSession(ownerId: string, id: string) {
+  return archiveSession(ownerId, id);
 }
 
-export async function searchChatMessages(query: string, limit = 8): Promise<SearchResult[]> {
+export async function searchChatMessages(
+  ownerId: string,
+  query: string,
+  limit = 8
+): Promise<SearchResult[]> {
   const normalized = query.trim().toLowerCase();
   if (!normalized) return [];
 
   const terms = tokenize(normalized);
   const db = await readDb();
-  const sessionsById = new Map(db.chat_sessions.map((session) => [session.id, session]));
+  const sessionsById = new Map(
+    db.chat_sessions
+      .filter((session) => session.owner_id === ownerId)
+      .map((session) => [session.id, session])
+  );
 
   return db.chat_messages
+    .filter((message) => message.owner_id === ownerId)
     .map((message) => {
       const haystack = message.content.toLowerCase();
       const score = terms.reduce(
@@ -153,13 +181,17 @@ export async function searchChatMessages(query: string, limit = 8): Promise<Sear
     });
 }
 
-export async function ensureSession(sessionId: string | undefined, message: string) {
+export async function ensureSession(
+  ownerId: string,
+  sessionId: string | undefined,
+  message: string
+) {
   if (sessionId) {
-    const existing = await getSession(sessionId);
+    const existing = await getSession(ownerId, sessionId);
     if (existing) return existing.session;
   }
 
-  return createSession(makeSessionTitle(message));
+  return createSession(ownerId, makeSessionTitle(message));
 }
 
 async function readDb(): Promise<LocalChatDb> {

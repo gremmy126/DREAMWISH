@@ -1,6 +1,7 @@
 import { streamChatWithAI } from "@/src/lib/ai/ai.service";
 import { apiFailure } from "@/src/lib/api/api-response";
 import { parseJsonRequestBody } from "@/src/lib/api/json-request";
+import { requireOwnerContext } from "@/src/lib/auth/owner-context";
 import { parseProviderName } from "@/src/lib/ai/provider-options";
 import { buildContextAwareChatMessages } from "@/src/lib/ai/prompts";
 import { getChatExecutionPlan, getWebSearchQuery } from "@/src/lib/ai/question-classifier";
@@ -39,6 +40,7 @@ type ChatRequestBody = {
 };
 
 export async function POST(request: Request) {
+  const owner = await requireOwnerContext(request);
   const parsed = await parseJsonRequestBody<ChatRequestBody>(request);
 
   if (!parsed.ok) {
@@ -75,9 +77,14 @@ export async function POST(request: Request) {
 
       try {
         send("status", { status: "submitting" });
-        const session = await ensureSession(sessionId, message);
+        const session = await ensureSession(owner.uid, sessionId, message);
         send("session", { sessionId: session.id, session });
-        await addMessage({ sessionId: session.id, role: "user", content: message });
+        await addMessage({
+          ownerId: owner.uid,
+          sessionId: session.id,
+          role: "user",
+          content: message
+        });
 
         if (isQualityCommand(message)) {
           const report = await checkDocumentQuality(message);
@@ -90,7 +97,15 @@ export async function POST(request: Request) {
           const verification = emptyAnswerVerification();
           send("sources", { sources: [], confidence });
           send("delta", { text: answer });
-          await saveAssistantExchange(session.id, message, answer, [], confidence, verification);
+          await saveAssistantExchange(
+            owner.uid,
+            session.id,
+            message,
+            answer,
+            [],
+            confidence,
+            verification
+          );
           send("done", { answer, sources: [], confidence, verification, sessionId: session.id });
           return;
         }
@@ -165,7 +180,15 @@ export async function POST(request: Request) {
             context.sources.length > 0 ? verifyAnswer(answer, sources) : emptyAnswerVerification();
         }
 
-        await saveAssistantExchange(session.id, message, answer, sources, confidence, verification);
+        await saveAssistantExchange(
+          owner.uid,
+          session.id,
+          message,
+          answer,
+          sources,
+          confidence,
+          verification
+        );
         send("done", { answer, sources, confidence, verification, sessionId: session.id });
       } catch (error) {
         send("error", toClientAIError(error));
@@ -185,6 +208,7 @@ export async function POST(request: Request) {
 }
 
 async function saveAssistantExchange(
+  ownerId: string,
   sessionId: string,
   userMessage: string,
   answer: string,
@@ -193,6 +217,7 @@ async function saveAssistantExchange(
   verification: AnswerVerification
 ) {
   await addMessage({
+    ownerId,
     sessionId,
     role: "assistant",
     content: answer,

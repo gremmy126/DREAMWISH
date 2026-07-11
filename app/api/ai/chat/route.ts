@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { apiFailure, apiSuccess } from "@/src/lib/api/api-response";
 import { parseJsonRequestBody } from "@/src/lib/api/json-request";
+import { requireOwnerContext } from "@/src/lib/auth/owner-context";
 import { chatWithAI } from "@/src/lib/ai/ai.service";
 import { toClientAIError } from "@/src/lib/ai/errors";
 import { runChatGraph } from "@/src/lib/ai/graph/chat-graph";
@@ -37,6 +38,7 @@ type ChatRequestBody = {
 
 export async function POST(request: Request) {
   try {
+    const owner = await requireOwnerContext(request);
     const parsed = await parseJsonRequestBody<ChatRequestBody>(request);
 
     if (!parsed.ok) {
@@ -64,8 +66,13 @@ export async function POST(request: Request) {
       );
     }
 
-    const session = await ensureSession(sessionId, message);
-    await addMessage({ sessionId: session.id, role: "user", content: message });
+    const session = await ensureSession(owner.uid, sessionId, message);
+    await addMessage({
+      ownerId: owner.uid,
+      sessionId: session.id,
+      role: "user",
+      content: message
+    });
 
     if (isQualityCommand(message)) {
       const report = await checkDocumentQuality(message);
@@ -76,7 +83,15 @@ export async function POST(request: Request) {
         reason: "Local document quality report."
       };
       const verification = emptyAnswerVerification();
-      await saveAssistantExchange(session.id, message, answer, [], confidence, verification);
+      await saveAssistantExchange(
+        owner.uid,
+        session.id,
+        message,
+        answer,
+        [],
+        confidence,
+        verification
+      );
       return NextResponse.json(apiSuccess({
         answer,
         sources: [],
@@ -126,7 +141,15 @@ export async function POST(request: Request) {
       verification = graphResult.verification || verification;
     }
 
-    await saveAssistantExchange(session.id, message, answer, sources, confidence, verification);
+    await saveAssistantExchange(
+      owner.uid,
+      session.id,
+      message,
+      answer,
+      sources,
+      confidence,
+      verification
+    );
 
     return NextResponse.json(apiSuccess({
       answer,
@@ -145,6 +168,7 @@ export async function POST(request: Request) {
 }
 
 async function saveAssistantExchange(
+  ownerId: string,
   sessionId: string,
   userMessage: string,
   answer: string,
@@ -153,6 +177,7 @@ async function saveAssistantExchange(
   verification: AnswerVerification
 ) {
   await addMessage({
+    ownerId,
     sessionId,
     role: "assistant",
     content: answer,

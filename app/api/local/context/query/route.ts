@@ -10,6 +10,7 @@ import { searchChatMessages } from "@/src/lib/db/repositories/chat.repository";
 import { buildContextNetwork } from "@/src/lib/network/network.service";
 import { apiSuccess } from "@/src/lib/api/api-response";
 import { parseContextQueryRequest } from "@/src/lib/api/context-query-request";
+import { requireOwnerContext } from "@/src/lib/auth/owner-context";
 import { hybridSearchResults } from "@/src/lib/search/search.service";
 import type { SearchResult } from "@/src/lib/search/search.types";
 import { searchWeb, webResultsToSearchResults } from "@/src/lib/web-search/web-search.service";
@@ -18,6 +19,7 @@ export async function POST(request: Request) {
   const requestId = randomUUID();
 
   try {
+    const owner = await requireOwnerContext(request);
     const parsed = await parseContextQueryRequest(request);
 
     if (!parsed.ok) {
@@ -33,7 +35,7 @@ export async function POST(request: Request) {
       hybridSearchResults(query, limit),
       suggestConnectionsForQuery(query),
       shouldSearchWeb ? searchWeb(query, 6) : Promise.resolve([]),
-      searchChatMessages(query, 8)
+      searchChatMessages(owner.uid, query, 8)
     ]);
 
     const results = readSettled(settled[0], [], "Local Search Error", requestId, query.length);
