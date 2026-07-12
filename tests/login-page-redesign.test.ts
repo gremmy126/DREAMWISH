@@ -38,6 +38,32 @@ test("login form validation distinguishes empty malformed and valid input", () =
   assert.equal(validatePasswordResetEmail(" name@example.com "), null);
 });
 
+test("Firebase email authentication normalizes surrounding whitespace", () => {
+  const { normalizeFirebaseAuthEmail } = require(
+    "../src/lib/auth/login-form-validation"
+  ) as {
+    normalizeFirebaseAuthEmail?: (email: string) => string;
+  };
+
+  assert.equal(typeof normalizeFirebaseAuthEmail, "function");
+  assert.equal(normalizeFirebaseAuthEmail?.("  name@example.com"), "name@example.com");
+  assert.equal(normalizeFirebaseAuthEmail?.("name@example.com  "), "name@example.com");
+  assert.equal(normalizeFirebaseAuthEmail?.("  name@example.com  "), "name@example.com");
+});
+
+test("AuthGate passes normalized email to Firebase login and signup", () => {
+  const source = fs.readFileSync("components/auth/AuthGate.tsx", "utf8").replace(/\s+/gu, " ");
+
+  assert.match(
+    source,
+    /async function login\(\).*?const normalizedEmail = normalizeFirebaseAuthEmail\(email\);.*?signInWithFirebasePassword\(\{ email: normalizedEmail, password \}\)/u
+  );
+  assert.match(
+    source,
+    /async function signup\(\).*?const normalizedEmail = normalizeFirebaseAuthEmail\(email\);.*?createFirebasePasswordAccount\(\{ email: normalizedEmail, password, name \}\)/u
+  );
+});
+
 test("login decisions block invalid actions and route valid auth intent", () => {
   const { decideLoginSubmission, decidePasswordReset } = require(
     "../src/lib/auth/login-form-validation"

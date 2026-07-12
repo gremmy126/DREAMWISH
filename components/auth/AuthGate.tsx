@@ -14,7 +14,10 @@ import {
   type AccessState
 } from "@/src/lib/auth/access-control";
 import { AuthSessionError, readAuthSessionAccess } from "@/src/lib/auth/auth-session-errors";
-import { getAuthModeResetState } from "@/src/lib/auth/login-form-validation";
+import {
+  getAuthModeResetState,
+  normalizeFirebaseAuthEmail
+} from "@/src/lib/auth/login-form-validation";
 import {
   changeFirebasePassword,
   createFirebasePasswordAccount,
@@ -96,7 +99,11 @@ export function AuthGate({ children }: AuthGateProps) {
         throw new AuthSessionError("Firebase 브라우저 인증 설정을 확인해주세요.");
       }
       if (!password) throw new AuthSessionError("비밀번호를 입력해주세요.");
-      const credential = await signInWithFirebasePassword({ email, password });
+      const normalizedEmail = normalizeFirebaseAuthEmail(email);
+      const credential = await signInWithFirebasePassword({
+        email: normalizedEmail,
+        password
+      });
       const idToken = await credential.user.getIdToken();
       await completeFirebaseLogin(idToken);
     } catch (caught) {
@@ -114,7 +121,12 @@ export function AuthGate({ children }: AuthGateProps) {
       if (password.length < 6) {
         throw new AuthSessionError("비밀번호는 6자 이상이어야 합니다.");
       }
-      const credential = await createFirebasePasswordAccount({ email, password, name });
+      const normalizedEmail = normalizeFirebaseAuthEmail(email);
+      const credential = await createFirebasePasswordAccount({
+        email: normalizedEmail,
+        password,
+        name
+      });
       const idToken = await credential.user.getIdToken();
       await completeFirebaseLogin(idToken);
     } catch (caught) {

@@ -19,6 +19,10 @@ export type PasswordResetDecision = {
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
 
+export function normalizeFirebaseAuthEmail(email: string): string {
+  return email.trim();
+}
+
 export function validateLoginForm(input: {
   email: string;
   password: string;
