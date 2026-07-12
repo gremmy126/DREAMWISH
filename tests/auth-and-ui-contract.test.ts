@@ -57,26 +57,38 @@ test("Firebase auth client exposes signup and authenticated password change", ()
 });
 
 test("login UI exposes account creation, Google login, reset, and password change", () => {
-  const source = fs.readFileSync("components/auth/AuthGate.tsx", "utf8");
-  assert.match(source, /createFirebasePasswordAccount/u);
-  assert.match(source, /signInWithFirebaseGoogle/u);
-  assert.match(source, /sendFirebasePasswordReset/u);
-  assert.match(source, /changeFirebasePassword/u);
+  const authSource = fs.readFileSync("components/auth/AuthGate.tsx", "utf8");
+  const loginShellSource = fs.readFileSync("components/auth/LoginShell.tsx", "utf8");
+  assert.match(authSource, /createFirebasePasswordAccount/u);
+  assert.match(authSource, /signInWithFirebaseGoogle/u);
+  assert.match(authSource, /sendFirebasePasswordReset/u);
+  assert.match(authSource, /changeFirebasePassword/u);
+  assert.match(loginShellSource, /계정을 만들어 시작하세요/u);
+  assert.match(loginShellSource, /Google로 계속하기/u);
+  assert.match(loginShellSource, /GitHub로 계속하기/u);
+  assert.match(loginShellSource, /비밀번호 찾기/u);
 });
 
 test("login UI uses safe auth errors and an explicit reauthenticated password form", () => {
-  const source = fs.readFileSync("components/auth/AuthGate.tsx", "utf8");
-  assert.match(source, /getFirebaseAuthErrorMessage/u);
-  assert.match(source, /validatePasswordChange/u);
-  assert.match(source, /firebaseUserHasPasswordProvider/u);
-  assert.match(source, /canEnableFirebaseGitHubLogin/u);
-  assert.match(source, /currentPassword/u);
-  assert.match(source, /newPassword/u);
-  assert.match(source, /confirmPassword/u);
-  assert.match(source, /autoComplete="current-password"/u);
-  assert.match(source, /autoComplete="new-password"/u);
-  assert.doesNotMatch(source, /window\.prompt/u);
-  assert.doesNotMatch(source, /process\.env\.NEXT_PUBLIC_ENABLE_FIREBASE_GITHUB_LOGIN/u);
+  const authSource = fs.readFileSync("components/auth/AuthGate.tsx", "utf8");
+  const loginShellSource = fs.readFileSync("components/auth/LoginShell.tsx", "utf8");
+  assert.match(authSource, /getFirebaseAuthErrorMessage/u);
+  assert.match(authSource, /validatePasswordChange/u);
+  assert.match(authSource, /firebaseUserHasPasswordProvider/u);
+  assert.match(authSource, /canEnableFirebaseGitHubLogin/u);
+  assert.match(authSource, /currentPassword/u);
+  assert.match(authSource, /newPassword/u);
+  assert.match(authSource, /confirmPassword/u);
+  assert.match(loginShellSource, /<form/u);
+  assert.match(loginShellSource, /autoComplete="email"/u);
+  assert.match(
+    loginShellSource,
+    /autoComplete=\{creatingAccount \? "new-password" : "current-password"\}/u
+  );
+  assert.match(loginShellSource, /Google로 계속하기/u);
+  assert.match(loginShellSource, /GitHub로 계속하기/u);
+  assert.doesNotMatch(authSource, /window\.prompt/u);
+  assert.doesNotMatch(authSource, /process\.env\.NEXT_PUBLIC_ENABLE_FIREBASE_GITHUB_LOGIN/u);
 });
 
 test("AI chat streams answers and renders submitted-query connected context", () => {

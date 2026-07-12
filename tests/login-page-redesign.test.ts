@@ -129,3 +129,57 @@ test("login shell provides the approved responsive accessible SaaS layout", () =
     assert.match(source, new RegExp(`\\b${icon}\\b`, "u"));
   }
 });
+
+test("auth session failures are stable Korean messages without server details", () => {
+  assert.equal(fs.existsSync("src/lib/auth/auth-session-errors.ts"), true);
+  const { getAuthSessionFailureMessage } = require(
+    "../src/lib/auth/auth-session-errors"
+  ) as { getAuthSessionFailureMessage: (status: number) => string };
+
+  assert.equal(
+    getAuthSessionFailureMessage(401),
+    "로그인 세션을 확인하지 못했습니다. 다시 로그인해주세요."
+  );
+  assert.equal(
+    getAuthSessionFailureMessage(429),
+    "로그인 요청이 많습니다. 잠시 후 다시 시도해주세요."
+  );
+  assert.equal(
+    getAuthSessionFailureMessage(503),
+    "로그인 서버에 일시적인 문제가 있습니다. 잠시 후 다시 시도해주세요."
+  );
+  assert.equal(
+    getAuthSessionFailureMessage(418),
+    "로그인 처리를 완료하지 못했습니다. 다시 시도해주세요."
+  );
+});
+
+test("AuthGate delegates presentation and keeps Firebase auth effects", () => {
+  const source = fs.readFileSync("components/auth/AuthGate.tsx", "utf8");
+  assert.match(source, /import \{ LoginShell \} from "@\/components\/auth\/LoginShell"/u);
+  assert.match(source, /getAuthSessionFailureMessage/u);
+  assert.match(source, /response\.json\(\)\.catch/u);
+  assert.match(source, /function changeAuthMode/u);
+  assert.doesNotMatch(source, /export function LoginShell/u);
+  for (const preserved of [
+    "signInWithFirebasePassword",
+    "createFirebasePasswordAccount",
+    "signInWithFirebaseGoogle",
+    "signInWithFirebaseGithub",
+    "sendFirebasePasswordReset",
+    'fetch("/api/auth/login"',
+    'fetch("/api/auth/session"'
+  ]) {
+    assert.match(source, new RegExp(preserved.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"), "u"));
+  }
+  for (const wiring of [
+    /onSubmit=\{login\}/u,
+    /onSignup=\{signup\}/u,
+    /onResetPassword=\{resetPassword\}/u,
+    /onGoogle=\{loginWithGoogle\}/u,
+    /onGithub=\{canEnableFirebaseGitHubLogin\(\) \? loginWithGithub : undefined\}/u,
+    /onModeChange=\{changeAuthMode\}/u
+  ]) {
+    assert.match(source, wiring);
+  }
+});

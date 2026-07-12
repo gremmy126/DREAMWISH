@@ -3,18 +3,17 @@
 import {
   CheckCircle2,
   CreditCard,
-  Github,
   KeyRound,
-  Loader2,
-  LogIn,
-  ShieldCheck
+  Loader2
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
+import { LoginShell } from "@/components/auth/LoginShell";
 import {
   AUTH_SESSION_KEY,
   stringifyUnknownError,
   type AccessState
 } from "@/src/lib/auth/access-control";
+import { getAuthSessionFailureMessage } from "@/src/lib/auth/auth-session-errors";
 import {
   changeFirebasePassword,
   createFirebasePasswordAccount,
@@ -187,16 +186,11 @@ export function AuthGate({ children }: AuthGateProps) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ idToken })
     });
-    const data = (await response.json()) as {
+    const data = (await response.json().catch(() => ({}))) as {
       access?: AccessState;
-      error?: string;
     };
     if (!response.ok || !data.access) {
-      throw new AuthSessionError(
-        response.status >= 500
-          ? "서버 인증 설정을 확인해주세요. 잠시 후 다시 시도해주세요."
-          : data.error || t("auth.failed")
-      );
+      throw new AuthSessionError(getAuthSessionFailureMessage(response.status));
     }
     window.localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify({ email: data.access.email }));
     setAccess(data.access);
@@ -260,6 +254,13 @@ export function AuthGate({ children }: AuthGateProps) {
     await Promise.allSettled([logoutFirebaseUser(), logoutServerSession()]);
   }
 
+  function changeAuthMode(nextCreatingAccount: boolean) {
+    setCreatingAccount(nextCreatingAccount);
+    setPassword("");
+    setError(null);
+    setResetMessage(null);
+  }
+
   function closePasswordDialog() {
     setShowPasswordChange(false);
     setCurrentPassword("");
@@ -292,7 +293,7 @@ export function AuthGate({ children }: AuthGateProps) {
         onSubmit={login}
         onSignup={signup}
         creatingAccount={creatingAccount}
-        onModeChange={setCreatingAccount}
+        onModeChange={changeAuthMode}
         onResetPassword={resetPassword}
         onGoogle={loginWithGoogle}
         onGithub={canEnableFirebaseGitHubLogin() ? loginWithGithub : undefined}
@@ -345,156 +346,6 @@ export function AuthGate({ children }: AuthGateProps) {
       ) : null}
       {children}
     </>
-  );
-}
-
-export function LoginShell({
-  email,
-  name,
-  password,
-  error,
-  resetMessage,
-  submitting,
-  onEmailChange,
-  onPasswordChange,
-  onNameChange,
-  onSubmit,
-  onSignup,
-  creatingAccount,
-  onModeChange,
-  onResetPassword,
-  onGoogle,
-  onGithub
-}: {
-  email: string;
-  name: string;
-  password: string;
-  error: string | null;
-  resetMessage: string | null;
-  submitting: boolean;
-  onEmailChange: (value: string) => void;
-  onPasswordChange: (value: string) => void;
-  onNameChange: (value: string) => void;
-  onSubmit: () => void;
-  onSignup: () => void;
-  creatingAccount: boolean;
-  onModeChange: (value: boolean) => void;
-  onResetPassword: () => void;
-  onGoogle: () => void;
-  onGithub?: () => void;
-}) {
-  const { t } = useAppLanguage();
-
-  return (
-    <main className="flex min-h-screen items-center justify-center bg-app-bg px-6">
-      <section className="w-full max-w-md rounded-app border border-app-border bg-white p-7 shadow-soft">
-        <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-app-primary text-white">
-            <LogIn size={20} />
-          </div>
-          <div>
-            <h1 className="text-xl font-semibold text-app-text">{t("auth.title")}</h1>
-            <p className="mt-1 text-sm text-app-muted">{t("auth.subtitle")}</p>
-          </div>
-        </div>
-
-        <div className="mt-6 space-y-4">
-          <label className="block">
-            <span className="text-xs font-semibold text-app-muted">{t("auth.email")}</span>
-            <input
-              value={email}
-              onChange={(event) => onEmailChange(event.target.value)}
-              className="mt-2 h-11 w-full rounded-app border border-app-border bg-app-bg px-4 text-sm font-semibold text-app-text outline-none focus:border-app-primary"
-              placeholder="you@example.com"
-              type="email"
-              autoComplete="email"
-            />
-          </label>
-          <label className="block">
-            <span className="text-xs font-semibold text-app-muted">Password</span>
-            <input
-              value={password}
-              onChange={(event) => onPasswordChange(event.target.value)}
-              className="mt-2 h-11 w-full rounded-app border border-app-border bg-app-bg px-4 text-sm font-semibold text-app-text outline-none focus:border-app-primary"
-              placeholder="Password"
-              type="password"
-              autoComplete={creatingAccount ? "new-password" : "current-password"}
-            />
-          </label>
-          {creatingAccount ? (
-            <label className="block">
-              <span className="text-xs font-semibold text-app-muted">{t("auth.name")}</span>
-              <input
-                value={name}
-                onChange={(event) => onNameChange(event.target.value)}
-                className="mt-2 h-11 w-full rounded-app border border-app-border bg-app-bg px-4 text-sm font-semibold text-app-text outline-none focus:border-app-primary"
-                placeholder={t("auth.namePlaceholder")}
-                autoComplete="name"
-              />
-            </label>
-          ) : null}
-        </div>
-
-        {error ? (
-          <p className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-            {error}
-          </p>
-        ) : null}
-
-        {resetMessage ? (
-          <p className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
-            {resetMessage}
-          </p>
-        ) : null}
-
-        <button
-          type="button"
-          onClick={creatingAccount ? onSignup : onSubmit}
-          disabled={submitting || !email.trim() || !password.trim()}
-          className="mt-5 flex h-11 w-full items-center justify-center gap-2 rounded-app bg-app-primary px-4 text-sm font-semibold text-white disabled:bg-slate-200"
-        >
-          {submitting ? <Loader2 size={16} className="animate-spin" /> : <ShieldCheck size={16} />}
-          {creatingAccount ? "Create account" : t("auth.submit")}
-        </button>
-        <button
-          type="button"
-          onClick={() => onModeChange(!creatingAccount)}
-          disabled={submitting}
-          className="mt-3 flex h-9 w-full items-center justify-center rounded-app text-xs font-semibold text-app-primary hover:bg-app-hover"
-        >
-          {creatingAccount ? "Already have an account? Sign in" : "New here? Create an account"}
-        </button>
-        <button
-          type="button"
-          onClick={onResetPassword}
-          disabled={submitting || !email.trim()}
-          className="mt-3 flex h-9 w-full items-center justify-center gap-2 rounded-app text-xs font-semibold text-app-muted hover:bg-app-hover hover:text-app-primary disabled:text-slate-300"
-        >
-          <KeyRound size={14} />
-          Forgot password?
-        </button>
-        <button
-          type="button"
-          onClick={onGoogle}
-          disabled={submitting}
-          className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-app border border-app-border bg-white px-4 text-sm font-semibold text-app-text hover:bg-app-hover disabled:bg-slate-100"
-        >
-          <LogIn size={16} />
-          Continue with Google
-        </button>
-        {onGithub ? (
-          <button
-            type="button"
-            onClick={onGithub}
-            disabled={submitting}
-            className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-app border border-app-border bg-white px-4 text-sm font-semibold text-app-text hover:bg-app-hover disabled:bg-slate-100"
-          >
-            <Github size={16} />
-            Continue with GitHub
-          </button>
-        ) : null}
-      </section>
-    </main>
   );
 }
 
@@ -715,14 +566,9 @@ async function fetchAccess(idToken: string, fallback: string) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ idToken })
   });
-  const data = (await response.json()) as { access?: AccessState; error?: string };
-  if (!response.ok || !data.access) {
-    throw new AuthSessionError(
-      response.status >= 500
-        ? "서버 인증 설정을 확인해주세요. 잠시 후 다시 시도해주세요."
-        : data.error || fallback
-    );
-  }
+  const data = (await response.json().catch(() => ({}))) as { access?: AccessState };
+  if (!response.ok) throw new AuthSessionError(getAuthSessionFailureMessage(response.status));
+  if (!data.access) throw new AuthSessionError(fallback);
   return data.access;
 }
 
