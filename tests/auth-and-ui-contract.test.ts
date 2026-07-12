@@ -79,6 +79,8 @@ test("login UI uses safe auth errors and an explicit reauthenticated password fo
   assert.match(authSource, /currentPassword/u);
   assert.match(authSource, /newPassword/u);
   assert.match(authSource, /confirmPassword/u);
+  assert.match(authSource, /autoComplete="current-password"/u);
+  assert.match(authSource, /autoComplete="new-password"/u);
   assert.match(loginShellSource, /<form/u);
   assert.match(loginShellSource, /autoComplete="email"/u);
   assert.match(

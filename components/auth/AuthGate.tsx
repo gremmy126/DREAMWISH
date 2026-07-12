@@ -13,7 +13,8 @@ import {
   stringifyUnknownError,
   type AccessState
 } from "@/src/lib/auth/access-control";
-import { getAuthSessionFailureMessage } from "@/src/lib/auth/auth-session-errors";
+import { AuthSessionError, readAuthSessionAccess } from "@/src/lib/auth/auth-session-errors";
+import { getAuthModeResetState } from "@/src/lib/auth/login-form-validation";
 import {
   changeFirebasePassword,
   createFirebasePasswordAccount,
@@ -186,15 +187,10 @@ export function AuthGate({ children }: AuthGateProps) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ idToken })
     });
-    const data = (await response.json().catch(() => ({}))) as {
-      access?: AccessState;
-    };
-    if (!response.ok || !data.access) {
-      throw new AuthSessionError(getAuthSessionFailureMessage(response.status));
-    }
-    window.localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify({ email: data.access.email }));
-    setAccess(data.access);
-    setEmail(data.access.email);
+    const nextAccess = await readAuthSessionAccess(response);
+    window.localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify({ email: nextAccess.email }));
+    setAccess(nextAccess);
+    setEmail(nextAccess.email);
     setPassword("");
     setCanChangePassword(firebaseUserHasPasswordProvider());
   }
@@ -255,10 +251,11 @@ export function AuthGate({ children }: AuthGateProps) {
   }
 
   function changeAuthMode(nextCreatingAccount: boolean) {
-    setCreatingAccount(nextCreatingAccount);
-    setPassword("");
-    setError(null);
-    setResetMessage(null);
+    const resetState = getAuthModeResetState(nextCreatingAccount);
+    setCreatingAccount(resetState.creatingAccount);
+    setPassword(resetState.password);
+    setError(resetState.error);
+    setResetMessage(resetState.resetMessage);
   }
 
   function closePasswordDialog() {
@@ -566,17 +563,12 @@ async function fetchAccess(idToken: string, fallback: string) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ idToken })
   });
-  const data = (await response.json().catch(() => ({}))) as { access?: AccessState };
-  if (!response.ok) throw new AuthSessionError(getAuthSessionFailureMessage(response.status));
-  if (!data.access) throw new AuthSessionError(fallback);
-  return data.access;
+  return readAuthSessionAccess(response, fallback);
 }
 
 async function logoutServerSession() {
   await fetch("/api/auth/logout", { method: "POST" });
 }
-
-class AuthSessionError extends Error {}
 
 function getAuthActionError(error: unknown) {
   return error instanceof AuthSessionError

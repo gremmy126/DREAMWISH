@@ -88,6 +88,33 @@ test("login decisions block invalid actions and route valid auth intent", () => 
   });
 });
 
+test("auth mode reset state clears transient credentials in both directions", () => {
+  const { getAuthModeResetState } = require(
+    "../src/lib/auth/login-form-validation"
+  ) as {
+    getAuthModeResetState?: (nextCreatingAccount: boolean) => {
+      creatingAccount: boolean;
+      password: string;
+      error: null;
+      resetMessage: null;
+    };
+  };
+
+  assert.equal(typeof getAuthModeResetState, "function");
+  assert.deepEqual(getAuthModeResetState?.(true), {
+    creatingAccount: true,
+    password: "",
+    error: null,
+    resetMessage: null
+  });
+  assert.deepEqual(getAuthModeResetState?.(false), {
+    creatingAccount: false,
+    password: "",
+    error: null,
+    resetMessage: null
+  });
+});
+
 test("login shell provides the approved responsive accessible SaaS layout", () => {
   assert.equal(fs.existsSync("components/auth/LoginShell.tsx"), true);
   const source = fs.readFileSync("components/auth/LoginShell.tsx", "utf8");
@@ -154,13 +181,99 @@ test("auth session failures are stable Korean messages without server details", 
   );
 });
 
+test("auth session access reader accepts only a complete runtime AccessState", async () => {
+  const authSessionModule = loadAuthSessionModule();
+  assertAuthSessionModule(authSessionModule);
+  const { AuthSessionError, readAuthSessionAccess } = authSessionModule;
+
+  assert.deepEqual(
+    await readAuthSessionAccess(jsonResponse({ access: VALID_ACCESS_STATE })),
+    VALID_ACCESS_STATE
+  );
+
+  const invalidAccessStates: unknown[] = [
+    { ...VALID_ACCESS_STATE, email: 42 },
+    { ...VALID_ACCESS_STATE, role: "owner" },
+    { ...VALID_ACCESS_STATE, paid: "true" },
+    { ...VALID_ACCESS_STATE, adminBypass: 0 },
+    { ...VALID_ACCESS_STATE, canUseApp: null },
+    { ...VALID_ACCESS_STATE, requiresPayment: undefined }
+  ];
+  for (const access of invalidAccessStates) {
+    await assertAuthSessionError(
+      () => readAuthSessionAccess(jsonResponse({ access })),
+      AuthSessionError,
+      GENERIC_AUTH_SESSION_FAILURE
+    );
+  }
+});
+
+test("auth session access reader handles malformed and non-object JSON safely", async () => {
+  const authSessionModule = loadAuthSessionModule();
+  assertAuthSessionModule(authSessionModule);
+  const { AuthSessionError, readAuthSessionAccess } = authSessionModule;
+
+  for (const body of ["null", "[]", "42", '"text"', "{"]) {
+    await assertAuthSessionError(
+      () => readAuthSessionAccess(rawResponse(body)),
+      AuthSessionError,
+      GENERIC_AUTH_SESSION_FAILURE
+    );
+  }
+});
+
+test("auth session access reader prioritizes mapped HTTP status failures", async () => {
+  const authSessionModule = loadAuthSessionModule();
+  assertAuthSessionModule(authSessionModule);
+  const { AuthSessionError, readAuthSessionAccess } = authSessionModule;
+  const cases = [
+    [401, '{"error":"private server detail"}', "로그인 세션을 확인하지 못했습니다. 다시 로그인해주세요."],
+    [403, "null", "로그인 세션을 확인하지 못했습니다. 다시 로그인해주세요."],
+    [429, "{", "로그인 요청이 많습니다. 잠시 후 다시 시도해주세요."],
+    [503, "[]", "로그인 서버에 일시적인 문제가 있습니다. 잠시 후 다시 시도해주세요."]
+  ] as const;
+
+  for (const [status, body, expectedMessage] of cases) {
+    await assertAuthSessionError(
+      () => readAuthSessionAccess(rawResponse(body, status), "서버 상세를 노출하면 안 됩니다."),
+      AuthSessionError,
+      expectedMessage
+    );
+  }
+});
+
+test("auth session access reader preserves the successful-response missing-access fallback", async () => {
+  const authSessionModule = loadAuthSessionModule();
+  assertAuthSessionModule(authSessionModule);
+  const { AuthSessionError, readAuthSessionAccess } = authSessionModule;
+  const fallback = "기존 세션 복원 실패 안내";
+
+  await assertAuthSessionError(
+    () => readAuthSessionAccess(jsonResponse({}), fallback),
+    AuthSessionError,
+    fallback
+  );
+  await assertAuthSessionError(
+    () => readAuthSessionAccess(jsonResponse({ access: { email: "incomplete@example.com" } }), fallback),
+    AuthSessionError,
+    fallback
+  );
+});
+
 test("AuthGate delegates presentation and keeps Firebase auth effects", () => {
   const source = fs.readFileSync("components/auth/AuthGate.tsx", "utf8");
   assert.match(source, /import \{ LoginShell \} from "@\/components\/auth\/LoginShell"/u);
-  assert.match(source, /getAuthSessionFailureMessage/u);
-  assert.match(source, /response\.json\(\)\.catch/u);
+  assert.match(
+    source,
+    /import \{ AuthSessionError, readAuthSessionAccess \} from "@\/src\/lib\/auth\/auth-session-errors"/u
+  );
+  assert.match(source, /getAuthModeResetState\(nextCreatingAccount\)/u);
   assert.match(source, /function changeAuthMode/u);
   assert.doesNotMatch(source, /export function LoginShell/u);
+  assert.doesNotMatch(source, /class AuthSessionError/u);
+  assert.doesNotMatch(source, /response\.json\(\)\.catch/u);
+  assert.equal(source.match(/readAuthSessionAccess\(response(?:, fallback)?\)/gu)?.length, 2);
+  assert.match(source, /readAuthSessionAccess\(response, fallback\)/u);
   for (const preserved of [
     "signInWithFirebasePassword",
     "createFirebasePasswordAccount",
@@ -183,3 +296,65 @@ test("AuthGate delegates presentation and keeps Firebase auth effects", () => {
     assert.match(source, wiring);
   }
 });
+
+type TestAccessState = {
+  email: string;
+  role: "admin" | "user";
+  paid: boolean;
+  adminBypass: boolean;
+  canUseApp: boolean;
+  requiresPayment: boolean;
+};
+
+type AuthSessionModule = {
+  AuthSessionError: new (message: string) => Error;
+  readAuthSessionAccess: (
+    response: Response,
+    missingAccessMessage?: string
+  ) => Promise<TestAccessState>;
+};
+
+const VALID_ACCESS_STATE: TestAccessState = {
+  email: "member@example.com",
+  role: "user",
+  paid: true,
+  adminBypass: false,
+  canUseApp: true,
+  requiresPayment: false
+};
+
+const GENERIC_AUTH_SESSION_FAILURE = "로그인 처리를 완료하지 못했습니다. 다시 시도해주세요.";
+
+function loadAuthSessionModule() {
+  return require("../src/lib/auth/auth-session-errors") as Partial<AuthSessionModule>;
+}
+
+function assertAuthSessionModule(
+  module: Partial<AuthSessionModule>
+): asserts module is AuthSessionModule {
+  assert.equal(typeof module.AuthSessionError, "function");
+  assert.equal(typeof module.readAuthSessionAccess, "function");
+}
+
+function jsonResponse(value: unknown, status = 200) {
+  return rawResponse(JSON.stringify(value), status);
+}
+
+function rawResponse(body: string, status = 200) {
+  return new Response(body, {
+    status,
+    headers: { "Content-Type": "application/json" }
+  });
+}
+
+async function assertAuthSessionError(
+  run: () => Promise<unknown>,
+  AuthSessionError: AuthSessionModule["AuthSessionError"],
+  expectedMessage: string
+) {
+  await assert.rejects(run, (error: unknown) => {
+    assert.ok(error instanceof AuthSessionError);
+    assert.equal((error as Error).message, expectedMessage);
+    return true;
+  });
+}

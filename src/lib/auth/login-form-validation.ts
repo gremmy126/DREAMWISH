@@ -72,3 +72,12 @@ export function decidePasswordReset(email: string): PasswordResetDecision {
     emailError
   };
 }
+
+export function getAuthModeResetState(nextCreatingAccount: boolean) {
+  return {
+    creatingAccount: nextCreatingAccount,
+    password: "",
+    error: null,
+    resetMessage: null
+  };
+}
