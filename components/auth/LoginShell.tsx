@@ -16,8 +16,8 @@ import {
 import { motion, useReducedMotion } from "framer-motion";
 import { useState, type FormEvent, type JSX, type ReactNode } from "react";
 import {
-  validateLoginForm,
-  validatePasswordResetEmail,
+  decideLoginSubmission,
+  decidePasswordReset,
   type LoginFieldErrors
 } from "@/src/lib/auth/login-form-validation";
 
@@ -64,21 +64,25 @@ export function LoginShell(props: LoginShellProps): JSX.Element {
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const nextErrors = validateLoginForm({
+    const submitDecision = decideLoginSubmission({
       email,
       password,
       mode: creatingAccount ? "signup" : "signin"
     });
-    setFieldErrors(nextErrors);
-    if (Object.keys(nextErrors).length > 0) return;
-    if (creatingAccount) onSignup();
+    setFieldErrors(submitDecision.fieldErrors);
+    if (!submitDecision.canSubmit || !submitDecision.action) return;
+    if (submitDecision.action === "signup") onSignup();
     else onSubmit();
   }
 
   function handleResetPassword() {
-    const emailError = validatePasswordResetEmail(email);
-    setFieldErrors((current) => ({ ...current, email: emailError || undefined }));
-    if (!emailError) onResetPassword();
+    const resetDecision = decidePasswordReset(email);
+    setFieldErrors((current) => ({
+      ...current,
+      email: resetDecision.emailError || undefined
+    }));
+    if (!resetDecision.canSubmit || resetDecision.action !== "reset") return;
+    onResetPassword();
   }
 
   function handleModeChange() {
@@ -89,12 +93,12 @@ export function LoginShell(props: LoginShellProps): JSX.Element {
   return (
     <main className="grid min-h-dvh overflow-hidden bg-white lg:grid-cols-[55fr_45fr]">
       <BrandPanel reduceMotion={Boolean(reduceMotion)} />
-      <section className="flex min-h-dvh items-center justify-center bg-slate-50/80 px-4 py-8 sm:px-8 lg:px-10">
+      <section className="flex min-h-dvh items-center justify-center bg-slate-50/80 px-4 py-8 sm:px-8 lg:px-4 xl:px-10">
         <motion.div
           initial={reduceMotion ? false : { opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, ease: "easeOut" }}
-          className="w-full max-w-[440px]"
+          className="w-full max-w-[440px] lg:min-w-[420px]"
         >
           <div className="mb-6 flex items-center gap-3 lg:hidden">
             <BrandMark />

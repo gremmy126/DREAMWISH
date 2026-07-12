@@ -38,6 +38,56 @@ test("login form validation distinguishes empty malformed and valid input", () =
   assert.equal(validatePasswordResetEmail(" name@example.com "), null);
 });
 
+test("login decisions block invalid actions and route valid auth intent", () => {
+  const { decideLoginSubmission, decidePasswordReset } = require(
+    "../src/lib/auth/login-form-validation"
+  ) as {
+    decideLoginSubmission: (input: {
+      email: string;
+      password: string;
+      mode: "signin" | "signup";
+    }) => {
+      action: "signin" | "signup" | null;
+      canSubmit: boolean;
+      fieldErrors: { email?: string; password?: string };
+    };
+    decidePasswordReset: (email: string) => {
+      action: "reset" | null;
+      canSubmit: boolean;
+      emailError: string | null;
+    };
+  };
+
+  assert.equal(typeof decideLoginSubmission, "function");
+  assert.equal(typeof decidePasswordReset, "function");
+  assert.deepEqual(decideLoginSubmission({ email: "", password: "", mode: "signin" }), {
+    action: null,
+    canSubmit: false,
+    fieldErrors: {
+      email: "이메일을 입력해주세요.",
+      password: "비밀번호를 입력해주세요."
+    }
+  });
+  assert.deepEqual(
+    decideLoginSubmission({ email: "name@example.com", password: "secret1", mode: "signin" }),
+    { action: "signin", canSubmit: true, fieldErrors: {} }
+  );
+  assert.deepEqual(
+    decideLoginSubmission({ email: "name@example.com", password: "secret1", mode: "signup" }),
+    { action: "signup", canSubmit: true, fieldErrors: {} }
+  );
+  assert.deepEqual(decidePasswordReset(""), {
+    action: null,
+    canSubmit: false,
+    emailError: "비밀번호를 재설정할 이메일을 입력해주세요."
+  });
+  assert.deepEqual(decidePasswordReset(" name@example.com "), {
+    action: "reset",
+    canSubmit: true,
+    emailError: null
+  });
+});
+
 test("login shell provides the approved responsive accessible SaaS layout", () => {
   assert.equal(fs.existsSync("components/auth/LoginShell.tsx"), true);
   const source = fs.readFileSync("components/auth/LoginShell.tsx", "utf8");
@@ -45,6 +95,8 @@ test("login shell provides the approved responsive accessible SaaS layout", () =
   for (const contract of [
     /lg:grid-cols-\[55fr_45fr\]/u,
     /max-w-\[440px\]/u,
+    /lg:min-w-\[420px\]/u,
+    /lg:px-4 xl:px-10/u,
     /당신의 지식과 업무를 하나로 연결하세요/u,
     /다시 오신 것을 환영합니다/u,
     /계정에 로그인하고 작업을 계속하세요/u,
@@ -66,7 +118,9 @@ test("login shell provides the approved responsive accessible SaaS layout", () =
     /GitHub로 계속하기/u,
     /안전하게 보호됩니다/u,
     /useReducedMotion/u,
-    /motion\./u
+    /motion\./u,
+    /const submitDecision = decideLoginSubmission\(/u,
+    /const resetDecision = decidePasswordReset\(/u
   ]) {
     assert.match(source, contract);
   }
