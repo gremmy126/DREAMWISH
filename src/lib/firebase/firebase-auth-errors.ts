@@ -1,6 +1,5 @@
 const FIREBASE_AUTH_MESSAGES: Record<string, string> = {
   "auth/invalid-email": "올바른 이메일 주소를 입력해주세요.",
-  "auth/invalid-credential": "이메일 또는 비밀번호가 올바르지 않습니다.",
   "auth/user-not-found": "이메일 또는 비밀번호가 올바르지 않습니다.",
   "auth/wrong-password": "이메일 또는 비밀번호가 올바르지 않습니다.",
   "auth/email-already-in-use": "이미 가입된 이메일입니다. 로그인하거나 비밀번호를 재설정해주세요.",
@@ -22,8 +21,25 @@ const FIREBASE_AUTH_MESSAGES: Record<string, string> = {
 
 const DEFAULT_AUTH_MESSAGE = "인증 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.";
 
-export function getFirebaseAuthErrorMessage(error: unknown): string {
+export type FirebaseAuthMethod = "password" | "google" | "github" | "generic";
+
+export function getFirebaseAuthErrorMessage(
+  error: unknown,
+  method: FirebaseAuthMethod = "generic"
+): string {
   const code = getFirebaseErrorCode(error);
+  if (code === "auth/invalid-credential") {
+    if (method === "google") {
+      return "Google 로그인 정보가 유효하지 않습니다. Google 계정을 다시 선택해주세요.";
+    }
+    if (method === "github") {
+      return "GitHub 로그인 정보가 유효하지 않습니다. GitHub 로그인을 다시 시도해주세요.";
+    }
+    if (method === "password") {
+      return "이메일 또는 비밀번호가 올바르지 않습니다.";
+    }
+    return "로그인 정보가 유효하지 않습니다. 다시 로그인해주세요.";
+  }
   return (code && FIREBASE_AUTH_MESSAGES[code]) || DEFAULT_AUTH_MESSAGE;
 }
 

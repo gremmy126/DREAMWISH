@@ -155,11 +155,13 @@ test("Firebase auth errors map to safe actionable Korean messages", () => {
   const modulePath = "../src/lib/firebase/firebase-auth-errors";
   assert.equal(fs.existsSync("src/lib/firebase/firebase-auth-errors.ts"), true);
   const { getFirebaseAuthErrorMessage } = require(modulePath) as {
-    getFirebaseAuthErrorMessage: (error: unknown) => string;
+    getFirebaseAuthErrorMessage: (
+      error: unknown,
+      method?: "password" | "google" | "github" | "generic"
+    ) => string;
   };
 
   const cases = [
-    ["auth/invalid-credential", "이메일 또는 비밀번호"],
     ["auth/popup-closed-by-user", "취소"],
     ["auth/popup-blocked", "팝업"],
     ["auth/account-exists-with-different-credential", "다른 로그인 방법"],
@@ -170,10 +172,38 @@ test("Firebase auth errors map to safe actionable Korean messages", () => {
   for (const [code, expected] of cases) {
     assert.match(getFirebaseAuthErrorMessage({ code }), new RegExp(expected, "u"));
   }
+  assert.match(
+    getFirebaseAuthErrorMessage({ code: "auth/invalid-credential" }, "password"),
+    /이메일 또는 비밀번호/u
+  );
+  assert.match(
+    getFirebaseAuthErrorMessage({ code: "auth/invalid-credential" }, "google"),
+    /Google 로그인 정보/u
+  );
+  assert.doesNotMatch(
+    getFirebaseAuthErrorMessage({ code: "auth/invalid-credential" }, "google"),
+    /비밀번호/u
+  );
+  assert.match(
+    getFirebaseAuthErrorMessage({ code: "auth/invalid-credential" }, "github"),
+    /GitHub 로그인 정보/u
+  );
+  assert.doesNotMatch(
+    getFirebaseAuthErrorMessage({ code: "auth/invalid-credential" }, "generic"),
+    /비밀번호/u
+  );
   assert.equal(
     getFirebaseAuthErrorMessage({ code: "auth/internal-error", message: "secret-token-value" }),
     "인증 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
   );
+});
+
+test("auth actions preserve the Firebase provider when mapping failures", () => {
+  const source = fs.readFileSync("components/auth/AuthGate.tsx", "utf8");
+
+  assert.match(source, /getAuthActionError\(caught, "password"\)/u);
+  assert.match(source, /getAuthActionError\(caught, "google"\)/u);
+  assert.match(source, /getAuthActionError\(caught, "github"\)/u);
 });
 
 test("password change policy requires reauthentication inputs and a password provider", () => {

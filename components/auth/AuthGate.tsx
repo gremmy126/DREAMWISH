@@ -30,7 +30,10 @@ import {
   signInWithFirebasePassword,
   waitForFirebaseUser
 } from "@/src/lib/firebase/firebase-client";
-import { getFirebaseAuthErrorMessage } from "@/src/lib/firebase/firebase-auth-errors";
+import {
+  getFirebaseAuthErrorMessage,
+  type FirebaseAuthMethod
+} from "@/src/lib/firebase/firebase-auth-errors";
 import { canEnableFirebaseGitHubLogin } from "@/src/lib/firebase/firebase-auth-providers";
 import { validatePasswordChange } from "@/src/lib/firebase/firebase-password-policy";
 import { useAppLanguage } from "@/src/lib/i18n/use-app-language";
@@ -107,7 +110,7 @@ export function AuthGate({ children }: AuthGateProps) {
       const idToken = await credential.user.getIdToken();
       await completeFirebaseLogin(idToken);
     } catch (caught) {
-      setError(getAuthActionError(caught));
+      setError(getAuthActionError(caught, "password"));
     } finally {
       setSubmitting(false);
     }
@@ -130,7 +133,7 @@ export function AuthGate({ children }: AuthGateProps) {
       const idToken = await credential.user.getIdToken();
       await completeFirebaseLogin(idToken);
     } catch (caught) {
-      setError(getAuthActionError(caught));
+      setError(getAuthActionError(caught, "password"));
     } finally {
       setSubmitting(false);
     }
@@ -157,7 +160,7 @@ export function AuthGate({ children }: AuthGateProps) {
       setConfirmPassword("");
       setPasswordMessage("비밀번호가 안전하게 변경되었습니다.");
     } catch (caught) {
-      setError(getFirebaseAuthErrorMessage(caught));
+      setError(getFirebaseAuthErrorMessage(caught, "password"));
     } finally {
       setSubmitting(false);
     }
@@ -172,7 +175,7 @@ export function AuthGate({ children }: AuthGateProps) {
       const idToken = await credential.user.getIdToken();
       await completeFirebaseLogin(idToken);
     } catch (caught) {
-      setError(getAuthActionError(caught));
+      setError(getAuthActionError(caught, "google"));
     } finally {
       setSubmitting(false);
     }
@@ -187,7 +190,7 @@ export function AuthGate({ children }: AuthGateProps) {
       const idToken = await credential.user.getIdToken();
       await completeFirebaseLogin(idToken);
     } catch (caught) {
-      setError(getAuthActionError(caught));
+      setError(getAuthActionError(caught, "github"));
     } finally {
       setSubmitting(false);
     }
@@ -219,7 +222,7 @@ export function AuthGate({ children }: AuthGateProps) {
       await sendFirebasePasswordReset(email.trim());
       setResetMessage("비밀번호 재설정 이메일을 보냈습니다. 이메일의 링크를 확인해주세요.");
     } catch (caught) {
-      setError(getFirebaseAuthErrorMessage(caught));
+      setError(getFirebaseAuthErrorMessage(caught, "password"));
     } finally {
       setSubmitting(false);
     }
@@ -582,8 +585,8 @@ async function logoutServerSession() {
   await fetch("/api/auth/logout", { method: "POST" });
 }
 
-function getAuthActionError(error: unknown) {
+function getAuthActionError(error: unknown, method: FirebaseAuthMethod = "generic") {
   return error instanceof AuthSessionError
     ? error.message
-    : getFirebaseAuthErrorMessage(error);
+    : getFirebaseAuthErrorMessage(error, method);
 }
