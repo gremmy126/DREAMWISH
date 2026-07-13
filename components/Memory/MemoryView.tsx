@@ -38,6 +38,7 @@ import {
   buildKnowledgeTabModel,
   type KnowledgeTabId
 } from "@/src/lib/knowledge/knowledge-tabs";
+import { KnowledgeWorkspace } from "@/components/Knowledge/KnowledgeWorkspace";
 
 export function MemoryView() {
   const [snapshot, setSnapshot] = useState<MemoryDashboardSnapshot | null>(null);
@@ -206,6 +207,12 @@ export function MemoryView() {
         <Metric icon={Network} label={t("memory.edges")} value={snapshot.statistics.totalEdges} />
       </div>
 
+      <KnowledgeWorkspace
+        graph={snapshot.knowledgeNetwork}
+        timeline={snapshot.timeline}
+        title="개인두뇌 지식 네트워크"
+      />
+
       <SurfaceCard className="p-5">
         <PanelTitle icon={Network} title={t("memory.knowledge")} detail={`${knowledgeNotes.length} ${t("memory.documents")}`} />
         <div className="mb-4 flex flex-wrap gap-2">
@@ -316,7 +323,7 @@ export function MemoryView() {
         </SurfaceCard>
       </div>
 
-      <div className="grid grid-cols-[minmax(0,1fr)_330px] gap-5">
+      <div className="hidden">
         <SurfaceCard className="overflow-hidden">
           <div className="flex items-center justify-between border-b border-app-border px-5 py-4">
             <PanelTitle icon={Network} title={t("memory.knowledgeNetwork")} detail={`${snapshot.knowledgeNetwork.nodes.length} ${t("memory.networkNodes")}`} compact />
@@ -379,7 +386,7 @@ export function MemoryView() {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-5">
+      <div className="grid gap-5 xl:grid-cols-2">
         <SurfaceCard className="p-5">
           <PanelTitle icon={Brain} title={t("memory.recentMemory")} detail={`${snapshot.recentMemory.length}`} />
           {snapshot.recentMemory.length === 0 ? (
@@ -399,7 +406,7 @@ export function MemoryView() {
             </div>
           )}
         </SurfaceCard>
-        <SurfaceCard className="p-5">
+        <SurfaceCard className="hidden">
           <PanelTitle icon={Clock3} title={t("memory.timeline")} detail={`${snapshot.timeline.length}`} />
           <SimpleList items={snapshot.timeline.map((item) => `${item.title} · ${formatDate(item.createdAt, language)}`)} empty={t("memory.noTimeline")} />
         </SurfaceCard>

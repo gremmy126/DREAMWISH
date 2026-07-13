@@ -11,6 +11,8 @@ import {
   buildKnowledgeTabModel,
   type KnowledgeTabId
 } from "@/src/lib/knowledge/knowledge-tabs";
+import { KnowledgeWorkspace } from "@/components/Knowledge/KnowledgeWorkspace";
+import type { KnowledgeGraph, MemoryDashboardSnapshot } from "@/src/lib/memory/memory.types";
 
 type GraphNode = {
   id: string;
@@ -27,6 +29,10 @@ export function KnowledgeView() {
   const [activeTab, setActiveTab] = useState<KnowledgeTabId>("network");
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState({ title: "", body: "", tags: "" });
+  const [workspace, setWorkspace] = useState<{
+    graph: KnowledgeGraph;
+    timeline: MemoryDashboardSnapshot["timeline"];
+  } | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { t } = useAppLanguage();
   const selectedNode = graph.find((node) => node.id === selected) || graph[0] || null;
@@ -37,11 +43,21 @@ export function KnowledgeView() {
   }, []);
 
   async function loadKnowledge() {
-    const response = await fetch("/api/knowledge/notes");
+    const [response, workspaceResponse] = await Promise.all([
+      fetch("/api/knowledge/notes"),
+      fetch("/api/knowledge/workspace")
+    ]);
     const data = (await response.json()) as { notes?: KnowledgeNote[]; graph?: GraphNode[] };
+    const workspaceData = workspaceResponse.ok
+      ? await workspaceResponse.json() as {
+          graph: KnowledgeGraph;
+          timeline: MemoryDashboardSnapshot["timeline"];
+        }
+      : null;
     setNotes(data.notes || []);
     setGraph(data.graph || []);
     setSelected((data.graph || [])[0]?.id || null);
+    setWorkspace(workspaceData);
   }
 
   async function createNote(sourceFileId: string | null = null) {
@@ -118,7 +134,15 @@ export function KnowledgeView() {
         <Metric icon={Plus} label={t("knowledgePage.recentlyAdded")} value={notes[0] ? new Date(notes[0].createdAt).toLocaleDateString("ko-KR") : "-"} />
       </div>
 
-      <div className="grid grid-cols-[minmax(0,1fr)_330px] gap-5">
+      {workspace ? (
+        <KnowledgeWorkspace
+          graph={workspace.graph}
+          timeline={workspace.timeline}
+          title="지식 네트워크"
+        />
+      ) : null}
+
+      <div className="hidden">
         <SurfaceCard className="overflow-hidden">
           <div className="flex items-center justify-between border-b border-app-border px-5 py-4">
             <div className="flex flex-wrap gap-2 text-sm font-semibold">

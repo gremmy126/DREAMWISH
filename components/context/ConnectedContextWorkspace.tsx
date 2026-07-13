@@ -15,6 +15,7 @@ import type { ContextPayload } from "@/components/context/types";
 import { readApiResponse } from "@/src/lib/api/api-response";
 import { useAppLanguage } from "@/src/lib/i18n/use-app-language";
 import type { SearchResult } from "@/src/lib/search/search.types";
+import { ChatKnowledgeTimeline } from "@/components/Knowledge/ChatKnowledgeTimeline";
 
 export function ConnectedContextWorkspace({ query }: { query: string }) {
   const [payload, setPayload] = useState<ContextPayload | null>(null);
@@ -82,6 +83,7 @@ export function ConnectedContextWorkspace({ query }: { query: string }) {
         ) : (
           <div className="space-y-4">
             <KnowledgeNetworkPanel network={payload.network} onPreview={setPreview} />
+            <ChatKnowledgeTimeline query={query} />
             <ContextSearchPanel
               initialQuery={query}
               initialResults={payload.conversationMatches}

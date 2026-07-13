@@ -18,8 +18,6 @@ import {
   type LucideIcon
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { ConfidenceBadge } from "@/components/Chat/ConfidenceBadge";
-import { SourceCard } from "@/components/Chat/SourceCard";
 import { EmptyState } from "@/components/Common/EmptyState";
 import { SectionHeader } from "@/components/Common/SectionHeader";
 import { SurfaceCard } from "@/components/Common/SurfaceCard";
@@ -54,6 +52,7 @@ import {
   getChatQuickActionText
 } from "@/src/lib/i18n/translations";
 import { useAppLanguage } from "@/src/lib/i18n/use-app-language";
+import { normalizeChatAnswer } from "@/src/lib/chat/chat-answer-display";
 
 type UiMessage = {
   id: string;
@@ -979,19 +978,7 @@ export function ChatView() {
 
         <div className="min-h-0 flex-1 overflow-auto p-6 app-scrollbar">
           {messages.length === 0 ? (
-            <div className="flex h-full items-center justify-center">
-              <div className="max-w-[460px] text-center">
-                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-[22px] bg-app-hover text-app-primary">
-                  <Sparkles size={24} />
-                </div>
-                <h2 className="mt-5 text-xl font-semibold text-app-text">
-                  {t("chat.emptyTitle")}
-                </h2>
-                <p className="mt-2 text-sm leading-6 text-app-muted">
-                  {t("chat.emptyDescription")}
-                </p>
-              </div>
-            </div>
+            <div className="h-full" aria-label="empty conversation" />
           ) : (
             <div className="space-y-5">
               {messages.map((message) => (
@@ -1007,7 +994,7 @@ export function ChatView() {
                     }`}
                   >
                     <div className="whitespace-pre-wrap text-sm leading-6 [overflow-wrap:anywhere]">
-                      {message.content || (
+                      {normalizeChatAnswer(message.content) || (
                         <span className="inline-flex items-center gap-2 text-app-muted">
                           <Loader2 size={15} className="animate-spin" />
                           {t("chat.generating")}
@@ -1017,18 +1004,10 @@ export function ChatView() {
 
                     {message.role === "assistant" ? (
                       <div className="mt-4 space-y-3">
-                        <ConfidenceBadge confidence={message.confidence} />
                         {message.verification?.warning ? (
                           <div className="flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
                             <AlertTriangle size={14} className="mt-0.5 shrink-0" />
                             <span>{message.verification.warning}</span>
-                          </div>
-                        ) : null}
-                        {message.sources.length > 0 ? (
-                          <div className="grid gap-3">
-                            {message.sources.map((source) => (
-                              <SourceCard key={source.path} source={source} />
-                            ))}
                           </div>
                         ) : null}
                         {message.memoryCandidates?.length ? (
