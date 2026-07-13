@@ -6,6 +6,7 @@ dist
 .env*
 *.tsbuildinfo
 .local-db
+.worktrees
 Backups
 .obsidian
 무제.md
