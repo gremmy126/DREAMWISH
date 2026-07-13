@@ -36,14 +36,18 @@ export async function verifyFirebaseIdToken(idToken: string): Promise<VerifiedFi
       body: JSON.stringify({ idToken: token })
     }
   );
-  const data = (await response.json()) as FirebaseLookupResponse;
+  const data = (await response.json().catch(() => ({}))) as FirebaseLookupResponse;
+
+  if (response.status >= 500) {
+    throw new Error("Firebase authentication service unavailable.");
+  }
 
   if (!response.ok || !data.users?.[0]?.localId || !data.users[0].email) {
     throw new AIProviderError({
       code: "UNAUTHORIZED",
       message: "Firebase authentication failed.",
       retryable: false,
-      status: response.status
+      status: 401
     });
   }
 

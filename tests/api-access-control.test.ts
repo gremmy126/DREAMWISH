@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { AIProviderError } from "../src/lib/ai/errors";
 
 const TEST_SESSION_SECRET = "test-session-secret-that-is-at-least-32-bytes";
 
@@ -189,6 +190,34 @@ test("Firebase lookup requires localId and returns canonical uid", async () => {
       await assert.rejects(
         () => verifyFirebaseIdToken("token-without-local-id"),
         /Firebase authentication failed/u
+      );
+
+      globalThis.fetch = async () =>
+        new Response(JSON.stringify({ error: { message: "INVALID_ID_TOKEN" } }), {
+          status: 400,
+          headers: { "Content-Type": "application/json" }
+        });
+
+      await assert.rejects(
+        () => verifyFirebaseIdToken("invalid-token"),
+        (error: unknown) =>
+          error instanceof AIProviderError &&
+          error.code === "UNAUTHORIZED" &&
+          error.status === 401
+      );
+
+      globalThis.fetch = async () =>
+        new Response("upstream unavailable", {
+          status: 502,
+          headers: { "Content-Type": "text/plain" }
+        });
+
+      await assert.rejects(
+        () => verifyFirebaseIdToken("token-during-outage"),
+        (error: unknown) =>
+          error instanceof Error &&
+          !(error instanceof AIProviderError) &&
+          error.message === "Firebase authentication service unavailable."
       );
     } finally {
       globalThis.fetch = originalFetch;
