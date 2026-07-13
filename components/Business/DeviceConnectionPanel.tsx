@@ -108,7 +108,24 @@ function PairingDialog({ challenge, onClose }: { challenge: PairingChallenge; on
         <div className="flex items-start justify-between gap-3"><div><h3 id="pairing-title" className="text-lg font-semibold text-app-text">{challenge.platform === "android" ? "Android" : "iPhone"} 페어링</h3><p className="mt-1 text-xs text-app-muted">컴패니언 앱에서 아래 6자리 코드를 입력하세요.</p></div><button type="button" onClick={onClose} className="rounded-xl border border-app-border p-2 text-app-muted"><X size={15} /></button></div>
         <div className="my-5 rounded-3xl bg-slate-950 px-5 py-6 text-center font-mono text-4xl font-bold tracking-[0.35em] text-white">{challenge.code}</div>
         <p className="text-center text-xs text-app-muted">{new Date(challenge.expiresAt).toLocaleTimeString("ko-KR")}까지 유효 · 1회 사용</p>
+        <div className="mt-4 rounded-2xl border border-app-border bg-app-bg p-4 text-xs leading-6 text-app-text">
+          <ol className="list-decimal space-y-1 pl-5">
+            <li>DREAMWISH Companion 앱을 엽니다.</li>
+            <li>설정 → DREAMWISH 연결 → 웹 코드 입력으로 이동합니다.</li>
+            <li>페어링 코드 입력칸에 위 6자리를 입력합니다.</li>
+            <li>앱에서 연결을 누릅니다.</li>
+            <li>웹에서 기기 상태와 연락처·캘린더 권한을 확인합니다.</li>
+          </ol>
+          <p className="mt-3 rounded-xl bg-violet-50 px-3 py-2 font-semibold text-violet-800">6자리 코드는 웹사이트 입력창이 아니라 휴대폰 컴패니언 앱의 페어링 코드 입력칸에 입력합니다.</p>
+        </div>
         <details className="mt-4 rounded-2xl border border-app-border bg-app-bg p-3"><summary className="cursor-pointer text-xs font-semibold text-app-text">수동 페어링 정보</summary><pre className="mt-3 max-h-28 overflow-auto whitespace-pre-wrap break-all text-[10px] text-app-muted">{payload}</pre></details>
+        <details className="mt-2 rounded-2xl border border-app-border bg-app-bg p-3">
+          <summary className="cursor-pointer text-xs font-semibold text-app-text">개발 빌드 경로 보기</summary>
+          <div className="mt-3 space-y-1 break-all font-mono text-[10px] text-app-muted">
+            <p>Android: mobile-companion/android/PairingActivity.kt</p>
+            <p>iPhone: mobile-companion/ios/PairingView.swift</p>
+          </div>
+        </details>
         <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">스토어 서명 앱이 아직 배포되지 않은 환경에서는 컴패니언 소스 빌드와 사용자 소유 Apple/Google 서명 자격증명이 필요합니다.</div>
       </section>
     </div>

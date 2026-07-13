@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <key>NSContactsUsageDescription</key>
+    <string>DREAMWISH에 사용자가 선택한 연락처를 추가하기 위해 접근합니다.</string>
+    <key>NSCalendarsFullAccessUsageDescription</key>
+    <string>DREAMWISH에 사용자가 선택한 일정을 가져오기 위해 접근합니다.</string>
     <key>NSExtension</key>
     <dict>
         <key>NSExtensionPointIdentifier</key>

@@ -94,6 +94,52 @@ test("business and CRM expose real paired-device contact workflows", async () =>
   assert.match(contactImport, /선택 연락처를 CRM에 추가/u);
 });
 
+test("pairing dialog explains that the six digit code is entered in the companion app", async () => {
+  const panel = await fs.readFile(
+    path.join(process.cwd(), "components/Business/DeviceConnectionPanel.tsx"),
+    "utf8"
+  );
+  assert.match(panel, /설정 → DREAMWISH 연결 → 웹 코드 입력/u);
+  assert.match(panel, /웹사이트 입력창이 아니라 휴대폰 컴패니언 앱/u);
+  assert.match(panel, /PairingActivity\.kt/u);
+  assert.match(panel, /PairingView\.swift/u);
+});
+
+test("mobile companion reference clients validate six digits and call the real pairing endpoint", async () => {
+  const android = await fs.readFile(
+    path.join(process.cwd(), "mobile-companion/android/PairingActivity.kt"),
+    "utf8"
+  );
+  const ios = await fs.readFile(
+    path.join(process.cwd(), "mobile-companion/ios/PairingView.swift"),
+    "utf8"
+  );
+  assert.match(android, /Regex\("\\\\d\{6\}"\)/u);
+  assert.match(android, /\/api\/devices\/pair/u);
+  assert.match(ios, /code\.count == 6/u);
+  assert.match(ios, /\/api\/devices\/pair/u);
+});
+
+test("mobile contact and calendar reference modules use the device sync contract", async () => {
+  for (const relativePath of [
+    "mobile-companion/android/SignedEnvelope.kt",
+    "mobile-companion/android/ContactSyncWorker.kt",
+    "mobile-companion/android/CalendarSyncWorker.kt",
+    "mobile-companion/ios/SignedEnvelope.swift",
+    "mobile-companion/ios/ContactSyncService.swift",
+    "mobile-companion/ios/CalendarSyncService.swift"
+  ]) {
+    const source = await fs.readFile(path.join(process.cwd(), relativePath), "utf8");
+    assert.match(source, /Device|device/u, relativePath);
+  }
+  const readme = await fs.readFile(
+    path.join(process.cwd(), "mobile-companion/README.md"),
+    "utf8"
+  );
+  assert.match(readme, /참조 모듈/u);
+  assert.match(readme, /스토어에서 설치 가능한 완성 앱이 아닙니다/u);
+});
+
 async function withTempDataDir(run: () => Promise<void>) {
   const previous = process.env.DATA_DIR;
   const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), "dreamwish-devices-"));
