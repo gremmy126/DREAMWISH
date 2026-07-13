@@ -44,13 +44,20 @@ export default function RootLayout({
 
   return (
     <html lang="ko" suppressHydrationWarning>
-      <body>
+      <head>
         <Script
           id="google-consent-default"
           strategy="beforeInteractive"
         >
           {buildConsentInitializerScript()}
         </Script>
+        <script
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5650931082151367"
+          crossOrigin="anonymous"
+        />
+      </head>
+      <body>
         {GTM_ID ? (
           <noscript>
             <iframe

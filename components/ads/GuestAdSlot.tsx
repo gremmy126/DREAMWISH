@@ -1,6 +1,5 @@
 "use client";
 
-import Script from "next/script";
 import { useEffect } from "react";
 import { useConsent } from "@/components/consent/useConsent";
 
@@ -25,13 +24,6 @@ export function GuestAdSlot() {
 
   return (
     <>
-      <Script
-        id="guest-adsense-loader"
-        async
-        strategy="afterInteractive"
-        crossOrigin="anonymous"
-        src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT}`}
-      />
       {slotId ? (
         <aside aria-label="광고" className="mx-auto w-full max-w-4xl px-4 pb-5 sm:px-6">
           <ins

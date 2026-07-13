@@ -50,6 +50,7 @@ test("guest ads are manual consent-aware and cannot render in the signed-in work
   const authGate = read("components/auth/AuthGate.tsx");
   const guestHome = read("components/home/GuestChatHome.tsx");
   const ad = read("components/ads/GuestAdSlot.tsx");
+  const layout = read("app/layout.tsx");
 
   assert.match(guestHome, /<GuestAdSlot/u);
   assert.match(guestHome, /!restoringSession \? <GuestAdSlot/u);
@@ -61,6 +62,13 @@ test("guest ads are manual consent-aware and cannot render in the signed-in work
   assert.match(ad, /if \(!canLoadAds\) return null/u);
   assert.match(ad, /slotId \? \(/u);
   assert.doesNotMatch(ad, /enable_page_level_ads/u);
+  assert.match(
+    layout,
+    /<head>[\s\S]*pagead2\.googlesyndication\.com\/pagead\/js\/adsbygoogle\.js\?client=ca-pub-5650931082151367[\s\S]*<\/head>/u
+  );
+  assert.match(layout, /crossOrigin="anonymous"/u);
+  assert.doesNotMatch(ad, /pagead2\.googlesyndication\.com/u);
+  assert.doesNotMatch(ad, /import Script from "next\/script"/u);
 });
 
 test("obsolete chat login pricing and billing URLs redirect to the public home", () => {
