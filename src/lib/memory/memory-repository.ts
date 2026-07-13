@@ -3,6 +3,12 @@ import {
   withJsonStoreLock,
   writeJsonStore
 } from "../local-db/json-store";
+import {
+  listLatestOwnerDocuments,
+  mutateOwnerDocument,
+  readOwnerDocument
+} from "../db/owner-document-store";
+import { hasPostgresStorage } from "../db/postgres";
 import type {
   ApprovedMemory,
   EmbeddingRecord,
@@ -29,8 +35,36 @@ const EMPTY_DB: MemoryDb = {
   captureJobs: []
 };
 
-export async function readMemoryDb(): Promise<MemoryDb> {
-  const db = await readJsonStore<MemoryDb>("memory.json", EMPTY_DB);
+const MEMORY_NAMESPACE = "memory-state";
+
+export async function readMemoryDb(ownerId?: string): Promise<MemoryDb> {
+  if (hasPostgresStorage()) {
+    if (ownerId) {
+      return normalizeMemoryDb(
+        await readOwnerDocument(ownerId, MEMORY_NAMESPACE, EMPTY_DB)
+      );
+    }
+    const documents = await listLatestOwnerDocuments<MemoryDb>(MEMORY_NAMESPACE);
+    return normalizeMemoryDb(
+      documents.reduce<MemoryDb>((merged, document) => {
+        const current = normalizeMemoryDb(document.payload);
+        merged.candidates.push(...current.candidates);
+        merged.memories.push(...current.memories);
+        merged.quarantinedMemories.push(...current.quarantinedMemories);
+        merged.embeddings.push(...current.embeddings);
+        merged.changes.push(...current.changes);
+        merged.captureJobs.push(...current.captureJobs);
+        return merged;
+      }, cloneEmptyDb())
+    );
+  }
+
+  return normalizeMemoryDb(
+    await readJsonStore<MemoryDb>("memory.json", EMPTY_DB)
+  );
+}
+
+function normalizeMemoryDb(db: Partial<MemoryDb>): MemoryDb {
   const normalizedMemories: ApprovedMemory[] = [];
   const newlyQuarantined: unknown[] = [];
   if (Array.isArray(db.memories)) {
@@ -51,6 +85,10 @@ export async function readMemoryDb(): Promise<MemoryDb> {
     changes: Array.isArray(db.changes) ? db.changes.map(normalizeChangePreview) : [],
     captureJobs: Array.isArray(db.captureJobs) ? db.captureJobs.map(normalizeCaptureJob) : []
   };
+}
+
+function cloneEmptyDb(): MemoryDb {
+  return structuredClone(EMPTY_DB);
 }
 
 function normalizeCandidate(candidate: MemoryCandidate): MemoryCandidate {
@@ -125,8 +163,26 @@ function writeMemoryDb(db: MemoryDb) {
 }
 
 export async function mutateMemoryDb<T>(
-  mutate: (db: MemoryDb) => T | Promise<T>
+  mutate: (db: MemoryDb) => T | Promise<T>,
+  ownerId?: string
 ): Promise<T> {
+  if (hasPostgresStorage()) {
+    if (!ownerId?.trim()) {
+      throw new Error("ownerId is required for durable memory mutations.");
+    }
+    return mutateOwnerDocument(
+      ownerId,
+      MEMORY_NAMESPACE,
+      cloneEmptyDb(),
+      async (stored) => {
+        const db = normalizeMemoryDb(stored);
+        const result = await mutate(db);
+        Object.assign(stored, db);
+        return result;
+      }
+    );
+  }
+
   return withJsonStoreLock("memory.json", async () => {
     const db = await readMemoryDb();
     const result = await mutate(db);
@@ -143,7 +199,7 @@ export async function upsertMemoryCandidate(candidate: MemoryCandidate) {
     if (index >= 0) db.candidates[index] = candidate;
     else db.candidates.unshift(candidate);
     return candidate;
-  });
+  }, candidate.ownerId);
 }
 
 export async function upsertMemoryCaptureJob(job: MemoryCaptureJob) {
@@ -154,7 +210,7 @@ export async function upsertMemoryCaptureJob(job: MemoryCaptureJob) {
     if (index >= 0) db.captureJobs[index] = job;
     else db.captureJobs.unshift(job);
     return job;
-  });
+  }, job.ownerId);
 }
 
 export async function addApprovedMemory(memory: ApprovedMemory, embedding: EmbeddingRecord) {
@@ -175,7 +231,7 @@ export async function addApprovedMemory(memory: ApprovedMemory, embedding: Embed
       candidate.id === memory.id && candidate.ownerId === memory.ownerId ? memory : candidate
     );
     return memory;
-  });
+  }, memory.ownerId);
 }
 
 export async function upsertApprovedMemory(memory: ApprovedMemory, embedding: EmbeddingRecord) {
@@ -196,7 +252,7 @@ export async function upsertApprovedMemory(memory: ApprovedMemory, embedding: Em
       candidate.id === memory.id && candidate.ownerId === memory.ownerId ? memory : candidate
     );
     return memory;
-  });
+  }, memory.ownerId);
 }
 
 export async function saveForgottenMemory(memory: ApprovedMemory) {
@@ -214,7 +270,7 @@ export async function saveForgottenMemory(memory: ApprovedMemory) {
       candidate.id === memory.id && candidate.ownerId === memory.ownerId ? memory : candidate
     );
     return memory;
-  });
+  }, memory.ownerId);
 }
 
 export async function saveMemoryChangePreview(preview: MemoryChangePreview) {
@@ -225,5 +281,5 @@ export async function saveMemoryChangePreview(preview: MemoryChangePreview) {
     if (index >= 0) db.changes[index] = preview;
     else db.changes.unshift(preview);
     return preview;
-  });
+  }, preview.ownerId);
 }

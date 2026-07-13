@@ -20,8 +20,11 @@ export async function readJsonStore<T>(fileName: string, fallback: T): Promise<T
   try {
     const raw = await fs.readFile(path.join(dbDir, fileName), "utf8");
     return { ...fallback, ...(JSON.parse(raw) as Partial<T>) };
-  } catch {
-    return fallback;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return structuredClone(fallback);
+    }
+    throw error;
   }
 }
 
