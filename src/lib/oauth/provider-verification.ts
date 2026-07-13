@@ -66,7 +66,7 @@ function requestFor(provider: ConnectableOAuthProviderId, accessToken: string): 
     headers: {
       Authorization: `Bearer ${accessToken}`,
       Accept: "application/json",
-      ...(provider === "notion" ? { "Notion-Version": "2022-06-28" } : {}),
+      ...(provider === "notion" ? { "Notion-Version": "2026-03-11" } : {}),
       ...(provider === "github" ? { "X-GitHub-Api-Version": "2022-11-28" } : {})
     }
   };

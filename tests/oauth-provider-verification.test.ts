@@ -132,6 +132,21 @@ test("provider verification returns a safe error for HTTP and provider failures"
   });
 });
 
+test("Notion OAuth account verification uses the current API version", async () => {
+  const result = await verifyProviderAccessToken({
+    provider: "notion",
+    accessToken: "notion-oauth-token",
+    fetchImpl: async (_url, init) => {
+      assert.equal(
+        new Headers(init?.headers).get("notion-version"),
+        "2026-03-11"
+      );
+      return jsonResponse({ id: "notion-bot", name: "DREAMWISH" });
+    }
+  });
+  assert.equal(result.ok, true);
+});
+
 test("OAuth callback verifies the exchanged token before persisting an active connection", async () => {
   const source = await fs.readFile(
     path.join(process.cwd(), "src/lib/oauth/oauth-callback.ts"),
