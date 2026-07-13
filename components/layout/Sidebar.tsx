@@ -15,6 +15,7 @@ import {
 import { motion } from "framer-motion";
 import { useState } from "react";
 import { StorageStatus } from "@/components/Common/StorageStatus";
+import { BrainLogo } from "@/components/brand/BrainLogo";
 import { UpgradeButton } from "@/components/billing/UpgradeButton";
 import type { ViewId } from "@/components/layout/types";
 import { useAppLanguage } from "@/src/lib/i18n/use-app-language";
@@ -62,7 +63,7 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
         className="mb-6 flex shrink-0 items-center gap-3 rounded-2xl px-2 py-1 text-left transition hover:bg-app-hover"
       >
         <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-app-primary text-white shadow-soft">
-          <span className="text-sm font-semibold">DW</span>
+          <BrainLogo className="h-7 w-7" />
         </div>
         <div>
           <p className="text-sm font-semibold text-app-text">DREAMWISH</p>

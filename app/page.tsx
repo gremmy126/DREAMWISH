@@ -3,6 +3,13 @@ import Script from "next/script";
 import { AppShell } from "@/components/layout/AppShell";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/src/lib/site/metadata";
 
+const SOCIAL_IMAGE = {
+  url: "/images/dreamwish-social-card.png",
+  width: 1200,
+  height: 630,
+  alt: "DREAMWISH 개인두뇌 AI"
+};
+
 export const metadata: Metadata = {
   title: { absolute: "DREAMWISH - 나만의 개인두뇌 AI" },
   description: SITE_DESCRIPTION,
@@ -13,12 +20,14 @@ export const metadata: Metadata = {
     url: "/",
     siteName: SITE_NAME,
     title: "DREAMWISH - 나만의 개인두뇌 AI",
-    description: SITE_DESCRIPTION
+    description: SITE_DESCRIPTION,
+    images: [SOCIAL_IMAGE]
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title: "DREAMWISH - 나만의 개인두뇌 AI",
-    description: SITE_DESCRIPTION
+    description: SITE_DESCRIPTION,
+    images: [SOCIAL_IMAGE]
   }
 };
 

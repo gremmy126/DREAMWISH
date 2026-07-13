@@ -101,9 +101,9 @@ test("public home publishes canonical social metadata schema robots and sitemap"
   const metadata = read("src/lib/site/metadata.ts");
   const robots = read("app/robots.ts");
   const sitemap = read("app/sitemap.ts");
-  const openGraphImage = read("app/opengraph-image.tsx");
-  const twitterImage = read("app/twitter-image.tsx");
-  const socialImage = read("src/lib/site/social-image.tsx");
+  const sidebar = read("components/layout/Sidebar.tsx");
+  const brainLogo = read("components/brand/BrainLogo.tsx");
+  const appIcon = read("app/icon.svg");
 
   assert.match(metadata, /https:\/\/dreamwish\.co\.kr/u);
   assert.match(layout, /metadataBase/u);
@@ -117,11 +117,17 @@ test("public home publishes canonical social metadata schema robots and sitemap"
   assert.match(robots, /allow:\s*"\/"/u);
   assert.match(sitemap, /SITE_URL/u);
   assert.doesNotMatch(sitemap, /pricing|billing|payment/u);
-  assert.match(openGraphImage, /renderSocialImage/u);
-  assert.match(socialImage, /ImageResponse/u);
-  assert.match(socialImage, /1200/u);
-  assert.match(socialImage, /630/u);
-  assert.match(twitterImage, /renderSocialImage/u);
+  assert.match(page, /\/images\/dreamwish-social-card\.png/u);
+  assert.match(page, /width:\s*1200/u);
+  assert.match(page, /height:\s*630/u);
+  assert.match(page, /card:\s*"summary_large_image"/u);
+  assert.match(sidebar, /<BrainLogo/u);
+  assert.match(brainLogo, /aria-hidden/u);
+  assert.match(appIcon, /<svg/u);
+  assert.equal(fs.existsSync("public/images/dreamwish-social-card.png"), true);
+  assert.equal(fs.existsSync("app/opengraph-image.tsx"), false);
+  assert.equal(fs.existsSync("app/twitter-image.tsx"), false);
+  assert.equal(fs.existsSync("src/lib/site/social-image.tsx"), false);
 });
 
 test("policy pages have their own canonical and social metadata", () => {
