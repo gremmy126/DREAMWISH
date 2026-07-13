@@ -1,7 +1,7 @@
 "use client";
 
-import { HardDrive } from "lucide-react";
-import { useEffect, useState } from "react";
+import { HardDrive, RefreshCw } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import { useAppLanguage } from "@/src/lib/i18n/use-app-language";
 import { calculateStoragePercent } from "@/src/lib/storage/storage-metrics";
 
@@ -10,49 +10,47 @@ type StorageStatusProps = {
 };
 
 type StorageInfo = {
-  localStorageBytes: number;
-  usageBytes: number | null;
+  usageBytes: number;
   quotaBytes: number | null;
+  measuredAt: string;
 };
 
 export function StorageStatus({ compact = false }: StorageStatusProps) {
-  const [info, setInfo] = useState<StorageInfo>({
-    localStorageBytes: 0,
-    usageBytes: null,
-    quotaBytes: null
-  });
+  const [info, setInfo] = useState<StorageInfo | null>(null);
+  const [error, setError] = useState(false);
+  const [loading, setLoading] = useState(true);
   const { t } = useAppLanguage();
 
-  useEffect(() => {
-    let active = true;
-
-    async function load() {
-      const localStorageBytes = measureLocalStorage();
-      const estimate =
-        "storage" in navigator && navigator.storage?.estimate
-          ? await navigator.storage.estimate()
-          : null;
-
-      if (!active) return;
-
-      setInfo({
-        localStorageBytes,
-        usageBytes: estimate?.usage ?? null,
-        quotaBytes: estimate?.quota ?? null
-      });
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(false);
+    try {
+      const response = await fetch("/api/storage/usage", { cache: "no-store" });
+      const result = (await response.json().catch(() => null)) as
+        | (StorageInfo & { error?: string })
+        | null;
+      if (!response.ok || !result) throw new Error(result?.error || "storage_failed");
+      setInfo(result);
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
     }
-
-    void load();
-    window.addEventListener("storage", load);
-
-    return () => {
-      active = false;
-      window.removeEventListener("storage", load);
-    };
   }, []);
 
-  const usage = info.usageBytes ?? info.localStorageBytes;
-  const quota = info.quotaBytes;
+  useEffect(() => {
+    void load();
+    const handleRefresh = () => void load();
+    window.addEventListener("focus", handleRefresh);
+    window.addEventListener("dreamwish:storage-updated", handleRefresh);
+    return () => {
+      window.removeEventListener("focus", handleRefresh);
+      window.removeEventListener("dreamwish:storage-updated", handleRefresh);
+    };
+  }, [load]);
+
+  const usage = info?.usageBytes ?? 0;
+  const quota = info?.quotaBytes ?? null;
   const percent = calculateStoragePercent(usage, quota);
 
   return (
@@ -62,7 +60,7 @@ export function StorageStatus({ compact = false }: StorageStatusProps) {
           <HardDrive size={compact ? 14 : 16} className="text-app-primary" />
           <p className="text-xs font-semibold text-app-text">{t("storage.title")}</p>
         </div>
-        {percent !== null ? (
+        {percent !== null && !loading ? (
           <span className="text-xs font-semibold text-app-primary">{percent.label}</span>
         ) : null}
       </div>
@@ -80,38 +78,32 @@ export function StorageStatus({ compact = false }: StorageStatusProps) {
           <span className="font-medium text-app-text">{formatBytes(usage)}</span>
         </div>
         <div className="flex items-center justify-between gap-2">
-          <span>{t("storage.browser")}</span>
-          <span className="font-medium text-app-text">
-            {formatBytes(info.localStorageBytes)}
-          </span>
-        </div>
-        <div className="flex items-center justify-between gap-2">
           <span>{t("storage.limit")}</span>
           <span className="font-medium text-app-text">
             {quota ? formatBytes(quota) : t("storage.unknown")}
           </span>
         </div>
+        {info?.measuredAt ? (
+          <div className="flex items-center justify-between gap-2">
+            <span>{t("storage.measuredAt")}</span>
+            <span className="font-medium text-app-text">
+              {new Date(info.measuredAt).toLocaleTimeString()}
+            </span>
+          </div>
+        ) : null}
+        {error ? (
+          <button
+            type="button"
+            onClick={() => void load()}
+            className="mt-2 inline-flex items-center gap-1 font-semibold text-red-600"
+          >
+            <RefreshCw size={11} />
+            {t("storage.retry")}
+          </button>
+        ) : null}
       </div>
     </div>
   );
-}
-
-function measureLocalStorage() {
-  let total = 0;
-
-  for (let index = 0; index < window.localStorage.length; index += 1) {
-    const key = window.localStorage.key(index);
-    if (!key) continue;
-
-    const value = window.localStorage.getItem(key) || "";
-    total += byteLength(key) + byteLength(value);
-  }
-
-  return total;
-}
-
-function byteLength(value: string) {
-  return new Blob([value]).size;
 }
 
 function formatBytes(bytes: number) {

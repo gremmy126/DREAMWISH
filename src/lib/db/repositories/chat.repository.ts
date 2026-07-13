@@ -11,8 +11,8 @@ import type {
   SourceDocument
 } from "@/src/lib/chat/chat.types";
 import type { SearchResult } from "@/src/lib/search/search.types";
-import { normalizeSearchText } from "@/src/lib/search/search-text";
-import { getDataDirectory } from "@/src/lib/local-db/json-store";
+import { normalizeSearchText } from "../../search/search-text";
+import { getDataDirectory } from "../../local-db/json-store";
 
 type LocalChatDb = {
   chat_sessions: ChatSessionRecord[];

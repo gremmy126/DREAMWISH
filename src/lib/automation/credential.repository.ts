@@ -1,6 +1,6 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from "node:crypto";
-import { mutateOwnerDocument, readOwnerDocument } from "@/src/lib/db/owner-document-store";
-import { readJsonStore, writeJsonStore } from "@/src/lib/local-db/json-store";
+import { mutateOwnerDocument, readOwnerDocument } from "../db/owner-document-store";
+import { readJsonStore, writeJsonStore } from "../local-db/json-store";
 
 export type AutomationCredential = {
   id: string;

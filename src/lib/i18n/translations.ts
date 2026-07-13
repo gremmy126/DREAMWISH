@@ -582,11 +582,13 @@ const ADDITIONAL_TRANSLATIONS = {
       approvalQueueEmpty: "승인 대기 실행이 없습니다."
     },
     storage: {
-      title: "로컬 스토리지",
+      title: "내 저장공간",
       used: "사용 중",
       browser: "브라우저 저장",
       limit: "한도",
-      unknown: "확인 불가",
+      unknown: "한도 미설정",
+      measuredAt: "마지막 측정",
+      retry: "저장공간 다시 확인",
       manage: "저장공간 관리"
     },
     settings: {
@@ -842,11 +844,13 @@ const ADDITIONAL_TRANSLATIONS = {
       approvalQueueEmpty: "No executions are waiting for approval."
     },
     storage: {
-      title: "Local Storage",
+      title: "My storage",
       used: "Used",
       browser: "Browser storage",
       limit: "Limit",
-      unknown: "Unknown",
+      unknown: "No limit set",
+      measuredAt: "Last measured",
+      retry: "Check storage again",
       manage: "Manage Storage"
     },
     settings: {
@@ -1102,11 +1106,13 @@ const ADDITIONAL_TRANSLATIONS = {
       approvalQueueEmpty: "承認待ちの実行はありません。"
     },
     storage: {
-      title: "ローカルストレージ",
+      title: "マイストレージ",
       used: "使用中",
       browser: "ブラウザ保存",
       limit: "上限",
-      unknown: "不明",
+      unknown: "上限未設定",
+      measuredAt: "最終計測",
+      retry: "ストレージを再確認",
       manage: "ストレージ管理"
     },
     settings: {

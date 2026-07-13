@@ -1,5 +1,5 @@
-import { readOwnerDocument, mutateOwnerDocument } from "@/src/lib/db/owner-document-store";
-import { readJsonStore, writeJsonStore } from "@/src/lib/local-db/json-store";
+import { readOwnerDocument, mutateOwnerDocument } from "../db/owner-document-store";
+import { readJsonStore, writeJsonStore } from "../local-db/json-store";
 import type { AutomationScenario, ScenarioStatus } from "./scenario-designer";
 
 type ScenarioDocument = { scenarios: AutomationScenario[] };
