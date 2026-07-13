@@ -1,7 +1,7 @@
 export type CustomerStatus = "active" | "lead" | "paused" | "inactive";
 export type CustomerImportance = "low" | "medium" | "high" | "critical";
 export type CustomerType = "person" | "company" | "partner" | "investor" | "public" | "other";
-export type DealStage = "discovery" | "proposal" | "negotiation" | "won" | "lost";
+export type DealStage = "discovery" | "contacted" | "proposal" | "negotiation" | "won" | "lost";
 
 export type Customer = {
   ownerId: string;

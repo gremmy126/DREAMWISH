@@ -90,6 +90,7 @@ test("mobile companion references enforce platform rules and Open Banking is dis
   const iosInfo = await read("mobile-companion/ios/Info.plist");
   const route = await read("app/api/business/revenue/route.ts");
   const businessHub = await read("components/Business/BusinessHub.tsx");
+  const devicePanel = await read("components/Business/DeviceConnectionPanel.tsx");
 
   assert.match(android, /NotificationListenerService/u);
   assert.match(android, /allowedPackages/u);
@@ -101,8 +102,8 @@ test("mobile companion references enforce platform rules and Open Banking is dis
   assert.match(businessHub, /\/api\/business\/revenue/u);
   assert.match(businessHub, /"confirmed"/u);
   assert.match(businessHub, /"rejected"/u);
-  assert.match(businessHub, /Android/u);
-  assert.match(businessHub, /iPhone/u);
+  assert.match(devicePanel, /Android/u);
+  assert.match(devicePanel, /iPhone/u);
   assert.equal(openBankingAdapter.enabled, false);
 });
 

@@ -27,11 +27,36 @@ export async function listCredentials(ownerId: string): Promise<PublicAutomation
 
 export async function saveCredential(input: { ownerId: string; appId: string; label: string; secret: string }) {
   if (!input.secret.trim()) throw new Error("API 키를 입력하세요.");
-  const encrypted = encrypt(input.secret.trim());
+  return saveEncryptedCredential(input, input.secret.trim(), maskSecret(input.secret));
+}
+
+export async function saveCredentialValues(input: {
+  ownerId: string;
+  appId: string;
+  label: string;
+  values: Record<string, string>;
+}) {
+  const values = Object.fromEntries(
+    Object.entries(input.values).map(([key, value]) => [key, value.trim()])
+  );
+  if (Object.keys(values).length === 0) throw new Error("연결 정보를 입력하세요.");
+  return saveEncryptedCredential(
+    input,
+    JSON.stringify(input.values),
+    `•••••• · ${Object.keys(values).length}개 필드`
+  );
+}
+
+async function saveEncryptedCredential(
+  input: { ownerId: string; appId: string; label: string },
+  secret: string,
+  masked: string
+) {
+  const encrypted = encrypt(secret);
   const now = new Date().toISOString();
   const credential: AutomationCredential = {
     id: randomUUID(), appId: input.appId.trim(), label: input.label.trim() || `${input.appId} API`,
-    masked: maskSecret(input.secret), ciphertext: encrypted.ciphertext, iv: encrypted.iv,
+    masked, ciphertext: encrypted.ciphertext, iv: encrypted.iv,
     authTag: encrypted.authTag, createdAt: now, updatedAt: now
   };
   await mutateDocument(input.ownerId, (document) => { document.credentials.unshift(credential); });

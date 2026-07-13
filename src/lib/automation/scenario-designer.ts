@@ -1,3 +1,6 @@
+import { AUTOMATION_APPS } from "./app-registry";
+import { AUTOMATION_TOOLS } from "./tool-registry";
+
 export type ScenarioStatus = "draft" | "active" | "paused" | "error";
 export type ScenarioNodeKind = "trigger" | "action" | "tool";
 
@@ -53,7 +56,7 @@ export type ScenarioValidationIssue = {
   message: string;
 };
 
-export const AUTOMATION_MODULES: AutomationModule[] = [
+const CORE_AUTOMATION_MODULES: AutomationModule[] = [
   defineModule("schedule", "Schedule", "tool", "#10b981", "◷", "trigger", false),
   defineModule("gmail", "Gmail", "app", "#ef4444", "M", "action", true),
   defineModule("google-sheets", "Google Sheets", "app", "#16a34a", "S", "action", true),
@@ -73,6 +76,16 @@ export const AUTOMATION_MODULES: AutomationModule[] = [
   defineModule("code", "코드", "tool", "#f97316", "{ }", "tool", false),
   defineModule("delay", "지연", "tool", "#a855f7", "◴", "tool", false),
   defineModule("iterator", "반복", "tool", "#06b6d4", "↻", "tool", false)
+];
+
+export const AUTOMATION_MODULES: AutomationModule[] = [
+  ...CORE_AUTOMATION_MODULES,
+  ...AUTOMATION_APPS.filter((app) => !CORE_AUTOMATION_MODULES.some((module) => module.id === app.id)).map((app) =>
+    defineModule(app.id, app.label, "app", app.color, "", "action", app.authType !== "none")
+  ),
+  ...AUTOMATION_TOOLS.filter((tool) => !CORE_AUTOMATION_MODULES.some((module) => module.id === tool.id)).map((tool) =>
+    defineModule(tool.id, tool.label, "tool", tool.color, "", "tool", false)
+  )
 ];
 
 export function buildScenarioFromPrompt(prompt: string, ownerId = "preview-owner") {

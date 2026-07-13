@@ -3,17 +3,18 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { buildBusinessSummary } from "../src/lib/business/business-workspace";
 
-test("Business remains in the sidebar while legacy business URLs return to AI Chat", async () => {
+test("Business and CRM remain separate sidebar workspaces while legacy URLs return to AI Chat", async () => {
   const sidebar = await read("components/layout/Sidebar.tsx");
   const shell = await read("components/layout/AppShell.tsx");
   const types = await read("components/layout/types.ts");
   const route = await read("app/business/[[...section]]/page.tsx");
 
   assert.match(sidebar, /"business"/u);
-  assert.doesNotMatch(sidebar, /\{ id: "crm"/u);
+  assert.match(sidebar, /\{ id: "crm"/u);
   assert.match(types, /"business"/u);
+  assert.match(types, /"crm"/u);
   assert.match(shell, /case "business"/u);
-  assert.doesNotMatch(shell, /case "crm"/u);
+  assert.match(shell, /case "crm"/u);
   assert.match(route, /permanentRedirect\("\/"\)/u);
 });
 
@@ -65,23 +66,23 @@ test("Business summary distinguishes confirmed revenue from expected pipeline", 
   });
 });
 
-test("Business Hub exposes nine responsive panels and safe authenticated data loading", async () => {
+test("Business Hub keeps business-only panels after CRM becomes a separate workspace", async () => {
   const source = await read("components/Business/BusinessHub.tsx");
   for (const section of [
     "overview",
-    "customers",
-    "companies",
     "sales",
     "mail",
     "cards",
     "meetings",
-    "tasks",
     "reports"
   ]) {
     assert.match(source, new RegExp(`id: "${section}"`, "u"));
   }
+  assert.doesNotMatch(source, /id: "customers"/u);
+  assert.doesNotMatch(source, /id: "companies"/u);
+  assert.doesNotMatch(source, /id: "tasks"/u);
   assert.match(source, /readApiResponse/u);
-  assert.match(source, /CRMView/u);
+  assert.doesNotMatch(source, /CRMView/u);
   assert.match(source, /flex-wrap/u);
   assert.match(source, /configured_unverified/u);
   assert.match(source, /승인/u);

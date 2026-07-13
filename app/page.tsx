@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import Script from "next/script";
 import { AppShell } from "@/components/layout/AppShell";
+import { SESSION_COOKIE_NAME } from "@/src/lib/auth/session-token";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/src/lib/site/metadata";
 
 const SOCIAL_IMAGE = {
@@ -60,7 +62,10 @@ const structuredData = {
   ]
 };
 
-export default function Home() {
+export default async function Home() {
+  const cookieStore = await cookies();
+  const hasServerSession = Boolean(cookieStore.get(SESSION_COOKIE_NAME)?.value);
+
   return (
     <>
       <Script
@@ -70,7 +75,7 @@ export default function Home() {
       >
         {JSON.stringify(structuredData).replace(/</gu, "\\u003c")}
       </Script>
-      <AppShell />
+      <AppShell hasServerSession={hasServerSession} />
     </>
   );
 }

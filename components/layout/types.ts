@@ -2,6 +2,7 @@ export const SIDEBAR_NAV_ORDER = [
   "chat",
   "memory",
   "business",
+  "crm",
   "automation",
   "calendar",
   "files",

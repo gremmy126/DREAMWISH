@@ -7,6 +7,7 @@ import { AutomationView } from "@/components/Automation/AutomationView";
 import { CalendarView } from "@/components/Calendar/CalendarView";
 import { ChatView } from "@/components/Chat/ChatView";
 import { BusinessHub } from "@/components/Business/BusinessHub";
+import { CRMView } from "@/components/CRM/CRMView";
 import { FilesView } from "@/components/Files/FilesView";
 import { IntegrationsView } from "@/components/integrations/IntegrationsView";
 import { MemoryView } from "@/components/Memory/MemoryView";
@@ -24,7 +25,7 @@ import {
   resolveWorkspaceView
 } from "@/src/lib/navigation/workspace-view";
 
-export function AppShell() {
+export function AppShell({ hasServerSession }: { hasServerSession: boolean }) {
   const [activeView, setActiveView] = useState<ViewId>("chat");
 
   const navigateToView = useCallback((view: ViewId) => {
@@ -56,6 +57,8 @@ export function AppShell() {
         return <MemoryView />;
       case "business":
         return <BusinessHub />;
+      case "crm":
+        return <CRMView />;
       case "automation":
         return <AutomationView />;
       case "calendar":
@@ -72,7 +75,7 @@ export function AppShell() {
   }, [activeView]);
 
   return (
-    <AuthGate>
+    <AuthGate hasServerSession={hasServerSession}>
       <div className="min-h-screen bg-app-bg">
         <Sidebar activeView={activeView} onViewChange={navigateToView} />
         <div className="pl-[248px]">

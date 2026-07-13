@@ -8,6 +8,7 @@ const expectedSidebarOrder: readonly [
   "chat",
   "memory",
   "business",
+  "crm",
   "automation",
   "calendar",
   "files",

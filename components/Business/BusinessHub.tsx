@@ -11,8 +11,11 @@ import {
   UsersRound
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { CRMView } from "@/components/CRM/CRMView";
 import { SurfaceCard } from "@/components/Common/SurfaceCard";
+import { DeviceConnectionPanel } from "@/components/Business/DeviceConnectionPanel";
+import { BusinessCardImport } from "@/components/Business/BusinessCardImport";
+import { MeetingManager } from "@/components/Business/MeetingManager";
+import { MessageWorkspace } from "@/components/Business/MessageWorkspace";
 import { readApiResponse } from "@/src/lib/api/api-response";
 import { buildBusinessSummary } from "@/src/lib/business/business-workspace";
 import type {
@@ -26,13 +29,10 @@ import type { RevenueCandidate } from "@/src/lib/business/revenue.types";
 
 const sections = [
   { id: "overview", label: "개요" },
-  { id: "customers", label: "고객" },
-  { id: "companies", label: "회사" },
   { id: "sales", label: "영업·매출" },
   { id: "mail", label: "메일" },
   { id: "cards", label: "명함" },
   { id: "meetings", label: "회의" },
-  { id: "tasks", label: "업무" },
   { id: "reports", label: "리포트" }
 ] as const;
 
@@ -175,9 +175,7 @@ function renderSection(
   onRevenueTransition: (id: string, status: "confirmed" | "rejected") => Promise<void>,
   onRevenueCreated: (candidate: RevenueCandidate) => void
 ) {
-  if (section === "customers") return <CRMView />;
   if (section === "overview") return <Overview summary={summary} connectors={connectors} />;
-  if (section === "companies") return <Companies customers={data.customers} />;
   if (section === "sales") {
     return (
       <Sales
@@ -189,10 +187,9 @@ function renderSection(
       />
     );
   }
-  if (section === "mail") return <ConnectorPanel connectors={connectors} connectorIds={["gmail", "slack"]} title="메일·메시지" />;
-  if (section === "cards") return <EmptyPanel icon={ContactRound} title="명함 관리" body="명함 이미지를 검토해 고객 후보로 저장합니다. 자동 병합 없이 확인 후 반영됩니다." />;
-  if (section === "meetings") return <Activities activities={data.activities.filter((item) => item.type === "meeting")} />;
-  if (section === "tasks") return <Tasks tasks={data.tasks} />;
+  if (section === "mail") return <MessageWorkspace />;
+  if (section === "cards") return <BusinessCardImport />;
+  if (section === "meetings") return <MeetingManager />;
   return <Reports summary={summary} />;
 }
 
@@ -253,16 +250,7 @@ function Sales({
       <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-800">
         은행 알림에서 수집한 금액은 확인 전까지 임시 매출이며, 확정 매출에 자동 합산되지 않습니다.
       </div>
-      <div className="grid gap-3 md:grid-cols-2">
-        <SurfaceCard className="p-4">
-          <p className="text-sm font-semibold text-app-text">Android 자동 수집</p>
-          <p className="mt-2 text-xs leading-5 text-app-muted">알림 접근 권한과 허용 금융 앱을 직접 선택한 경우에만 수집합니다.</p>
-        </SurfaceCard>
-        <SurfaceCard className="p-4">
-          <p className="text-sm font-semibold text-app-text">iPhone 가져오기</p>
-          <p className="mt-2 text-xs leading-5 text-app-muted">다른 앱 알림은 자동으로 읽을 수 없습니다. 공유 확장, 복사 텍스트, Gmail 또는 CSV를 사용합니다.</p>
-        </SurfaceCard>
-      </div>
+      <DeviceConnectionPanel />
       <ManualRevenueImport onCreated={onCreated} />
       <SurfaceCard className="p-5">
         <h2 className="text-sm font-semibold text-app-text">모바일 매출 후보</h2>

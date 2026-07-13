@@ -9,11 +9,11 @@ export function UpgradeButton({ compact = false }: { compact?: boolean }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (access.adminBypass) return null;
-
-  const paid = access.canUseApp && !access.requiresPayment;
+  const admin = access.adminBypass;
+  const paid = !admin && access.canUseApp && !access.requiresPayment;
 
   async function openBilling() {
+    if (admin) return;
     setLoading(true);
     setError(null);
     try {
@@ -39,15 +39,17 @@ export function UpgradeButton({ compact = false }: { compact?: boolean }) {
       <button
         type="button"
         onClick={() => void openBilling()}
-        disabled={loading}
+        disabled={loading || admin}
         className={`flex w-full items-center justify-center gap-2 rounded-app font-semibold shadow-soft transition disabled:cursor-wait ${
-          paid
+          admin
+            ? "border border-violet-200 bg-violet-50 text-violet-700"
+            : paid
             ? "border border-app-border bg-white text-app-text hover:bg-app-hover"
             : "bg-gradient-to-r from-violet-600 to-indigo-600 text-white hover:brightness-105"
         } ${compact ? "px-3 py-2.5 text-xs" : "px-4 py-3 text-sm"}`}
       >
         {loading ? <Loader2 size={15} className="animate-spin" /> : paid ? <CreditCard size={15} /> : <Sparkles size={15} />}
-        {paid ? "구독 관리" : "업그레이드"}
+        {admin ? "관리자 무료 이용" : paid ? "결제 관리" : "결제하기"}
       </button>
       {error ? <p className="px-1 text-[11px] leading-4 text-red-600">{error}</p> : null}
     </div>

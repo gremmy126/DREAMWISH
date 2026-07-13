@@ -59,7 +59,7 @@ async function assertStage10WorkspaceContracts() {
     description: "캘린더 직접 생성",
     source: "manual"
   });
-  event.source satisfies "manual" | "google";
+  event.source satisfies "manual" | "google" | "device";
   (await listCalendarItems(ownerId)).length satisfies number;
 
   const file = await saveFileRecord({

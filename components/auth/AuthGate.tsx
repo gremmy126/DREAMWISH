@@ -3,6 +3,7 @@
 import { KeyRound, Loader2 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { LoginDialog } from "@/components/auth/LoginDialog";
+import { AuthRestoringScreen } from "@/components/auth/AuthRestoringScreen";
 import { GuestChatHome } from "@/components/home/GuestChatHome";
 import { AUTH_SESSION_KEY, type AccessState } from "@/src/lib/auth/access-control";
 import { AUTH_SESSION_CLEARED_EVENT } from "@/src/lib/auth/auth-events";
@@ -34,9 +35,10 @@ import { AccessProvider } from "@/src/lib/auth/access-context";
 
 type AuthGateProps = {
   children: ReactNode;
+  hasServerSession: boolean;
 };
 
-export function AuthGate({ children }: AuthGateProps) {
+export function AuthGate({ children, hasServerSession }: AuthGateProps) {
   const [access, setAccess] = useState<AccessState | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -326,10 +328,14 @@ export function AuthGate({ children }: AuthGateProps) {
     setError(null);
   }
 
+  if (loading) {
+    return <AuthRestoringScreen />;
+  }
+
   if (!access) {
     return (
       <>
-        <GuestChatHome onLoginRequest={openLogin} restoringSession={loading} />
+        <GuestChatHome onLoginRequest={openLogin} />
         <LoginDialog
           open={loginOpen}
           email={email}

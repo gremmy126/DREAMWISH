@@ -15,11 +15,14 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { EmptyState } from "@/components/Common/EmptyState";
 import { SurfaceCard } from "@/components/Common/SurfaceCard";
+import { PhoneContactImport } from "@/components/CRM/PhoneContactImport";
+import { CrmPipelineBoard } from "@/components/CRM/CrmPipelineBoard";
 import { readApiResponse } from "@/src/lib/api/api-response";
 import { stringifyUnknownError } from "@/src/lib/auth/access-control";
 import { useAppLanguage } from "@/src/lib/i18n/use-app-language";
 import type {
   CrmActivity,
+  CrmDeal,
   CrmInsight,
   Customer,
   CustomerImportance,
@@ -40,10 +43,24 @@ const emptyForm: CustomerForm = {
   name: "", email: "", phone: "", companyName: "", position: "", memo: ""
 };
 
+const crmTabs = [
+  { id: "dashboard", label: "대시보드" },
+  { id: "contacts", label: "연락처" },
+  { id: "deals", label: "딜 (거래)" },
+  { id: "activities", label: "활동" },
+  { id: "email", label: "이메일" },
+  { id: "reports", label: "보고서" },
+  { id: "settings", label: "설정" }
+] as const;
+
+type CrmTab = (typeof crmTabs)[number]["id"];
+
 export function CRMView() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [activities, setActivities] = useState<CrmActivity[]>([]);
   const [insights, setInsights] = useState<CrmInsight[]>([]);
+  const [deals, setDeals] = useState<CrmDeal[]>([]);
+  const [activeTab, setActiveTab] = useState<CrmTab>("dashboard");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
@@ -83,11 +100,13 @@ export function CRMView() {
         customers?: Customer[];
         activities?: CrmActivity[];
         insights?: CrmInsight[];
+        deals?: CrmDeal[];
       }>(response);
       const nextCustomers = data.customers || [];
       setCustomers(nextCustomers);
       setActivities(data.activities || []);
       setInsights(data.insights || []);
+      setDeals(data.deals || []);
       setSelectedId((current) =>
         nextCustomers.some((customer) => customer.id === current)
           ? current
@@ -196,11 +215,18 @@ export function CRMView() {
             />
           </label>
           <button type="button" onClick={() => void loadCrm()} className="h-11 rounded-2xl border border-app-border bg-white px-4 text-sm font-semibold text-app-text">{labels.searchButton}</button>
+          <PhoneContactImport onImported={() => loadCrm()} />
           <button type="button" onClick={() => setModalOpen(true)} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-app-primary px-4 text-sm font-semibold text-white shadow-soft">
             <Plus size={16} /> {t("crm.newCustomer")}
           </button>
         </div>
       </div>
+
+      <nav className="flex gap-1 overflow-x-auto border-b border-app-border" aria-label="CRM sections">
+        {crmTabs.map((tab) => (
+          <button key={tab.id} type="button" onClick={() => setActiveTab(tab.id)} className={`shrink-0 border-b-2 px-4 py-3 text-xs font-semibold transition ${activeTab === tab.id ? "border-app-primary text-app-primary" : "border-transparent text-app-muted hover:text-app-text"}`}>{tab.label}</button>
+        ))}
+      </nav>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <Metric icon={UsersRound} label={t("crm.totalCustomers")} value={String(customers.length)} />
@@ -210,10 +236,21 @@ export function CRMView() {
         <Metric icon={CalendarDays} label={labels.expectedRevenue} value={expectedRevenue.toLocaleString()} />
       </div>
 
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <CrmPipelineBoard deals={deals} />
+        <SurfaceCard className="p-5">
+          <h2 className="text-sm font-semibold text-app-text">활동 요약</h2>
+          <div className="mt-5 flex items-center gap-5">
+            <div className="relative flex h-28 w-28 shrink-0 items-center justify-center rounded-full" style={{ background: "conic-gradient(#635bff 0 38%, #38bdf8 38% 66%, #34d399 66% 84%, #fbbf24 84% 100%)" }}><div className="flex h-20 w-20 flex-col items-center justify-center rounded-full bg-white"><span className="text-xl font-semibold text-app-text">{activities.length}</span><span className="text-[10px] text-app-muted">총 활동</span></div></div>
+            <div className="min-w-0 flex-1 space-y-2">{(["email_draft", "call", "meeting", "task"] as const).map((type) => <div key={type} className="flex items-center justify-between text-xs"><span className="text-app-muted">{type === "email_draft" ? "이메일" : type === "call" ? "통화" : type === "meeting" ? "미팅" : "작업"}</span><span className="font-semibold text-app-text">{activities.filter((item) => item.type === type).length}</span></div>)}</div>
+          </div>
+        </SurfaceCard>
+      </div>
+
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
         <SurfaceCard className="p-5">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-base font-semibold text-app-text">{t("crm.customerList")}</h2>
+            <h2 className="text-base font-semibold text-app-text">{activeTab === "contacts" ? "연락처" : "최근 연락처"}</h2>
             <span className="rounded-2xl border border-app-border bg-app-bg px-3 py-1 text-xs font-semibold text-app-muted">{t("crm.localCrm")}</span>
           </div>
           {customers.length === 0 ? (

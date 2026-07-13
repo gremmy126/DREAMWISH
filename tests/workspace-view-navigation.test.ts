@@ -11,6 +11,7 @@ test("every sidebar view keeps the canonical browser URL at the AI Chat home", (
     "chat",
     "memory",
     "business",
+    "crm",
     "automation",
     "calendar",
     "files",
@@ -38,7 +39,7 @@ test("OAuth returns can open integrations once before the URL is cleaned", () =>
 });
 
 test("navigation rejects views that are not present in the sidebar", () => {
-  assert.equal(normalizeWorkspaceView("crm"), "business");
+  assert.equal(normalizeWorkspaceView("crm"), "crm");
   assert.equal(normalizeWorkspaceView("business"), "business");
   assert.equal(normalizeWorkspaceView("knowledge"), null);
   assert.equal(normalizeWorkspaceView("workflow"), null);
@@ -55,5 +56,6 @@ test("AppShell synchronizes sidebar and event navigation with browser history", 
   assert.match(source, /dreamwish:navigate/u);
   assert.doesNotMatch(source, /case "knowledge"/u);
   assert.doesNotMatch(source, /case "workflow"/u);
-  assert.doesNotMatch(source, /case "crm"/u);
+  assert.match(source, /case "crm"/u);
+  assert.match(source, /<CRMView/u);
 });

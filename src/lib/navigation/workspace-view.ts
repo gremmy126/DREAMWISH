@@ -19,6 +19,5 @@ export function resolveWorkspaceView(pathname: string, search: string): ViewId {
 }
 
 export function normalizeWorkspaceView(value: string | null | undefined): ViewId | null {
-  if (value === "crm") return "business";
   return value && WORKSPACE_VIEWS.has(value as ViewId) ? value as ViewId : null;
 }

@@ -6,7 +6,8 @@ test("root renders a crawlable guest AI chat instead of a login or marketing pag
   const authGate = read("components/auth/AuthGate.tsx");
   const guestHome = read("components/home/GuestChatHome.tsx");
 
-  assert.match(page, /<AppShell\s*\/>/u);
+  assert.match(page, /<AppShell hasServerSession=\{hasServerSession\}\s*\/>/u);
+  assert.match(page, /cookies\(\)/u);
   assert.match(authGate, /GuestChatHome/u);
   assert.match(guestHome, /로그인 후 AI를 사용할 수 있습니다\./u);
 

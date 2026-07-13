@@ -10,7 +10,8 @@ import {
   Info,
   MessageSquareText,
   ScrollText,
-  Settings
+  Settings,
+  UsersRound
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useState } from "react";
@@ -35,6 +36,7 @@ const primaryItems: Array<{
   { id: "chat", icon: MessageSquareText },
   { id: "memory", icon: Brain },
   { id: "business", icon: BriefcaseBusiness },
+  { id: "crm", icon: UsersRound },
   { id: "automation", icon: ScrollText },
   { id: "calendar", icon: CalendarDays },
   { id: "files", icon: File },

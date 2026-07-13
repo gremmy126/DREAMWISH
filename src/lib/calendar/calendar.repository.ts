@@ -8,7 +8,7 @@ export type CalendarItem = {
   startsAt: string;
   endsAt: string;
   description: string;
-  source: "manual" | "google";
+  source: "manual" | "google" | "device";
   createdAt: string;
   updatedAt: string;
 };
