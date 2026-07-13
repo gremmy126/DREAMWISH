@@ -3,6 +3,7 @@ import { handleOAuthCallback } from "@/src/lib/oauth/oauth-callback";
 import { assertConnectableOAuthProvider } from "@/src/lib/oauth/oauth.service";
 import { consumeOAuthSession } from "@/src/lib/repositories/oauth-session.repository";
 import { requireOwnerContext } from "@/src/lib/auth/owner-context";
+import { buildPublicReturnUrl } from "@/src/lib/oauth/oauth-redirect";
 
 type RouteContext = {
   params: Promise<{ connectorId: string }>;
@@ -35,17 +36,19 @@ export async function GET(request: Request, context: RouteContext) {
       codeVerifier: session.codeVerifier
     });
 
-    return NextResponse.redirect(
-      new URL(`/?view=integrations&connected=${session.service}`, url.origin)
-    );
+    return NextResponse.redirect(buildPublicReturnUrl(request.url, {
+      view: "integrations",
+      connected: session.service
+    }));
   } catch (error) {
     const provider = url.pathname.split("/").at(-2) || "unknown";
-    const redirect = new URL("/", url.origin);
-    redirect.searchParams.set("view", "integrations");
-    redirect.searchParams.set("error", "oauth_failed");
-    redirect.searchParams.set("provider", provider);
-    if (error instanceof Error) redirect.searchParams.set("reason", normalizeErrorReason(error.message));
-    return NextResponse.redirect(redirect);
+    const params: Record<string, string> = {
+      view: "integrations",
+      error: "oauth_failed",
+      provider
+    };
+    if (error instanceof Error) params.reason = normalizeErrorReason(error.message);
+    return NextResponse.redirect(buildPublicReturnUrl(request.url, params));
   }
 }
 

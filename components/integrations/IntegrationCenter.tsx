@@ -361,10 +361,44 @@ function ConnectorAccountActions({
         <IntegrationDisconnectButton provider={target.provider} service={target.service} />
       ) : null}
       {auth?.expectedRedirectUri ? (
-        <p className="break-all rounded-2xl border border-app-border bg-app-bg px-3 py-2 text-[11px] leading-5 text-app-muted">
-          Expected callback: {auth.expectedRedirectUri}
-        </p>
+        <RedirectUriControl uri={auth.expectedRedirectUri} matches={auth.redirectMatches} />
       ) : null}
+    </div>
+  );
+}
+
+function RedirectUriControl({ uri, matches }: { uri: string; matches: boolean | null }) {
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
+
+  async function copyRedirectUri() {
+    try {
+      await navigator.clipboard.writeText(uri);
+      setCopyState("copied");
+    } catch {
+      setCopyState("error");
+    }
+  }
+
+  return (
+    <div className={`rounded-2xl border px-3 py-3 ${matches === false ? "border-amber-300 bg-amber-50" : "border-app-border bg-app-bg"}`}>
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[11px] font-semibold text-app-text">OAuth Callback URI</p>
+        <button
+          type="button"
+          onClick={() => void copyRedirectUri()}
+          className="shrink-0 rounded-xl border border-app-border bg-white px-2.5 py-1.5 text-[10px] font-semibold text-app-primary transition hover:bg-app-hover"
+        >
+          {copyState === "copied" ? "Callback URI 복사됨" : "Callback URI 복사"}
+        </button>
+      </div>
+      <p className="mt-2 break-all text-[11px] leading-5 text-app-muted">{uri}</p>
+      <p aria-live="polite" className={`mt-1 text-[10px] ${copyState === "error" || matches === false ? "text-amber-700" : "text-emerald-700"}`}>
+        {copyState === "error"
+          ? "복사하지 못했습니다. URI를 직접 선택해 복사해 주세요."
+          : matches === false
+            ? "배포 환경과 공급자 콘솔의 Callback URI가 다릅니다."
+            : "공급자 콘솔에 이 URI를 정확히 등록하세요."}
+      </p>
     </div>
   );
 }
