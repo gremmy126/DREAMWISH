@@ -57,6 +57,7 @@ test("guest ads are manual consent-aware and cannot render in the signed-in work
   assert.doesNotMatch(authGate, /GuestAdSlot/u);
   assert.match(ad, /ca-pub-5650931082151367/u);
   assert.match(ad, /NEXT_PUBLIC_ADSENSE_SLOT_ID/u);
+  assert.match(ad, /3983195777/u);
   assert.match(ad, /useConsent/u);
   assert.match(ad, /adsbygoogle/u);
   assert.match(ad, /if \(!canLoadAds\) return null/u);

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { mutateOwnerDocument, readOwnerDocument } from "@/src/lib/db/owner-document-store";
 import { readJsonStore, writeJsonStore } from "@/src/lib/local-db/json-store";
 
 export type KnowledgeNote = {
@@ -13,17 +14,17 @@ export type KnowledgeNote = {
   updatedAt: string;
 };
 
-type KnowledgeDb = {
-  notes: KnowledgeNote[];
-};
-
+type KnowledgeDb = { notes: KnowledgeNote[] };
 const EMPTY_DB: KnowledgeDb = { notes: [] };
+const KNOWLEDGE_NAMESPACE = "knowledge-notes-v1";
 
 export async function listKnowledgeNotes(ownerId: string, projectId?: string | null) {
-  return (await readDb()).notes.filter(
-    (note) =>
-      note.ownerId === ownerId &&
-      (projectId === undefined || note.projectId === projectId)
+  const notes = process.env.DATABASE_URL
+    ? (await readOwnerDocument<KnowledgeDb>(ownerId, KNOWLEDGE_NAMESPACE, EMPTY_DB)).notes
+    : (await readDb()).notes;
+  return notes.filter((note) =>
+    note.ownerId === ownerId &&
+    (projectId === undefined || note.projectId === projectId)
   );
 }
 
@@ -47,9 +48,21 @@ export async function createKnowledgeNote(input: {
     createdAt: now,
     updatedAt: now
   };
-  const db = await readDb();
-  db.notes.unshift(note);
-  await writeDb(db);
+
+  if (process.env.DATABASE_URL) {
+    await mutateOwnerDocument<KnowledgeDb, void>(
+      input.ownerId,
+      KNOWLEDGE_NAMESPACE,
+      EMPTY_DB,
+      (document) => {
+        document.notes.unshift(note);
+      }
+    );
+  } else {
+    const db = await readDb();
+    db.notes.unshift(note);
+    await writeDb(db);
+  }
   return note;
 }
 

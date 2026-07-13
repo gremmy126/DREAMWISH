@@ -4,10 +4,11 @@ import { useEffect } from "react";
 import { useConsent } from "@/components/consent/useConsent";
 
 const ADSENSE_CLIENT = "ca-pub-5650931082151367";
+const DEFAULT_ADSENSE_SLOT = "3983195777";
 
 export function GuestAdSlot() {
   const { preferences } = useConsent();
-  const slotId = process.env.NEXT_PUBLIC_ADSENSE_SLOT_ID?.trim();
+  const slotId = process.env.NEXT_PUBLIC_ADSENSE_SLOT_ID?.trim() || DEFAULT_ADSENSE_SLOT;
   const canLoadAds = Boolean(preferences?.ads);
 
   useEffect(() => {
