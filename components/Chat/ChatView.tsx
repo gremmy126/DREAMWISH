@@ -345,6 +345,11 @@ export function ChatView() {
 
     const message = input.trim();
 
+    if (isAutomationCreationCommand(message)) {
+      await createAutomationFromChat(message);
+      return;
+    }
+
     const contextualQuery = currentProject ? `${currentProject.name} ${message}` : message;
     setLastQuery(contextualQuery);
 
@@ -489,6 +494,67 @@ export function ChatView() {
             : item
         )
       );
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function createAutomationFromChat(message: string) {
+    const userMessage: UiMessage = {
+      id: crypto.randomUUID(),
+      role: "user",
+      content: message,
+      sources: [],
+      confidence: null,
+      verification: null
+    };
+    const assistantId = crypto.randomUUID();
+    setInput("");
+    setError(null);
+    setIsLoading(true);
+    setMessages((previous) => [
+      ...previous,
+      userMessage,
+      {
+        id: assistantId,
+        role: "assistant",
+        content: "자동화 시나리오를 구성하고 있습니다.",
+        sources: [],
+        confidence: null,
+        verification: null,
+        pending: true
+      }
+    ]);
+    try {
+      const response = await fetch("/api/automation/ai-draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: message })
+      });
+      const data = (await response.json().catch(() => ({}))) as {
+        scenario?: { id: string; name: string; nodes: unknown[] };
+        error?: string;
+      };
+      if (!response.ok || !data.scenario) {
+        throw new Error(data.error || "자동화 시나리오를 만들지 못했습니다.");
+      }
+      setMessages((previous) => previous.map((item) => item.id === assistantId
+        ? {
+            ...item,
+            content: `${data.scenario!.name} 자동화 초안을 만들었습니다. ${data.scenario!.nodes.length}개 모듈을 자동화 페이지에서 연결·수정하고 실행할 수 있습니다.`,
+            pending: false
+          }
+        : item));
+      window.setTimeout(() => {
+        window.dispatchEvent(new CustomEvent("dreamwish:navigate", {
+          detail: { view: "automation", scenarioId: data.scenario!.id }
+        }));
+      }, 900);
+    } catch (caught) {
+      const messageText = caught instanceof Error ? caught.message : "자동화 시나리오를 만들지 못했습니다.";
+      setMessages((previous) => previous.map((item) => item.id === assistantId
+        ? { ...item, content: messageText, pending: false }
+        : item));
     } finally {
       setIsLoading(false);
     }
@@ -1256,6 +1322,10 @@ function modeForQuickAction(actionId: ChatQuickActionId): ChatMode {
     return "agent";
   }
   return "ask";
+}
+
+function isAutomationCreationCommand(message: string) {
+  return /(?:자동화|workflow|automation).*(?:만들|생성|구성|추가)|(?:만들|생성|구성).*?(?:자동화|workflow|automation)/iu.test(message);
 }
 
 async function readEventStream(

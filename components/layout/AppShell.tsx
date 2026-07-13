@@ -30,6 +30,14 @@ export function AppShell() {
     if (requestedView === "crm") setActiveView("business");
     else if (isViewId(requestedView)) setActiveView(requestedView);
     else if (window.location.pathname.startsWith("/business")) setActiveView("business");
+
+    const handleNavigate = (event: Event) => {
+      const requested = (event as CustomEvent<{ view?: string }>).detail?.view || null;
+      if (requested === "crm") setActiveView("business");
+      else if (isViewId(requested)) setActiveView(requested);
+    };
+    window.addEventListener("dreamwish:navigate", handleNavigate);
+    return () => window.removeEventListener("dreamwish:navigate", handleNavigate);
   }, []);
 
   const content = useMemo(() => {
