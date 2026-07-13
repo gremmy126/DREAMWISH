@@ -29,6 +29,23 @@ test("getOAuthRedirectUri builds canonical integration callback urls from APP_UR
   );
 });
 
+test("every connectable provider uses its exact production callback URI", () => {
+  withEnv({ APP_URL: "https://dreamwish.co.kr" }, () => {
+    for (const [provider, expected] of [
+      ["google", "https://dreamwish.co.kr/api/integrations/google/callback"],
+      ["slack", "https://dreamwish.co.kr/api/integrations/slack/callback"],
+      ["github", "https://dreamwish.co.kr/api/integrations/github/callback"],
+      ["notion", "https://dreamwish.co.kr/api/integrations/notion/callback"],
+      ["discord", "https://dreamwish.co.kr/api/integrations/discord/callback"]
+    ] as const) {
+      assert.equal(
+        getOAuthRedirectUri(provider, `https://dreamwish.co.kr/api/integrations/${provider}/connect`),
+        expected
+      );
+    }
+  });
+});
+
 test("hosted OAuth falls back to the canonical site when Railway exposes an internal origin", () => {
   withEnv(
     {
