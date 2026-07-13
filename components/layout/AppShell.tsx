@@ -2,7 +2,7 @@
 
 import { AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AutomationView } from "@/components/Automation/AutomationView";
 import { CalendarView } from "@/components/Calendar/CalendarView";
 import { ChatView } from "@/components/Chat/ChatView";
@@ -20,25 +20,33 @@ import { Sidebar } from "@/components/layout/Sidebar";
 import { Topbar } from "@/components/layout/Topbar";
 import { PaymentGate } from "@/components/billing/PaymentGate";
 import type { ViewId } from "@/components/layout/types";
+import {
+  getWorkspaceViewUrl,
+  normalizeWorkspaceView,
+  resolveWorkspaceView
+} from "@/src/lib/navigation/workspace-view";
 
 export function AppShell() {
   const [activeView, setActiveView] = useState<ViewId>("chat");
 
+  const navigateToView = useCallback((view: ViewId) => {
+    const normalized = view === "crm" ? "business" : view;
+    setActiveView(normalized);
+    window.history.replaceState(null, "", getWorkspaceViewUrl(normalized));
+  }, []);
+
   useEffect(() => {
-    const searchParams = new URLSearchParams(window.location.search);
-    const requestedView = searchParams.get("view");
-    if (requestedView === "crm") setActiveView("business");
-    else if (isViewId(requestedView)) setActiveView(requestedView);
-    else if (window.location.pathname.startsWith("/business")) setActiveView("business");
+    setActiveView(resolveWorkspaceView(window.location.pathname, window.location.search));
 
     const handleNavigate = (event: Event) => {
-      const requested = (event as CustomEvent<{ view?: string }>).detail?.view || null;
-      if (requested === "crm") setActiveView("business");
-      else if (isViewId(requested)) setActiveView(requested);
+      const requested = normalizeWorkspaceView(
+        (event as CustomEvent<{ view?: string }>).detail?.view
+      );
+      if (requested) navigateToView(requested);
     };
     window.addEventListener("dreamwish:navigate", handleNavigate);
     return () => window.removeEventListener("dreamwish:navigate", handleNavigate);
-  }, []);
+  }, [navigateToView]);
 
   const content = useMemo(() => {
     switch (activeView) {
@@ -72,7 +80,7 @@ export function AppShell() {
   return (
     <AuthGate>
       <div className="min-h-screen bg-app-bg">
-        <Sidebar activeView={activeView} onViewChange={setActiveView} />
+        <Sidebar activeView={activeView} onViewChange={navigateToView} />
         <div className="pl-[248px]">
           <Topbar />
           <main className="px-6 pb-6">
@@ -113,21 +121,5 @@ function AppFooter() {
         </button>
       </div>
     </footer>
-  );
-}
-
-function isViewId(value: string | null): value is ViewId {
-  return (
-    value === "chat" ||
-    value === "knowledge" ||
-    value === "memory" ||
-    value === "business" ||
-    value === "crm" ||
-    value === "workflow" ||
-    value === "automation" ||
-    value === "calendar" ||
-    value === "files" ||
-    value === "integrations" ||
-    value === "settings"
   );
 }
