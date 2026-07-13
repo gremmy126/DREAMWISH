@@ -13,7 +13,11 @@ type NormalizedEmail<Value extends string> = Lowercase<Trim<Value>>;
 type IsAdmin<Value extends string> = NormalizedEmail<Value> extends typeof ADMIN_EMAIL
   ? true
   : false;
-type CanUseApp = true;
+type CanUseApp<Email extends string, Paid extends boolean> = IsAdmin<Email> extends true
+  ? true
+  : Paid extends true
+    ? true
+    : false;
 
 export type AccountRole = "admin" | "user";
 
@@ -34,8 +38,8 @@ export type BuildAccessStateResult<
   role: IsAdmin<Email> extends true ? "admin" : "user";
   paid: IsAdmin<Email> extends true ? true : Paid;
   adminBypass: IsAdmin<Email>;
-  canUseApp: CanUseApp;
-  requiresPayment: false;
+  canUseApp: CanUseApp<Email, Paid>;
+  requiresPayment: CanUseApp<Email, Paid> extends true ? false : true;
 };
 
 export function normalizeEmail<Email extends string>(email: Email): NormalizedEmail<Email> {
@@ -45,7 +49,7 @@ export function normalizeEmail<Email extends string>(email: Email): NormalizedEm
 export function isAdminEmail<Email extends string>(
   email: Email
 ): IsAdmin<Email> extends true ? true : boolean {
-  return (normalizeEmail(email) === ADMIN_EMAIL) as IsAdmin<Email> extends true
+  return getAdminEmails().has(normalizeEmail(email)) as IsAdmin<Email> extends true
     ? true
     : boolean;
 }
@@ -55,16 +59,27 @@ export function buildAccessState<Email extends string, Paid extends boolean>(inp
   paid: Paid;
 }): BuildAccessStateResult<Email, Paid> {
   const email = normalizeEmail(input.email);
-  const adminBypass = email === ADMIN_EMAIL;
+  const adminBypass = isAdminEmail(email);
   const paid = adminBypass ? true : input.paid;
+  const canUseApp = adminBypass || paid;
   return {
     email,
     role: adminBypass ? "admin" : "user",
     paid,
     adminBypass,
-    canUseApp: true,
-    requiresPayment: false
+    canUseApp,
+    requiresPayment: !canUseApp
   } as BuildAccessStateResult<Email, Paid>;
+}
+
+function getAdminEmails() {
+  const configured = process.env.ADMIN_EMAILS || ADMIN_EMAIL;
+  return new Set(
+    configured
+      .split(",")
+      .map((email) => normalizeEmail(email))
+      .filter((email) => email.includes("@"))
+  );
 }
 
 export function stringifyUnknownError(error: Event): "로그인 처리 중 오류가 발생했습니다.";

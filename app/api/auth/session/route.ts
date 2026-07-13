@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
-import { getAccountAccess } from "@/src/lib/auth/account.repository";
+import {
+  buildAccessState,
+  isAdminEmail
+} from "@/src/lib/auth/access-control";
 import { getAuthRouteError } from "@/src/lib/auth/auth-route-error";
 import {
   createSessionToken,
@@ -7,6 +10,7 @@ import {
   SESSION_MAX_AGE_SECONDS
 } from "@/src/lib/auth/session-token";
 import { verifyFirebaseIdToken } from "@/src/lib/firebase/firebase-server-auth";
+import { getBillingEntitlement } from "@/src/lib/billing/billing.repository";
 
 export async function POST(request: Request) {
   try {
@@ -22,11 +26,13 @@ export async function POST(request: Request) {
     }
 
     const verified = await verifyFirebaseIdToken(idToken);
-    const access = await getAccountAccess(verified.email);
-
-    if (!access) {
-      return NextResponse.json({ ok: false, access: null }, { status: 401 });
-    }
+    const entitlement = isAdminEmail(verified.email)
+      ? null
+      : await getBillingEntitlement(verified.uid);
+    const access = buildAccessState({
+      email: verified.email,
+      paid: entitlement?.status === "active"
+    });
     const sessionToken = await createSessionToken({
       uid: verified.uid,
       email: verified.email,

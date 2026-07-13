@@ -13,7 +13,7 @@ const adminEmail: typeof ADMIN_EMAIL = "kara111131@naver.com";
 const normalizedAdmin: "kara111131@naver.com" = normalizeEmail(" Kara111131@Naver.com ");
 const adminCheck: true = isAdminEmail(adminEmail);
 const adminAccess: true = buildAccessState({ email: adminEmail, paid: false }).canUseApp;
-const unpaidUserAccess: true = buildAccessState({ email: "user@example.com", paid: false }).canUseApp;
+const unpaidUserAccess: false = buildAccessState({ email: "user@example.com", paid: false }).canUseApp;
 const paidUserAccess: true = buildAccessState({ email: "user@example.com", paid: true }).canUseApp;
 const eventError: "로그인 처리 중 오류가 발생했습니다." = stringifyUnknownError(new Event("error"));
 

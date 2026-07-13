@@ -101,7 +101,7 @@ test("API access policy classifies public, protected, and admin paths", () => {
   }
 });
 
-test("API access decision allows every authenticated user on protected APIs", () => {
+test("API access decision requires payment for protected APIs and bypasses admin", () => {
   const { decideApiAccess } = require("../src/lib/auth/api-access-policy");
   const now = Math.floor(Date.now() / 1000);
   const unpaid = baseClaims({ paid: false, iat: now, exp: now + 3600 });
@@ -117,7 +117,12 @@ test("API access decision allows every authenticated user on protected APIs", ()
     status: 401,
     code: "UNAUTHORIZED"
   });
-  assert.deepEqual(decideApiAccess("/api/ai/chat", unpaid), { allowed: true });
+  assert.deepEqual(decideApiAccess("/api/ai/chat", unpaid), {
+    allowed: false,
+    status: 402,
+    code: "PAYMENT_REQUIRED"
+  });
+  assert.deepEqual(decideApiAccess("/api/billing/checkout", unpaid), { allowed: true });
   assert.deepEqual(decideApiAccess("/api/admin/audit-log", admin), { allowed: true });
 });
 
@@ -456,7 +461,14 @@ test("middleware enforces signed session access and ignores forged admin headers
     const unpaid = await middlewareModule.middleware(
       apiRequest("/api/ai/chat", SESSION_COOKIE_NAME, unpaidToken)
     );
-    assert.equal(unpaid.headers.get("x-middleware-next"), "1");
+    assert.equal(unpaid.status, 402);
+    assert.deepEqual(await unpaid.json(), {
+      ok: false,
+      error: {
+        code: "PAYMENT_REQUIRED",
+        message: "An active subscription is required."
+      }
+    });
 
     const paid = await middlewareModule.middleware(
       apiRequest("/api/ai/chat", SESSION_COOKIE_NAME, paidToken)
