@@ -1,5 +1,5 @@
-import { AppShell } from "@/components/layout/AppShell";
+import { permanentRedirect } from "next/navigation";
 
 export default function BusinessPage() {
-  return <AppShell />;
+  permanentRedirect("/");
 }

@@ -9,10 +9,8 @@ import { ChatView } from "@/components/Chat/ChatView";
 import { BusinessHub } from "@/components/Business/BusinessHub";
 import { FilesView } from "@/components/Files/FilesView";
 import { IntegrationsView } from "@/components/integrations/IntegrationsView";
-import { KnowledgeView } from "@/components/Knowledge/KnowledgeView";
 import { MemoryView } from "@/components/Memory/MemoryView";
 import { SettingsView } from "@/components/Settings/SettingsView";
-import { WorkflowView } from "@/components/Workflow/WorkflowView";
 import { AuthGate } from "@/components/auth/AuthGate";
 import { PageTransition } from "@/components/Common/PageTransition";
 import { openCookieSettings } from "@/components/consent/consent";
@@ -30,13 +28,15 @@ export function AppShell() {
   const [activeView, setActiveView] = useState<ViewId>("chat");
 
   const navigateToView = useCallback((view: ViewId) => {
-    const normalized = view === "crm" ? "business" : view;
-    setActiveView(normalized);
-    window.history.replaceState(null, "", getWorkspaceViewUrl(normalized));
+    setActiveView(view);
+    window.history.replaceState(null, "", getWorkspaceViewUrl(view));
   }, []);
 
   useEffect(() => {
     setActiveView(resolveWorkspaceView(window.location.pathname, window.location.search));
+    if (window.location.pathname !== "/" || new URLSearchParams(window.location.search).has("view")) {
+      window.history.replaceState(null, "", "/");
+    }
 
     const handleNavigate = (event: Event) => {
       const requested = normalizeWorkspaceView(
@@ -52,16 +52,10 @@ export function AppShell() {
     switch (activeView) {
       case "chat":
         return <ChatView />;
-      case "knowledge":
-        return <KnowledgeView />;
       case "memory":
         return <MemoryView />;
       case "business":
         return <BusinessHub />;
-      case "crm":
-        return <BusinessHub initialSection="customers" />;
-      case "workflow":
-        return <WorkflowView />;
       case "automation":
         return <AutomationView />;
       case "calendar":

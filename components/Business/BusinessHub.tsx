@@ -61,19 +61,12 @@ const emptyData: BusinessData = {
   revenueCandidates: []
 };
 
-export function BusinessHub({ initialSection }: { initialSection?: BusinessSection }) {
-  const [section, setSection] = useState<BusinessSection>(initialSection || "overview");
+export function BusinessHub() {
+  const [section, setSection] = useState<BusinessSection>("overview");
   const [data, setData] = useState<BusinessData>(emptyData);
   const [connectors, setConnectors] = useState<ConnectorState[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const pathSection = window.location.pathname.split("/")[2];
-    const querySection = new URLSearchParams(window.location.search).get("tab");
-    const requested = pathSection || querySection;
-    if (isBusinessSection(requested)) setSection(requested);
-  }, []);
 
   useEffect(() => {
     async function load() {
@@ -111,7 +104,6 @@ export function BusinessHub({ initialSection }: { initialSection?: BusinessSecti
 
   function selectSection(next: BusinessSection) {
     setSection(next);
-    window.history.replaceState(null, "", `/business/${next}`);
   }
 
   function upsertRevenueCandidate(candidate: RevenueCandidate) {
@@ -348,7 +340,13 @@ function ConnectorPanel({ connectors, connectorIds, title }: { connectors: Conne
     <SurfaceCard className="p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-sm font-semibold text-app-text">{title}</h2>
-        <button type="button" onClick={() => window.location.assign("/?view=integrations")} className="rounded-2xl bg-app-hover px-3 py-2 text-xs font-semibold text-app-primary">계정 연결 관리</button>
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new CustomEvent("dreamwish:navigate", { detail: { view: "integrations" } }))}
+          className="rounded-2xl bg-app-hover px-3 py-2 text-xs font-semibold text-app-primary"
+        >
+          계정 연결 관리
+        </button>
       </div>
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         {selected.map((item) => {
@@ -403,10 +401,6 @@ function SimpleTable({ headers, rows, empty = "표시할 데이터가 없습니�
       )}
     </SurfaceCard>
   );
-}
-
-function isBusinessSection(value: string | null | undefined): value is BusinessSection {
-  return sections.some((item) => item.id === value);
 }
 
 function currency(value: number) {

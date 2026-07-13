@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { buildBusinessSummary } from "../src/lib/business/business-workspace";
 
-test("Business navigation replaces CRM while keeping the legacy CRM alias", async () => {
+test("Business remains in the sidebar while legacy business URLs return to AI Chat", async () => {
   const sidebar = await read("components/layout/Sidebar.tsx");
   const shell = await read("components/layout/AppShell.tsx");
   const types = await read("components/layout/types.ts");
@@ -13,8 +13,16 @@ test("Business navigation replaces CRM while keeping the legacy CRM alias", asyn
   assert.doesNotMatch(sidebar, /\{ id: "crm"/u);
   assert.match(types, /"business"/u);
   assert.match(shell, /case "business"/u);
-  assert.match(shell, /case "crm"/u);
-  assert.match(route, /AppShell/u);
+  assert.doesNotMatch(shell, /case "crm"/u);
+  assert.match(route, /permanentRedirect\("\/"\)/u);
+});
+
+test("Business tabs never write legacy routes and integrations stay in-app", async () => {
+  const source = await read("components/Business/BusinessHub.tsx");
+
+  assert.doesNotMatch(source, /history\.replaceState/u);
+  assert.doesNotMatch(source, /window\.location\.assign/u);
+  assert.match(source, /dreamwish:navigate/u);
 });
 
 test("Business summary distinguishes confirmed revenue from expected pipeline", () => {

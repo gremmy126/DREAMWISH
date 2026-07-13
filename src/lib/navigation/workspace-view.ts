@@ -1,29 +1,21 @@
-import type { ViewId } from "../../../components/layout/types";
+import {
+  SIDEBAR_NAV_ORDER,
+  type ViewId
+} from "../../../components/layout/types";
 
-const WORKSPACE_VIEWS = new Set<ViewId>([
-  "chat",
-  "knowledge",
-  "memory",
-  "business",
-  "crm",
-  "workflow",
-  "automation",
-  "calendar",
-  "files",
-  "integrations",
-  "settings"
-]);
+const WORKSPACE_VIEWS = new Set<ViewId>(SIDEBAR_NAV_ORDER);
 
-export function getWorkspaceViewUrl(view: ViewId) {
-  const normalized = view === "crm" ? "business" : view;
-  if (normalized === "chat") return "/";
-  return `/?view=${encodeURIComponent(normalized)}`;
+export function getWorkspaceViewUrl(_view: ViewId) {
+  return "/";
 }
 
 export function resolveWorkspaceView(pathname: string, search: string): ViewId {
-  const requested = normalizeWorkspaceView(new URLSearchParams(search).get("view"));
-  if (requested) return requested;
-  return pathname.startsWith("/business") ? "business" : "chat";
+  const params = new URLSearchParams(search);
+  const isOAuthReturn =
+    pathname === "/" &&
+    params.get("view") === "integrations" &&
+    ["connected", "error", "provider"].some((key) => params.has(key));
+  return isOAuthReturn ? "integrations" : "chat";
 }
 
 export function normalizeWorkspaceView(value: string | null | undefined): ViewId | null {

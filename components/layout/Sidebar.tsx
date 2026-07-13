@@ -17,7 +17,7 @@ import { useState } from "react";
 import { StorageStatus } from "@/components/Common/StorageStatus";
 import { BrainLogo } from "@/components/brand/BrainLogo";
 import { UpgradeButton } from "@/components/billing/UpgradeButton";
-import type { ViewId } from "@/components/layout/types";
+import { SIDEBAR_NAV_ORDER, type ViewId } from "@/components/layout/types";
 import { useAppLanguage } from "@/src/lib/i18n/use-app-language";
 import { getNavLabel } from "@/src/lib/i18n/translations";
 
@@ -26,16 +26,7 @@ type SidebarProps = {
   onViewChange: (view: ViewId) => void;
 };
 
-export const SIDEBAR_NAV_ORDER = [
-  "chat",
-  "memory",
-  "business",
-  "automation",
-  "calendar",
-  "files",
-  "integrations",
-  "settings"
-] as const satisfies readonly ViewId[];
+export { SIDEBAR_NAV_ORDER };
 
 const primaryItems: Array<{
   id: ViewId;
