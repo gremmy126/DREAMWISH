@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { readJsonStore, writeJsonStore } from "@/src/lib/local-db/json-store";
+import { readJsonStore, writeJsonStore } from "../local-db/json-store";
 
 export type CalendarItem = {
   id: string;
+  ownerId: string;
   title: string;
   startsAt: string;
   endsAt: string;
@@ -18,11 +19,12 @@ type CalendarDb = {
 
 const EMPTY_DB: CalendarDb = { events: [] };
 
-export async function listCalendarItems() {
-  return (await readDb()).events;
+export async function listCalendarItems(ownerId: string) {
+  return (await readDb()).events.filter((item) => item.ownerId === ownerId);
 }
 
 export async function createCalendarEvent(input: {
+  ownerId: string;
   title: string;
   startsAt: string;
   endsAt: string;
@@ -32,6 +34,7 @@ export async function createCalendarEvent(input: {
   const now = new Date().toISOString();
   const event: CalendarItem = {
     id: randomUUID(),
+    ownerId: input.ownerId,
     title: input.title.trim() || "새 일정",
     startsAt: input.startsAt,
     endsAt: input.endsAt,

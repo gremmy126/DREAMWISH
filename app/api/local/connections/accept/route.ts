@@ -8,8 +8,10 @@ import {
   findExternalConnectionTarget
 } from "@/src/lib/connections/external-actions";
 import { saveIntegrationSyncSetting } from "@/src/lib/integrations/integration-settings.repository";
+import { requireOwnerContext } from "@/src/lib/auth/owner-context";
 
 export async function POST(request: Request) {
+  const owner = await requireOwnerContext(request);
   const body = await request.json();
   const sourcePath = String(body.sourcePath || "");
   const targetPath = String(body.targetPath || "");
@@ -33,6 +35,7 @@ export async function POST(request: Request) {
     }
 
     await saveIntegrationSyncSetting({
+      ownerId: owner.uid,
       connectorId: target.id,
       enabled: true,
       syncDays: 30,

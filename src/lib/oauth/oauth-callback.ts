@@ -39,7 +39,7 @@ export async function handleOAuthCallback(input: {
     lastVerificationError: null
   });
   if (token.provider === "slack") {
-    await upsertSlackWorkspace({
+    await upsertSlackWorkspace(input.ownerId, {
       id: `slack_workspace_${token.workspaceId || token.accountEmail}`,
       teamId: token.workspaceId || token.accountEmail,
       teamName: token.workspaceName || token.accountName || token.accountEmail,

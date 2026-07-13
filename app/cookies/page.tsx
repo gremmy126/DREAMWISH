@@ -1,9 +1,22 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { SITE_NAME } from "@/src/lib/site/metadata";
+
+const description = "DREAMWISH 개인두뇌 AI의 쿠키 정책과 Google Consent Mode 안내입니다.";
 
 export const metadata: Metadata = {
-  title: "Cookie Policy | DREAMWISH",
-  description: "DREAMWISH 개인두뇌 AI의 쿠키 정책과 Google Consent Mode 안내입니다."
+  title: "Cookie Policy",
+  description,
+  alternates: { canonical: "/cookies" },
+  openGraph: {
+    type: "website",
+    locale: "ko_KR",
+    url: "/cookies",
+    siteName: SITE_NAME,
+    title: "Cookie Policy | DREAMWISH",
+    description
+  },
+  twitter: { card: "summary", title: "Cookie Policy | DREAMWISH", description }
 };
 
 export default function CookiePolicyPage() {
@@ -14,14 +27,14 @@ export default function CookiePolicyPage() {
           DREAMWISH
         </Link>
         <h1 className="mt-5 text-3xl font-semibold tracking-normal">Cookie Policy</h1>
-        <p className="mt-2 text-sm text-app-muted">최종 업데이트: 2026년 7월 10일</p>
+        <p className="mt-2 text-sm text-app-muted">최종 업데이트: 2026년 7월 13일</p>
 
         <div className="mt-8 space-y-7 text-sm leading-7 text-app-muted">
           <section>
             <h2 className="text-lg font-semibold text-app-text">1. 쿠키 사용 목적</h2>
             <p className="mt-3">
-              DREAMWISH는 로그인 유지, 보안, 결제 완료 확인, 언어 및 화면 설정,
-              서비스 분석, 광고 전환 측정을 위해 쿠키와 localStorage를 사용합니다.
+              DREAMWISH는 로그인 유지, 보안, 언어 및 화면 설정, 서비스 분석과 공개
+              화면의 광고 제공을 위해 쿠키와 localStorage를 사용합니다.
             </p>
           </section>
 
@@ -39,7 +52,7 @@ export default function CookiePolicyPage() {
                 <tbody>
                   <tr className="border-t border-app-border">
                     <td className="p-3 font-semibold text-app-text">필수 쿠키</td>
-                    <td className="p-3">인증, 보안, 결제 반환 확인</td>
+                    <td className="p-3">인증, 보안, 세션 유지</td>
                     <td className="p-3">항상 활성</td>
                   </tr>
                   <tr className="border-t border-app-border">
@@ -49,7 +62,7 @@ export default function CookiePolicyPage() {
                   </tr>
                   <tr className="border-t border-app-border">
                     <td className="p-3 font-semibold text-app-text">광고 쿠키</td>
-                    <td className="p-3">Google Ads 전환 측정 및 광고 개인화 동의</td>
+                    <td className="p-3">Google AdSense 광고 제공 및 개인화 동의</td>
                     <td className="p-3">거부</td>
                   </tr>
                   <tr className="border-t border-app-border">

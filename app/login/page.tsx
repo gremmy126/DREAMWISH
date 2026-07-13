@@ -1,10 +1,5 @@
-import { AuthGate } from "@/components/auth/AuthGate";
-import { LoginSuccess } from "./success";
+import { permanentRedirect } from "next/navigation";
 
 export default function LoginPage() {
-  return (
-    <AuthGate>
-      <LoginSuccess />
-    </AuthGate>
-  );
+  permanentRedirect("/?login=1");
 }

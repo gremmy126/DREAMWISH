@@ -13,11 +13,6 @@ import { runManualIntegrationSync } from "@/src/lib/integrations/sync-engine";
 import { createOAuthAuthorizationUrl } from "@/src/lib/oauth/oauth.service";
 import { encryptToken, decryptToken } from "@/src/lib/oauth/token-encryption";
 import { saveOAuthToken, listOAuthTokens } from "@/src/lib/repositories/oauth-token.repository";
-import {
-  POLAR_CHECKOUT_SETTINGS,
-  buildPolarCheckoutPayload,
-  parsePolarWebhookEvent
-} from "@/src/lib/payments/polar.service";
 
 async function assertStage9ConnectorContracts() {
   const gmailPermissions = await gmailConnector.getPermissions();
@@ -76,7 +71,7 @@ async function assertStage9ConnectorContracts() {
   }
 }
 
-async function assertOAuthAndPolarContracts() {
+async function assertOAuthContracts() {
   const encrypted = encryptToken("secret-token");
   const plain = decryptToken(encrypted);
   plain satisfies string;
@@ -100,25 +95,6 @@ async function assertOAuthAndPolarContracts() {
     state: "state-1"
   });
   googleUrl.toString() satisfies string;
-
-  POLAR_CHECKOUT_SETTINGS.amountUsd satisfies 19;
-  POLAR_CHECKOUT_SETTINGS.successUrl satisfies "https://dreamwish.co.kr/payment/success";
-  POLAR_CHECKOUT_SETTINGS.returnUrl satisfies "https://dreamwish.co.kr/pricing?payment=cancelled";
-  POLAR_CHECKOUT_SETTINGS.webhookUrl satisfies "https://dreamwish.co.kr/api/webhooks/polar";
-
-  const checkoutPayload = buildPolarCheckoutPayload({
-    customerEmail: "buyer@example.com",
-    customerName: "Buyer"
-  });
-  checkoutPayload.products satisfies string[];
-  checkoutPayload.success_url satisfies string;
-  checkoutPayload.return_url satisfies string;
-
-  const event = parsePolarWebhookEvent({
-    type: "order.paid",
-    data: { id: "order_1", amount: 1900, currency: "usd" }
-  });
-  event.type satisfies string;
 }
 
 function expectGranted(
@@ -142,4 +118,4 @@ function expectBlocked(
 }
 
 void assertStage9ConnectorContracts;
-void assertOAuthAndPolarContracts;
+void assertOAuthContracts;

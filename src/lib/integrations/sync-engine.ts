@@ -16,12 +16,13 @@ import {
 } from "@/src/lib/sync/normalizer";
 
 export async function runMockSync(
+  ownerId: string,
   connectorId: string,
   options: SyncOptions = { type: "mock", limit: 3 }
 ): Promise<ConnectorSyncResult> {
   const connector = connectorRegistry.get(connectorId);
   const result = await connector.sync({ ...options, type: "mock" });
-  await addSyncHistory(result);
+  await addSyncHistory(ownerId, result);
   return result;
 }
 
@@ -33,7 +34,7 @@ export async function runManualIntegrationSync(
   const connector = connectorRegistry.get(connectorId);
   if (!["gmail", "calendar", "slack"].includes(connectorId)) {
     const result = await connector.sync({ type: "mock", limit: options.limit });
-    await addSyncHistory(result);
+    await addSyncHistory(ownerId, result);
     return result;
   }
 
@@ -48,17 +49,18 @@ export async function runManualIntegrationSync(
       0,
       `${connector.name} OAuth 연결이 필요합니다.`
     );
-    await addSyncHistory(blocked);
+    await addSyncHistory(ownerId, blocked);
     return blocked;
   }
 
   try {
     if (connectorId === "gmail") {
-      const messages = await fetchGmailMessages(accessToken, options);
-      await upsertGmailMessages(messages);
+      const messages = await fetchGmailMessages(ownerId, accessToken, options);
+      await upsertGmailMessages(ownerId, messages);
       await Promise.all(
         messages.map((message) =>
           addExternalIdentityMatch(
+            ownerId,
             matchExternalIdentity({
               source: "gmail",
               externalId: message.externalId,
@@ -75,17 +77,18 @@ export async function runManualIntegrationSync(
         messages.length,
         "Gmail API 데이터를 External Index와 CRM 연결 후보로 정규화했습니다."
       );
-      await addSyncHistory(result);
+      await addSyncHistory(ownerId, result);
       return result;
     }
 
     if (connectorId === "calendar") {
       const events = await fetchCalendarEvents(accessToken, options);
-      await upsertCalendarEvents(events);
+      await upsertCalendarEvents(ownerId, events);
       await Promise.all(
         events.flatMap((event) =>
           event.attendees.map((email) =>
             addExternalIdentityMatch(
+              ownerId,
               matchExternalIdentity({
                 source: "calendar",
                 externalId: event.externalId,
@@ -103,13 +106,13 @@ export async function runManualIntegrationSync(
         events.length,
         "Google Calendar API 데이터를 일정/회의 연결 후보로 정규화했습니다."
       );
-      await addSyncHistory(result);
+      await addSyncHistory(ownerId, result);
       return result;
     }
 
     if (connectorId === "slack") {
-      const messages = await fetchSlackMessages(accessToken, options);
-      await upsertSlackMessages(messages);
+      const messages = await fetchSlackMessages(ownerId, accessToken, options);
+      await upsertSlackMessages(ownerId, messages);
       const result = createSyncResult(
         connectorId,
         "success",
@@ -117,12 +120,12 @@ export async function runManualIntegrationSync(
         messages.length,
         "Slack API 데이터를 프로젝트 활동/결정 후보로 정규화했습니다."
       );
-      await addSyncHistory(result);
+      await addSyncHistory(ownerId, result);
       return result;
     }
 
     const result = await connector.sync({ type: "manual", limit: options.limit });
-    await addSyncHistory(result);
+    await addSyncHistory(ownerId, result);
     return result;
   } catch (error) {
     const failed = createSyncResult(
@@ -132,7 +135,7 @@ export async function runManualIntegrationSync(
       0,
       error instanceof Error ? error.message : "동기화에 실패했습니다."
     );
-    await addSyncHistory(failed);
+    await addSyncHistory(ownerId, failed);
     return failed;
   }
 }
@@ -149,7 +152,11 @@ export async function getIntegrationStatusSummary() {
   };
 }
 
-async function fetchGmailMessages(accessToken: string, options: ManualSyncOptions) {
+async function fetchGmailMessages(
+  ownerId: string,
+  accessToken: string,
+  options: ManualSyncOptions
+) {
   const listUrl = new URL("https://gmail.googleapis.com/gmail/v1/users/me/messages");
   listUrl.searchParams.set("maxResults", String(options.limit));
   listUrl.searchParams.set("q", `newer_than:${options.days}d`);
@@ -173,7 +180,7 @@ async function fetchGmailMessages(accessToken: string, options: ManualSyncOption
           header.value
         ])
       );
-      await upsertGmailThreads([
+      await upsertGmailThreads(ownerId, [
         {
           id: `gmail_thread_${detail.threadId || detail.id}`,
           threadId: detail.threadId || detail.id,
@@ -183,6 +190,7 @@ async function fetchGmailMessages(accessToken: string, options: ManualSyncOption
         }
       ]);
       await upsertGmailAttachments(
+        ownerId,
         collectGmailAttachments(detail.payload).map((attachment) => ({
           id: `gmail_attachment_${detail.id}_${attachment.attachmentId}`,
           messageId: detail.id,
@@ -230,7 +238,11 @@ async function fetchCalendarEvents(accessToken: string, options: ManualSyncOptio
   );
 }
 
-async function fetchSlackMessages(accessToken: string, options: ManualSyncOptions) {
+async function fetchSlackMessages(
+  ownerId: string,
+  accessToken: string,
+  options: ManualSyncOptions
+) {
   const channelsUrl = new URL("https://slack.com/api/conversations.list");
   channelsUrl.searchParams.set("types", "public_channel,private_channel");
   channelsUrl.searchParams.set("limit", String(Math.min(options.limit, 20)));
@@ -243,6 +255,7 @@ async function fetchSlackMessages(accessToken: string, options: ManualSyncOption
     accessToken
   );
   await upsertSlackChannels(
+    ownerId,
     (channels.channels || []).map((channel) => ({
       id: `slack_channel_${channel.id}`,
       channelId: channel.id,

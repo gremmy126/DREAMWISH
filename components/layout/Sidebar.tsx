@@ -10,18 +10,14 @@ import {
   Info,
   MessageSquareText,
   ScrollText,
-  Settings,
-  Sparkles
+  Settings
 } from "lucide-react";
 import { motion } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { StorageStatus } from "@/components/Common/StorageStatus";
 import type { ViewId } from "@/components/layout/types";
-import type { AccessState } from "@/src/lib/auth/access-control";
-import { waitForFirebaseUser } from "@/src/lib/firebase/firebase-client";
 import { useAppLanguage } from "@/src/lib/i18n/use-app-language";
 import { getNavLabel } from "@/src/lib/i18n/translations";
-import { PAYMENT_STATUS_KEY, buildPaymentButtonState } from "@/src/lib/payments/payment-state";
 
 type SidebarProps = {
   activeView: ViewId;
@@ -55,22 +51,7 @@ const primaryItems: Array<{
 
 export function Sidebar({ activeView, onViewChange }: SidebarProps) {
   const [companyOpen, setCompanyOpen] = useState(false);
-  const [paymentComplete, setPaymentComplete] = useState(false);
-  const paymentButton = buildPaymentButtonState(paymentComplete);
   const { language, t } = useAppLanguage();
-
-  useEffect(() => {
-    const readPaymentState = () => {
-      const localPaymentComplete = window.localStorage.getItem(PAYMENT_STATUS_KEY) === "true";
-      setPaymentComplete(localPaymentComplete);
-      void refreshAccessState(localPaymentComplete).then((accountCanUseApp) => {
-        setPaymentComplete(localPaymentComplete || accountCanUseApp);
-      });
-    };
-    window.addEventListener("storage", readPaymentState);
-    readPaymentState();
-    return () => window.removeEventListener("storage", readPaymentState);
-  }, []);
 
   return (
     <aside className="fixed inset-y-0 left-0 z-30 flex h-dvh w-[248px] min-h-0 flex-col border-r border-app-border bg-white/88 px-4 py-5 backdrop-blur-xl">
@@ -113,20 +94,6 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
       </nav>
 
       <div className="mt-4 shrink-0 space-y-3">
-        {!paymentButton.hidden ? (
-          <button
-            type="button"
-            onClick={() => {
-              window.location.assign(paymentButton.checkoutPath);
-            }}
-            className="flex w-full items-center justify-center gap-2 rounded-app bg-app-hover px-3 py-3 text-xs font-semibold text-app-primary shadow-soft transition hover:bg-violet-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-app-primary active:scale-[0.99]"
-            aria-label={t("sidebar.upgradeAria")}
-            title={t("sidebar.upgradeDescription")}
-          >
-            <Sparkles size={14} />
-            {t("sidebar.upgrade")}
-          </button>
-        ) : null}
         <div className="rounded-app border border-app-border bg-white p-4 shadow-soft">
           <StorageStatus compact />
         </div>
@@ -165,31 +132,6 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
       ) : null}
     </aside>
   );
-}
-
-async function refreshAccessState(localPaymentComplete: boolean) {
-  try {
-    const firebaseUser = await waitForFirebaseUser();
-    if (!firebaseUser) return false;
-    const idToken = await firebaseUser.getIdToken();
-
-    const response = await fetch("/api/auth/session", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ idToken })
-    });
-    const data = (await response.json()) as { access?: AccessState };
-    if (data.access?.canUseApp) {
-      window.localStorage.setItem(PAYMENT_STATUS_KEY, "true");
-      return true;
-    } else if (!localPaymentComplete) {
-      window.localStorage.removeItem(PAYMENT_STATUS_KEY);
-    }
-    return false;
-  } catch {
-    if (!localPaymentComplete) window.localStorage.removeItem(PAYMENT_STATUS_KEY);
-    return false;
-  }
 }
 
 function InfoRow({ label, value }: { label: string; value: string }) {

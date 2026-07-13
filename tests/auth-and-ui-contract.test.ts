@@ -56,14 +56,30 @@ test("Firebase auth client exposes signup and authenticated password change", ()
   assert.match(source, /hasPasswordProvider\(auth\?\.currentUser\?\.providerData \|\| \[\]\)/u);
 });
 
+test("Firebase ID token renewal refreshes the server session without navigation", () => {
+  const firebaseSource = fs.readFileSync("src/lib/firebase/firebase-client.ts", "utf8");
+  const authGateSource = fs.readFileSync("components/auth/AuthGate.tsx", "utf8");
+  const topbarSource = fs.readFileSync("components/layout/Topbar.tsx", "utf8");
+
+  assert.match(firebaseSource, /onIdTokenChanged/u);
+  assert.match(firebaseSource, /export function subscribeToFirebaseIdToken/u);
+  assert.match(authGateSource, /subscribeToFirebaseIdToken/u);
+  assert.match(authGateSource, /visibilitychange/u);
+  assert.match(authGateSource, /getIdToken\(true\)/u);
+  assert.match(authGateSource, /AUTH_SESSION_CLEARED_EVENT/u);
+  assert.match(topbarSource, /AUTH_SESSION_CLEARED_EVENT/u);
+  assert.match(topbarSource, /window\.dispatchEvent/u);
+  assert.doesNotMatch(topbarSource, /window\.location/u);
+});
+
 test("login UI exposes account creation, Google login, reset, and password change", () => {
   const authSource = fs.readFileSync("components/auth/AuthGate.tsx", "utf8");
-  const loginShellSource = fs.readFileSync("components/auth/LoginShell.tsx", "utf8");
+  const loginShellSource = fs.readFileSync("components/auth/LoginDialog.tsx", "utf8");
   assert.match(authSource, /createFirebasePasswordAccount/u);
   assert.match(authSource, /signInWithFirebaseGoogle/u);
   assert.match(authSource, /sendFirebasePasswordReset/u);
   assert.match(authSource, /changeFirebasePassword/u);
-  assert.match(loginShellSource, /계정을 만들어 시작하세요/u);
+  assert.match(loginShellSource, /나만의 기억과 업무 데이터를 AI가 안전하게 이어갑니다/u);
   assert.match(loginShellSource, /Google로 계속하기/u);
   assert.match(loginShellSource, /GitHub로 계속하기/u);
   assert.match(loginShellSource, /비밀번호 찾기/u);
@@ -71,7 +87,7 @@ test("login UI exposes account creation, Google login, reset, and password chang
 
 test("login UI uses safe auth errors and an explicit reauthenticated password form", () => {
   const authSource = fs.readFileSync("components/auth/AuthGate.tsx", "utf8");
-  const loginShellSource = fs.readFileSync("components/auth/LoginShell.tsx", "utf8");
+  const loginShellSource = fs.readFileSync("components/auth/LoginDialog.tsx", "utf8");
   assert.match(authSource, /getFirebaseAuthErrorMessage/u);
   assert.match(authSource, /validatePasswordChange/u);
   assert.match(authSource, /firebaseUserHasPasswordProvider/u);
@@ -85,7 +101,7 @@ test("login UI uses safe auth errors and an explicit reauthenticated password fo
   assert.match(loginShellSource, /autoComplete="email"/u);
   assert.match(
     loginShellSource,
-    /autoComplete=\{creatingAccount \? "new-password" : "current-password"\}/u
+    /autoComplete=\{props\.creatingAccount \? "new-password" : "current-password"\}/u
   );
   assert.match(loginShellSource, /Google로 계속하기/u);
   assert.match(loginShellSource, /GitHub로 계속하기/u);

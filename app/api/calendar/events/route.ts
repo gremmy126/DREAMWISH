@@ -3,12 +3,15 @@ import {
   createCalendarEvent,
   listCalendarItems
 } from "@/src/lib/calendar/calendar.repository";
+import { requireOwnerContext } from "@/src/lib/auth/owner-context";
 
-export async function GET() {
-  return NextResponse.json({ events: await listCalendarItems() });
+export async function GET(request: Request) {
+  const owner = await requireOwnerContext(request);
+  return NextResponse.json({ events: await listCalendarItems(owner.uid) });
 }
 
 export async function POST(request: Request) {
+  const owner = await requireOwnerContext(request);
   const body = (await request.json().catch(() => ({}))) as {
     title?: string;
     startsAt?: string;
@@ -20,6 +23,7 @@ export async function POST(request: Request) {
     body.endsAt ||
     new Date(new Date(start).getTime() + 60 * 60 * 1000).toISOString();
   const event = await createCalendarEvent({
+    ownerId: owner.uid,
     title: body.title || "",
     startsAt: start,
     endsAt: end,

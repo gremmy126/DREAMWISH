@@ -1,18 +1,31 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { SITE_NAME } from "@/src/lib/site/metadata";
+
+const description = "개인두뇌 AI DREAMWISH의 개인정보 처리방침입니다.";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy | DREAMWISH",
-  description: "개인두뇌 AI DREAMWISH의 개인정보 처리방침입니다."
+  title: "Privacy Policy",
+  description,
+  alternates: { canonical: "/privacy" },
+  openGraph: {
+    type: "website",
+    locale: "ko_KR",
+    url: "/privacy",
+    siteName: SITE_NAME,
+    title: "Privacy Policy | DREAMWISH",
+    description
+  },
+  twitter: { card: "summary", title: "Privacy Policy | DREAMWISH", description }
 };
 
 export default function PrivacyPage() {
   return (
-    <PolicyLayout title="개인정보 처리방침" updatedAt="2026년 7월 10일">
+    <PolicyLayout title="개인정보 처리방침" updatedAt="2026년 7월 13일">
       <PolicySection title="1. 서비스 개요">
         <p>
           DREAMWISH는 개인두뇌 AI 서비스를 제공하기 위해 계정, 대화, 파일, 연결된
-          외부 앱, 결제 및 고객지원에 필요한 정보를 처리합니다. 서비스는 사용자의
+          외부 앱 및 고객지원에 필요한 정보를 처리합니다. 서비스는 사용자의
           지식 관리, AI 채팅, 자동화, 통합 앱 연결을 지원합니다.
         </p>
       </PolicySection>
@@ -21,8 +34,8 @@ export default function PrivacyPage() {
           <li>계정 정보: 이메일, 로그인 제공자, 인증 식별자</li>
           <li>서비스 이용 정보: 채팅, 메모리, 파일 메타데이터, 설정 값</li>
           <li>통합 정보: 사용자가 승인한 외부 앱의 토큰 및 동기화 상태</li>
-          <li>결제 정보: 결제 제공자가 반환하는 결제 상태, 플랜, 영수증 식별자</li>
           <li>분석 정보: 동의한 경우 GA4 이벤트, 기기 및 브라우저 정보</li>
+          <li>광고 정보: 동의한 경우 AdSense 광고 노출 및 상호작용 정보</li>
         </ul>
       </PolicySection>
       <PolicySection title="3. 처리 목적">
@@ -30,8 +43,8 @@ export default function PrivacyPage() {
           <li>회원 인증, 로그인 유지, 보안 이벤트 감지</li>
           <li>AI 채팅, 파일 분석, 개인화된 지식 검색 제공</li>
           <li>외부 앱 통합, 자동화 실행, 사용자가 요청한 데이터 동기화</li>
-          <li>결제 처리, 구독 상태 확인, 환불 및 고객지원 대응</li>
-          <li>동의한 범위 내 서비스 품질 분석 및 광고 전환 측정</li>
+          <li>고객지원 요청 대응 및 서비스 안정성 개선</li>
+          <li>동의한 범위 내 서비스 품질 분석 및 공개 화면 광고 제공</li>
         </ul>
       </PolicySection>
       <PolicySection title="4. 쿠키와 Google Consent Mode">
@@ -49,8 +62,8 @@ export default function PrivacyPage() {
         <p>
           계정 정보는 회원 탈퇴 또는 법령상 보관 의무가 종료될 때까지 보관됩니다.
           통합 토큰은 연결 해제 시 삭제되며, 쿠키 동의 기록은 최대 180일 동안
-          보관됩니다. 결제 기록은 세무 및 분쟁 대응을 위해 관련 법령이 정한 기간
-          동안 보관될 수 있습니다.
+          보관됩니다. 법령상 별도 보관 의무가 있는 기록은 해당 기간 동안 보관될 수
+          있습니다.
         </p>
       </PolicySection>
       <PolicySection title="6. 사용자의 권리">
@@ -62,7 +75,7 @@ export default function PrivacyPage() {
       </PolicySection>
       <PolicySection title="7. 제3자 제공 및 처리위탁">
         <p>
-          인증, 결제, 분석, 외부 앱 연동을 위해 Firebase, Polar, Google,
+          인증, 분석, 광고, 외부 앱 연동을 위해 Firebase, Google AdSense,
           사용자가 승인한 통합 제공자 등 필요한 서비스 제공자에게 제한된 정보가
           전달될 수 있습니다. 민감한 서버 키는 클라이언트에 노출하지 않습니다.
         </p>

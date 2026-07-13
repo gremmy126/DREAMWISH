@@ -32,14 +32,16 @@ async function assertStage10WorkspaceContracts() {
   (await listCustomers(ownerId)).length satisfies number;
 
   const workflow = await createWorkflowWorkspace({
+    ownerId,
     name: "고객 온보딩",
     description: "승인 기반 업무 흐름",
     triggerType: "manual"
   });
   if (workflow.status !== "draft") throw new Error("Workflow workspaces must start as draft");
-  (await listWorkflowWorkspaces()).length satisfies number;
+  (await listWorkflowWorkspaces(ownerId)).length satisfies number;
 
   const automation = await createAutomationDraft({
+    ownerId,
     name: "계약 후속 알림",
     trigger: "계약 상태 변경",
     action: "Gmail 초안 생성"
@@ -47,9 +49,10 @@ async function assertStage10WorkspaceContracts() {
   if (automation.status !== "paused") {
     throw new Error("Automation drafts must start paused");
   }
-  (await listAutomations()).length satisfies number;
+  (await listAutomations(ownerId)).length satisfies number;
 
   const event = await createCalendarEvent({
+    ownerId,
     title: "고객 미팅",
     startsAt: "2026-07-09T10:00:00.000Z",
     endsAt: "2026-07-09T11:00:00.000Z",
@@ -57,7 +60,7 @@ async function assertStage10WorkspaceContracts() {
     source: "manual"
   });
   event.source satisfies "manual" | "google";
-  (await listCalendarItems()).length satisfies number;
+  (await listCalendarItems(ownerId)).length satisfies number;
 
   const file = await saveFileRecord({
     ownerId,
@@ -83,14 +86,15 @@ async function assertStage10WorkspaceContracts() {
   (await listKnowledgeNotes(ownerId)).length satisfies number;
 
   await saveIntegrationSyncSetting({
+    ownerId,
     connectorId: "gmail",
     enabled: true,
     syncDays: 30,
     commandPrefix: "Gmail"
   });
-  const enabledApps = await listEnabledIntegrationApps();
+  const enabledApps = await listEnabledIntegrationApps(ownerId);
   enabledApps[0].connectorId satisfies string;
-  (await listIntegrationSyncSettings()).length satisfies number;
+  (await listIntegrationSyncSettings(ownerId)).length satisfies number;
 
   const project = await createProject({ ownerId, name: "AI Workspace" });
   await assignSessionToProject({ ownerId, projectId: project.id, sessionId: "session_1" });

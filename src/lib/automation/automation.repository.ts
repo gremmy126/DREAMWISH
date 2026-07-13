@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { readJsonStore, writeJsonStore } from "@/src/lib/local-db/json-store";
+import { readJsonStore, writeJsonStore } from "../local-db/json-store";
 
 export type AutomationRecord = {
   id: string;
+  ownerId: string;
   name: string;
   trigger: string;
   action: string;
@@ -19,11 +20,12 @@ type AutomationDb = {
 
 const EMPTY_DB: AutomationDb = { automations: [] };
 
-export async function listAutomations() {
-  return (await readDb()).automations;
+export async function listAutomations(ownerId: string) {
+  return (await readDb()).automations.filter((item) => item.ownerId === ownerId);
 }
 
 export async function createAutomationDraft(input: {
+  ownerId: string;
   name: string;
   trigger: string;
   action: string;
@@ -31,6 +33,7 @@ export async function createAutomationDraft(input: {
   const now = new Date().toISOString();
   const automation: AutomationRecord = {
     id: randomUUID(),
+    ownerId: input.ownerId,
     name: input.name.trim() || "새 자동화",
     trigger: input.trigger.trim() || "수동 실행",
     action: input.action.trim() || "Execution Preview 생성",

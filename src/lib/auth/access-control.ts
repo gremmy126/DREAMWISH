@@ -13,11 +13,7 @@ type NormalizedEmail<Value extends string> = Lowercase<Trim<Value>>;
 type IsAdmin<Value extends string> = NormalizedEmail<Value> extends typeof ADMIN_EMAIL
   ? true
   : false;
-type CanUseApp<Email extends string, Paid extends boolean> = IsAdmin<Email> extends true
-  ? true
-  : Paid extends true
-    ? true
-    : false;
+type CanUseApp = true;
 
 export type AccountRole = "admin" | "user";
 
@@ -38,8 +34,8 @@ export type BuildAccessStateResult<
   role: IsAdmin<Email> extends true ? "admin" : "user";
   paid: IsAdmin<Email> extends true ? true : Paid;
   adminBypass: IsAdmin<Email>;
-  canUseApp: CanUseApp<Email, Paid>;
-  requiresPayment: CanUseApp<Email, Paid> extends true ? false : true;
+  canUseApp: CanUseApp;
+  requiresPayment: false;
 };
 
 export function normalizeEmail<Email extends string>(email: Email): NormalizedEmail<Email> {
@@ -61,15 +57,13 @@ export function buildAccessState<Email extends string, Paid extends boolean>(inp
   const email = normalizeEmail(input.email);
   const adminBypass = email === ADMIN_EMAIL;
   const paid = adminBypass ? true : input.paid;
-  const canUseApp = adminBypass || paid;
-
   return {
     email,
     role: adminBypass ? "admin" : "user",
     paid,
     adminBypass,
-    canUseApp,
-    requiresPayment: !canUseApp
+    canUseApp: true,
+    requiresPayment: false
   } as BuildAccessStateResult<Email, Paid>;
 }
 

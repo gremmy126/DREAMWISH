@@ -1,5 +1,5 @@
-import { PricingPageClient } from "./PricingPageClient";
+import { permanentRedirect } from "next/navigation";
 
 export default function PricingPage() {
-  return <PricingPageClient />;
+  permanentRedirect("/");
 }

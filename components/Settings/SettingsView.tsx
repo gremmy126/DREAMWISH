@@ -3,7 +3,6 @@
 import {
   Bot,
   CheckCircle2,
-  CreditCard,
   Database,
   HardDrive,
   KeyRound,
@@ -25,8 +24,6 @@ import { openCookieSettings } from "@/components/consent/consent";
 import { useAppLanguage } from "@/src/lib/i18n/use-app-language";
 import { t as translate } from "@/src/lib/i18n/translations";
 import { defaultPermissionPolicy } from "@/src/lib/security/permission-policy";
-import { listPaymentProviders, type PaymentProviderId } from "@/src/lib/payments/payment.types";
-import { POLAR_CHECKOUT_SETTINGS } from "@/src/lib/payments/polar.config";
 import {
   APP_SETTINGS_STORAGE_KEY,
   LANGUAGE_OPTIONS,
@@ -60,10 +57,6 @@ type LocalSettings = {
     approvalRequiredFrom: "high" | "critical";
     retentionDays: number;
   };
-  payments: {
-    domestic: PaymentProviderId;
-    international: PaymentProviderId;
-  };
   backup: {
     path: string;
     autoBackup: boolean;
@@ -85,10 +78,6 @@ const defaultSettings: LocalSettings = {
     autoSync: defaultPermissionPolicy.autoSync,
     approvalRequiredFrom: "high",
     retentionDays: 90
-  },
-  payments: {
-    domestic: "kg_inicis",
-    international: "polar"
   },
   backup: {
     path: "Backups",
@@ -112,8 +101,7 @@ const sections = [
   { id: "models", label: "AI Models", icon: Bot },
   { id: "storage", label: "Storage", icon: HardDrive },
   { id: "integrations", label: "Integrations", icon: Workflow },
-  { id: "security", label: "Security", icon: ShieldCheck },
-  { id: "payments", label: "Payments", icon: CreditCard }
+  { id: "security", label: "Security", icon: ShieldCheck }
 ] as const;
 
 export function SettingsView() {
@@ -127,10 +115,6 @@ export function SettingsView() {
     message: string | null;
     error: string | null;
   }>({ loading: false, message: null, error: null });
-  const [paymentState, setPaymentState] = useState<{
-    loading: boolean;
-    error: string | null;
-  }>({ loading: false, error: null });
   const [languageNotice, setLanguageNotice] = useState<string | null>(null);
   const { t } = useAppLanguage();
 
@@ -202,27 +186,6 @@ export function SettingsView() {
         loading: false,
         message: null,
         error: error instanceof Error ? error.message : t("settings.backupFailed")
-      });
-    }
-  }
-
-  async function startCheckout() {
-    setPaymentState({ loading: true, error: null });
-    try {
-      const response = await fetch("/api/payments/polar/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({})
-      });
-      const data = (await response.json()) as { checkoutUrl?: string; error?: string };
-      if (!response.ok || !data.checkoutUrl) {
-        throw new Error(data.error || t("settings.checkoutCreateFailed"));
-      }
-      window.location.href = data.checkoutUrl;
-    } catch (error) {
-      setPaymentState({
-        loading: false,
-        error: error instanceof Error ? error.message : t("settings.checkoutFailed")
       });
     }
   }
@@ -328,88 +291,6 @@ export function SettingsView() {
                     integrations: { ...prev.integrations, retentionDays: value }
                   }))
                 }
-              />
-            </div>
-          </SurfaceCard>
-
-          <SurfaceCard className="p-6">
-            <PanelTitle
-              icon={CreditCard}
-              title={t("settings.payments")}
-              description={t("settings.paymentsDescription")}
-            />
-            <div className="grid grid-cols-2 gap-3">
-              {listPaymentProviders().map((provider) => {
-                const providerText = getPaymentProviderText(provider.id, t);
-                return (
-                  <div
-                    key={provider.id}
-                    className="rounded-app border border-app-border bg-white p-4 shadow-soft"
-                  >
-                    <p className="text-xs font-semibold uppercase text-app-muted">
-                      {provider.market}
-                    </p>
-                    <p className="mt-2 text-lg font-semibold text-app-text">
-                      {providerText.label}
-                    </p>
-                    <p className="mt-2 text-xs leading-5 text-app-muted">
-                      {providerText.description}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-            <div className="mt-4 grid grid-cols-[1fr_1fr_auto] gap-3">
-              <SelectField
-                label={t("settings.domestic")}
-                value={settings.payments.domestic}
-                options={listPaymentProviders()
-                  .filter((provider) => provider.market === "domestic")
-                  .map((provider) => provider.id)}
-                onChange={(domestic) =>
-                  setSettings((prev) => ({
-                    ...prev,
-                    payments: { ...prev.payments, domestic: domestic as PaymentProviderId }
-                  }))
-                }
-              />
-              <SelectField
-                label={t("settings.international")}
-                value={settings.payments.international}
-                options={listPaymentProviders()
-                  .filter((provider) => provider.market === "international")
-                  .map((provider) => provider.id)}
-                onChange={(international) =>
-                  setSettings((prev) => ({
-                    ...prev,
-                    payments: {
-                      ...prev.payments,
-                      international: international as PaymentProviderId
-                    }
-                  }))
-                }
-              />
-              <button
-                type="button"
-                onClick={() => void startCheckout()}
-                disabled={paymentState.loading}
-                className="mt-6 h-11 rounded-app bg-app-primary px-4 text-sm font-semibold text-white disabled:bg-slate-200"
-              >
-                {paymentState.loading ? t("settings.opening") : t("settings.pay")}
-              </button>
-            </div>
-            {paymentState.error ? (
-              <p className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-                {paymentState.error}
-              </p>
-            ) : null}
-            <div className="mt-4 grid gap-2 rounded-app border border-app-border bg-app-bg p-4 text-xs">
-              <SettingsUrl label={t("settings.successUrl")} value={POLAR_CHECKOUT_SETTINGS.successUrl} />
-              <SettingsUrl label={t("settings.returnUrl")} value={POLAR_CHECKOUT_SETTINGS.returnUrl} />
-              <SettingsUrl label={t("settings.webhookUrl")} value={POLAR_CHECKOUT_SETTINGS.webhookUrl} />
-              <SettingsUrl
-                label={t("settings.product")}
-                value={`${POLAR_CHECKOUT_SETTINGS.planName} - $${POLAR_CHECKOUT_SETTINGS.amountUsd}`}
               />
             </div>
           </SurfaceCard>
@@ -533,31 +414,6 @@ export function SettingsView() {
       </div>
     </div>
   );
-}
-
-function SettingsUrl({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="grid grid-cols-[120px_minmax(0,1fr)] gap-3">
-      <span className="font-semibold text-app-muted">{label}</span>
-      <span className="break-all font-medium text-app-text">{value}</span>
-    </div>
-  );
-}
-
-function getPaymentProviderText(
-  providerId: PaymentProviderId,
-  t: (key: string, values?: Record<string, string>) => string
-) {
-  if (providerId === "kg_inicis") {
-    return {
-      label: t("settings.kgInicisLabel"),
-      description: t("settings.kgInicisDescription")
-    };
-  }
-  return {
-    label: t("settings.polarLabel"),
-    description: t("settings.polarDescription")
-  };
 }
 
 function PanelTitle({
@@ -702,10 +558,6 @@ function mergeSettings(saved: Partial<LocalSettings>): LocalSettings {
     integrations: {
       ...defaultSettings.integrations,
       ...saved.integrations
-    },
-    payments: {
-      ...defaultSettings.payments,
-      ...saved.payments
     },
     backup: {
       ...defaultSettings.backup,

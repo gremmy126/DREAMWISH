@@ -83,17 +83,14 @@ test("signed session token rejects malformed and future-issued claims", async ()
   });
 });
 
-test("API access policy classifies public, checkout, protected, and admin paths", () => {
+test("API access policy classifies public, protected, and admin paths", () => {
   const { classifyApiAccess } = require("../src/lib/auth/api-access-policy");
   const cases = new Map<string, string>([
     ["/api/auth/login", "public"],
     ["/api/auth/session", "public"],
     ["/api/auth/logout", "public"],
-    ["/api/webhooks/polar", "public"],
     ["/api/oauth/google/callback", "public"],
     ["/api/integrations/gmail/callback", "public"],
-    ["/api/payments/polar/checkout", "checkout"],
-    ["/api/payments/polar/checkout/ch_123", "checkout"],
     ["/api/admin/audit-log", "admin"],
     ["/api", "protected"],
     ["/api/ai/chat", "protected"]
@@ -104,11 +101,10 @@ test("API access policy classifies public, checkout, protected, and admin paths"
   }
 });
 
-test("API access decision requires payment only for protected non-admin users", () => {
+test("API access decision allows every authenticated user on protected APIs", () => {
   const { decideApiAccess } = require("../src/lib/auth/api-access-policy");
   const now = Math.floor(Date.now() / 1000);
   const unpaid = baseClaims({ paid: false, iat: now, exp: now + 3600 });
-  const paid = baseClaims({ paid: true, iat: now, exp: now + 3600 });
   const admin = baseClaims({
     email: "kara111131@naver.com",
     paid: false,
@@ -121,15 +117,7 @@ test("API access decision requires payment only for protected non-admin users", 
     status: 401,
     code: "UNAUTHORIZED"
   });
-  assert.deepEqual(decideApiAccess("/api/ai/chat", unpaid), {
-    allowed: false,
-    status: 402,
-    code: "PAYMENT_REQUIRED"
-  });
-  assert.deepEqual(decideApiAccess("/api/ai/chat", paid), { allowed: true });
-  assert.deepEqual(decideApiAccess("/api/payments/polar/checkout", unpaid), {
-    allowed: true
-  });
+  assert.deepEqual(decideApiAccess("/api/ai/chat", unpaid), { allowed: true });
   assert.deepEqual(decideApiAccess("/api/admin/audit-log", admin), { allowed: true });
 });
 
@@ -138,8 +126,7 @@ test("API access decision keeps public callbacks open and rejects unauthorized e
   const now = Math.floor(Date.now() / 1000);
   const paidNonAdmin = baseClaims({ paid: true, iat: now, exp: now + 3600 });
 
-  assert.deepEqual(decideApiAccess("/api/webhooks/polar", null), { allowed: true });
-  assert.deepEqual(decideApiAccess("/api/payments/polar/checkout", null), {
+  assert.deepEqual(decideApiAccess("/api/ai/chat", null), {
     allowed: false,
     status: 401,
     code: "UNAUTHORIZED"
@@ -469,7 +456,7 @@ test("middleware enforces signed session access and ignores forged admin headers
     const unpaid = await middlewareModule.middleware(
       apiRequest("/api/ai/chat", SESSION_COOKIE_NAME, unpaidToken)
     );
-    assert.equal(unpaid.status, 402);
+    assert.equal(unpaid.headers.get("x-middleware-next"), "1");
 
     const paid = await middlewareModule.middleware(
       apiRequest("/api/ai/chat", SESSION_COOKIE_NAME, paidToken)
@@ -506,13 +493,15 @@ test("auth UI restores only from Firebase and logs out server sessions", () => {
   assert.match(authGate, /if \(!firebaseAuth\)/u);
 });
 
-test("all client session refreshes require a Firebase ID token", () => {
+test("the sidebar performs no access refresh and AuthGate sends only a Firebase ID token", () => {
   const sidebar = fs.readFileSync("components/layout/Sidebar.tsx", "utf8");
+  const authGate = fs.readFileSync("components/auth/AuthGate.tsx", "utf8");
 
-  assert.match(sidebar, /waitForFirebaseUser/u);
-  assert.match(sidebar, /getIdToken\(\)/u);
-  assert.match(sidebar, /body: JSON\.stringify\(\{ idToken \}\)/u);
-  assert.doesNotMatch(sidebar, /body: JSON\.stringify\(\{ email: session\.email \}\)/u);
+  assert.doesNotMatch(sidebar, /\/api\/auth\/session/u);
+  assert.match(authGate, /waitForFirebaseUser/u);
+  assert.match(authGate, /getIdToken\(\)/u);
+  assert.match(authGate, /body: JSON\.stringify\(\{ idToken \}\)/u);
+  assert.doesNotMatch(authGate, /body: JSON\.stringify\(\{ email:/u);
 });
 
 test("the topbar logout clears Firebase and server sessions", () => {

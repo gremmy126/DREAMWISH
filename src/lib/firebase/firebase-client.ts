@@ -8,6 +8,7 @@ import {
   GithubAuthProvider,
   GoogleAuthProvider,
   onAuthStateChanged,
+  onIdTokenChanged,
   reauthenticateWithCredential,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
@@ -94,6 +95,15 @@ export function waitForFirebaseUser() {
       resolve(user);
     });
   });
+}
+
+export function subscribeToFirebaseIdToken(listener: (user: User | null) => void) {
+  const auth = getFirebaseClientAuth();
+  if (!auth) {
+    listener(null);
+    return () => undefined;
+  }
+  return onIdTokenChanged(auth, listener);
 }
 
 export async function logoutFirebaseUser() {

@@ -12,7 +12,7 @@ export async function GET(request: Request) {
   const owner = await requireOwnerContext(request);
   const connectors = connectorRegistry.list();
   const [settings, authStates] = await Promise.all([
-    listIntegrationSyncSettings(),
+    listIntegrationSyncSettings(owner.uid),
     getAllConnectorAuthStates(owner.uid, [
       ...connectors.map((connector) => connector.id),
       "firebase"

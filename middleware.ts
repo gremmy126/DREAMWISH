@@ -8,7 +8,6 @@ import {
 
 const ACCESS_ERROR_MESSAGES = {
   UNAUTHORIZED: "Authentication is required.",
-  PAYMENT_REQUIRED: "An active Polar payment is required.",
   FORBIDDEN: "Administrator access is required."
 } as const;
 

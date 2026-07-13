@@ -5,9 +5,9 @@ import { useEffect, useState } from "react";
 import { IconButton } from "@/components/Common/IconButton";
 import { LanguageSwitcher } from "@/components/layout/LanguageSwitcher";
 import { AUTH_SESSION_KEY } from "@/src/lib/auth/access-control";
+import { AUTH_SESSION_CLEARED_EVENT } from "@/src/lib/auth/auth-events";
 import { logoutFirebaseUser } from "@/src/lib/firebase/firebase-client";
 import { useAppLanguage } from "@/src/lib/i18n/use-app-language";
-import { PAYMENT_STATUS_KEY } from "@/src/lib/payments/payment-state";
 
 export function Topbar() {
   const [profileOpen, setProfileOpen] = useState(false);
@@ -26,12 +26,11 @@ export function Topbar() {
 
   async function logout() {
     window.localStorage.removeItem(AUTH_SESSION_KEY);
-    window.localStorage.removeItem(PAYMENT_STATUS_KEY);
+    window.dispatchEvent(new Event(AUTH_SESSION_CLEARED_EVENT));
     await Promise.allSettled([
       logoutFirebaseUser(),
       fetch("/api/auth/logout", { method: "POST" })
     ]);
-    window.location.href = "/login";
   }
 
   return (

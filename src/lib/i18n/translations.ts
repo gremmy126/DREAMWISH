@@ -48,8 +48,6 @@ const BASE_TRANSLATIONS = {
     },
     sidebar: {
       productSubtitle: "에이전트 AI OS",
-      upgrade: "업그레이드",
-      upgradeDescription: "DREAMWISH Pro 결제",
       company: "사업자 정보",
       businessNumber: "사업자 번호",
       commerceNumber: "통신판매업신고번호",
@@ -66,16 +64,10 @@ const BASE_TRANSLATIONS = {
       submit: "로그인",
       failed: "로그인하지 못했습니다.",
       sessionFailed: "세션을 확인하지 못했습니다.",
-      paymentTitle: "결제가 필요합니다",
-      paymentBody:
-        "{email} 계정은 DREAMWISH Pro 결제 후 사용할 수 있습니다. 관리자 계정만 결제 없이 전체 기능을 사용할 수 있습니다.",
       access: "접근 권한",
-      paymentRequired: "결제 필요",
       adminBypass: "관리자 우회",
       off: "꺼짐",
-      pay: "결제하기",
-      otherEmail: "다른 이메일로 로그인",
-      checkoutFailed: "결제를 시작하지 못했습니다."
+      otherEmail: "다른 이메일로 로그인"
     },
     chat: {
       sessions: "대화 목록",
@@ -192,11 +184,6 @@ const BASE_TRANSLATIONS = {
         web: "웹",
         chat: "대화"
       }
-    },
-    payment: {
-      checkoutCreateFailed: "Polar Checkout Session 생성에 실패했습니다.",
-      missingToken: "POLAR_ACCESS_TOKEN이 설정되어 있지 않습니다.",
-      missingProduct: "POLAR_PRODUCT_ID가 설정되어 있지 않습니다."
     }
   },
   en: {
@@ -243,8 +230,6 @@ const BASE_TRANSLATIONS = {
     },
     sidebar: {
       productSubtitle: "Agentic AI OS",
-      upgrade: "Upgrade",
-      upgradeDescription: "DREAMWISH Pro payment",
       company: "Company info",
       businessNumber: "Business number",
       commerceNumber: "E-commerce registration",
@@ -261,16 +246,10 @@ const BASE_TRANSLATIONS = {
       submit: "Log in",
       failed: "Could not log in.",
       sessionFailed: "Could not verify the session.",
-      paymentTitle: "Payment required",
-      paymentBody:
-        "{email} can use DREAMWISH after a Pro payment. Only the admin account can use all features without payment.",
       access: "Access",
-      paymentRequired: "Payment required",
       adminBypass: "Admin bypass",
       off: "off",
-      pay: "Pay",
-      otherEmail: "Log in with another email",
-      checkoutFailed: "Could not start checkout."
+      otherEmail: "Log in with another email"
     },
     chat: {
       sessions: "Conversations",
@@ -389,11 +368,6 @@ const BASE_TRANSLATIONS = {
         web: "Web",
         chat: "Chat"
       }
-    },
-    payment: {
-      checkoutCreateFailed: "Polar Checkout Session could not be created.",
-      missingToken: "POLAR_ACCESS_TOKEN is not configured.",
-      missingProduct: "POLAR_PRODUCT_ID is not configured."
     }
   },
   ja: {
@@ -440,8 +414,6 @@ const BASE_TRANSLATIONS = {
     },
     sidebar: {
       productSubtitle: "エージェントAI OS",
-      upgrade: "アップグレード",
-      upgradeDescription: "DREAMWISH Pro決済",
       company: "会社情報",
       businessNumber: "事業者番号",
       commerceNumber: "通信販売届出番号",
@@ -458,16 +430,10 @@ const BASE_TRANSLATIONS = {
       submit: "ログイン",
       failed: "ログインできませんでした。",
       sessionFailed: "セッションを確認できませんでした。",
-      paymentTitle: "決済が必要です",
-      paymentBody:
-        "{email}はDREAMWISH Proの決済後に利用できます。管理者アカウントだけが決済なしで全機能を利用できます。",
       access: "アクセス",
-      paymentRequired: "決済必要",
       adminBypass: "管理者バイパス",
       off: "オフ",
-      pay: "決済する",
-      otherEmail: "別のメールでログイン",
-      checkoutFailed: "決済を開始できませんでした。"
+      otherEmail: "別のメールでログイン"
     },
     chat: {
       sessions: "会話一覧",
@@ -585,22 +551,13 @@ const BASE_TRANSLATIONS = {
         web: "Web",
         chat: "会話"
       }
-    },
-    payment: {
-      checkoutCreateFailed: "Polar Checkout Sessionを作成できませんでした。",
-      missingToken: "POLAR_ACCESS_TOKENが設定されていません。",
-      missingProduct: "POLAR_PRODUCT_IDが設定されていません。"
     }
   }
 } as const;
 
 const ADDITIONAL_TRANSLATIONS = {
   ko: {
-    sidebar: {
-      unlockMore: "더 많은 기능 사용하기",
-      upgradeAria: "업그레이드 결제 페이지로 이동",
-      checkoutNotConfigured: "결제 페이지가 아직 설정되지 않았습니다."
-    },
+    sidebar: {},
     integrations: {
       approve: "승인",
       reject: "거절",
@@ -634,7 +591,7 @@ const ADDITIONAL_TRANSLATIONS = {
     },
     settings: {
       pageTitle: "설정",
-      description: "AI 모델, 저장소, 연동 권한, 결제 라우팅을 한 곳에서 조정합니다.",
+      description: "AI 모델, 저장소, 연동 권한과 보안 설정을 한 곳에서 조정합니다.",
       saved: "설정 저장됨",
       appearance: "표시 환경",
       appearanceDescription: "앱 화면 테마를 선택합니다.",
@@ -652,22 +609,6 @@ const ADDITIONAL_TRANSLATIONS = {
       autoSyncDescription: "이번 단계에서는 설정만 저장하고 실제 주기 실행은 하지 않습니다.",
       approvalRisk: "승인 필수 위험도",
       retentionDays: "외부 데이터 보존일",
-      payments: "결제",
-      paymentsDescription: "국내 결제는 KG이니시스, 해외 결제는 Polar 단일 상품으로 라우팅합니다.",
-      domestic: "국내",
-      international: "해외",
-      opening: "여는 중",
-      pay: "결제하기",
-      checkoutCreateFailed: "결제 페이지를 만들지 못했습니다.",
-      checkoutFailed: "결제 연결에 실패했습니다.",
-      kgInicisLabel: "KG이니시스",
-      kgInicisDescription: "국내 결제 승인과 결제 내역 연결을 담당합니다.",
-      polarLabel: "Polar",
-      polarDescription: "해외 결제와 $19 단일 상품 Checkout을 담당합니다.",
-      successUrl: "Polar 성공 URL",
-      returnUrl: "Polar 반환 URL",
-      webhookUrl: "Polar 웹훅 URL",
-      product: "Polar 상품",
       storageBackup: "저장소 및 백업",
       storageBackupDescription: "Local First 저장소와 백업 경로입니다.",
       backupNow: "지금 백업",
@@ -684,27 +625,6 @@ const ADDITIONAL_TRANSLATIONS = {
       allowExternalAIDescription: "선택한 무료 Provider 호출을 허용합니다.",
       storageStatus: "저장소 상태",
       storageStatusDescription: "로컬 저장소"
-    },
-    pricing: {
-      eyebrow: "DREAMWISH",
-      pageTitle: "DREAMWISH 요금제",
-      subtitle: "해외 결제는 실제 Polar Checkout으로 처리됩니다.",
-      planDescription: "DREAMWISH Pro용 실제 Polar 상품입니다.",
-      featureAi: "AI 채팅",
-      featureKnowledge: "지식 연결",
-      featureAutomation: "CRM / 워크플로 / 자동화",
-      featureApproval: "승인 우선 외부 작업",
-      payWithPolar: "Polar로 결제",
-      secureTitle: "안전한 Polar Checkout",
-      secureDescription: "Checkout URL은 서버에서 생성하며 공개 요금제 페이지에 노출하지 않습니다.",
-      brandText: "텍스트 브랜드: DREAMWISH",
-      noLogo: "Checkout 전달에는 로고 에셋이 필요하지 않습니다.",
-      checkoutFailed: "결제 페이지를 시작하지 못했습니다."
-    },
-    billing: {
-      successTitle: "결제가 완료되었습니다",
-      successDescription: "Polar 결제 성공 페이지입니다. 웹훅 수신 후 주문 상태가 내부 기록에 반영됩니다.",
-      goToChat: "AI 채팅으로 이동"
     },
     calendar: {
       month: "월",
@@ -897,11 +817,7 @@ const ADDITIONAL_TRANSLATIONS = {
     }
   },
   en: {
-    sidebar: {
-      unlockMore: "Unlock more features",
-      upgradeAria: "Open upgrade checkout page",
-      checkoutNotConfigured: "The checkout page has not been configured yet."
-    },
+    sidebar: {},
     integrations: {
       approve: "Approve",
       reject: "Reject",
@@ -935,7 +851,7 @@ const ADDITIONAL_TRANSLATIONS = {
     },
     settings: {
       pageTitle: "Settings",
-      description: "Adjust AI models, storage, integration permissions, and payment routing in one place.",
+      description: "Adjust AI models, storage, integration permissions, and security in one place.",
       saved: "Settings saved",
       appearance: "Appearance",
       appearanceDescription: "Choose the app display theme.",
@@ -953,22 +869,6 @@ const ADDITIONAL_TRANSLATIONS = {
       autoSyncDescription: "This stage stores the setting only and does not run a schedule.",
       approvalRisk: "Approval risk threshold",
       retentionDays: "External data retention days",
-      payments: "Payments",
-      paymentsDescription: "Domestic payment routes to KG Inicis and international payment routes to one Polar product.",
-      domestic: "Domestic",
-      international: "International",
-      opening: "Opening",
-      pay: "Pay",
-      checkoutCreateFailed: "The checkout page could not be created.",
-      checkoutFailed: "Payment checkout failed.",
-      kgInicisLabel: "KG Inicis",
-      kgInicisDescription: "Handles domestic payment authorization and payment history connections.",
-      polarLabel: "Polar",
-      polarDescription: "Handles international checkout for the single $19 product.",
-      successUrl: "Polar success URL",
-      returnUrl: "Polar return URL",
-      webhookUrl: "Polar webhook URL",
-      product: "Polar product",
       storageBackup: "Storage & Backup",
       storageBackupDescription: "Local First storage and backup path.",
       backupNow: "Back up now",
@@ -985,27 +885,6 @@ const ADDITIONAL_TRANSLATIONS = {
       allowExternalAIDescription: "Allow calls to the selected free provider.",
       storageStatus: "Storage Status",
       storageStatusDescription: "Local storage"
-    },
-    pricing: {
-      eyebrow: "DREAMWISH",
-      pageTitle: "DREAMWISH Pricing",
-      subtitle: "International payments are handled through production Polar checkout.",
-      planDescription: "One production Polar product for DREAMWISH Pro.",
-      featureAi: "AI Chat",
-      featureKnowledge: "Knowledge connections",
-      featureAutomation: "CRM / Workflow / Automation",
-      featureApproval: "Approval-first external actions",
-      payWithPolar: "Pay with Polar",
-      secureTitle: "Secure Polar Checkout",
-      secureDescription: "Checkout URLs are generated on the server and are not shown on the public pricing page.",
-      brandText: "Text brand: DREAMWISH",
-      noLogo: "No logo asset is required for the checkout handoff.",
-      checkoutFailed: "Payment checkout could not be started."
-    },
-    billing: {
-      successTitle: "Payment completed",
-      successDescription: "This is the Polar payment success page. Order status is reflected internally after the webhook is received.",
-      goToChat: "Go to AI Chat"
     },
     calendar: {
       month: "Month",
@@ -1198,11 +1077,7 @@ const ADDITIONAL_TRANSLATIONS = {
     }
   },
   ja: {
-    sidebar: {
-      unlockMore: "より多くの機能を利用",
-      upgradeAria: "アップグレード決済ページを開く",
-      checkoutNotConfigured: "決済ページがまだ設定されていません。"
-    },
+    sidebar: {},
     integrations: {
       approve: "承認",
       reject: "拒否",
@@ -1236,7 +1111,7 @@ const ADDITIONAL_TRANSLATIONS = {
     },
     settings: {
       pageTitle: "設定",
-      description: "AIモデル、ストレージ、連携権限、決済ルーティングを一か所で調整します。",
+      description: "AIモデル、ストレージ、連携権限、セキュリティを一か所で調整します。",
       saved: "設定を保存しました",
       appearance: "表示",
       appearanceDescription: "アプリの表示テーマを選択します。",
@@ -1254,22 +1129,6 @@ const ADDITIONAL_TRANSLATIONS = {
       autoSyncDescription: "この段階では設定のみ保存し、定期実行は行いません。",
       approvalRisk: "承認必須リスク",
       retentionDays: "外部データ保持日数",
-      payments: "決済",
-      paymentsDescription: "国内決済はKG Inicis、海外決済はPolarの商品へルーティングします。",
-      domestic: "国内",
-      international: "海外",
-      opening: "開いています",
-      pay: "決済する",
-      checkoutCreateFailed: "決済ページを作成できませんでした。",
-      checkoutFailed: "決済連携に失敗しました。",
-      kgInicisLabel: "KG Inicis",
-      kgInicisDescription: "国内決済の承認と決済履歴の連携を担当します。",
-      polarLabel: "Polar",
-      polarDescription: "海外向けの$19単一商品のCheckoutを担当します。",
-      successUrl: "Polar成功URL",
-      returnUrl: "Polar戻りURL",
-      webhookUrl: "Polar Webhook URL",
-      product: "Polar商品",
       storageBackup: "ストレージとバックアップ",
       storageBackupDescription: "Local Firstストレージとバックアップパスです。",
       backupNow: "今すぐバックアップ",
@@ -1286,27 +1145,6 @@ const ADDITIONAL_TRANSLATIONS = {
       allowExternalAIDescription: "選択した無料Providerへの呼び出しを許可します。",
       storageStatus: "ストレージ状態",
       storageStatusDescription: "ローカルストレージ"
-    },
-    pricing: {
-      eyebrow: "DREAMWISH",
-      pageTitle: "DREAMWISH料金",
-      subtitle: "海外決済は本番Polar Checkoutで処理されます。",
-      planDescription: "DREAMWISH Pro用の本番Polar商品です。",
-      featureAi: "AIチャット",
-      featureKnowledge: "知識連携",
-      featureAutomation: "CRM / ワークフロー / 自動化",
-      featureApproval: "承認優先の外部操作",
-      payWithPolar: "Polarで決済",
-      secureTitle: "安全なPolar Checkout",
-      secureDescription: "Checkout URLはサーバーで生成し、公開料金ページには表示しません。",
-      brandText: "テキストブランド: DREAMWISH",
-      noLogo: "Checkout連携にロゴアセットは不要です。",
-      checkoutFailed: "決済ページを開始できませんでした。"
-    },
-    billing: {
-      successTitle: "決済が完了しました",
-      successDescription: "Polar決済成功ページです。Webhook受信後、注文状態が内部記録に反映されます。",
-      goToChat: "AIチャットへ移動"
     },
     calendar: {
       month: "月",

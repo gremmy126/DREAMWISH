@@ -1,6 +1,4 @@
 import { planConnectorAction } from "@/src/lib/agent/connector-planner";
-import { getPaymentProviderForMarket } from "@/src/lib/payments/payment-routing";
-import { listPaymentProviders } from "@/src/lib/payments/payment.types";
 import { createApprovalPreviewForConnector } from "@/src/lib/integrations/permission";
 import { connectorRegistry } from "@/src/lib/integrations/registry";
 import { runMockSync } from "@/src/lib/integrations/sync-engine";
@@ -34,7 +32,7 @@ async function stage8Contract() {
     integration,
     plan: await planConnectorAction("Gmail 초안 작성 계획만 만들어줘"),
     preview: createApprovalPreviewForConnector(action, permissions),
-    sync: await runMockSync("gmail", syncOptions),
+    sync: await runMockSync("stage8-contract-owner", "gmail", syncOptions),
     encrypted: encryptTokenField("token-value").encryptedValue,
     normalized: normalizeExternalMessage({
       integrationId: "gmail",
@@ -43,10 +41,7 @@ async function stage8Contract() {
       sender: "customer@example.com",
       subject: "문의",
       bodyText: "고객 문의 본문"
-    }),
-    paymentProviders: listPaymentProviders(),
-    internationalPayment: getPaymentProviderForMarket("international"),
-    domesticPayment: getPaymentProviderForMarket("domestic")
+    })
   };
 }
 

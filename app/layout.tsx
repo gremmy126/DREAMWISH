@@ -2,7 +2,12 @@ import type { Metadata } from "next";
 import Script from "next/script";
 import { ConsentProvider } from "@/components/consent/ConsentProvider";
 import { buildConsentInitializerScript } from "@/components/consent/consent";
-import { NAVER_SITE_VERIFICATION } from "@/src/lib/site/metadata";
+import {
+  NAVER_SITE_VERIFICATION,
+  SITE_DESCRIPTION,
+  SITE_NAME,
+  SITE_URL
+} from "@/src/lib/site/metadata";
 import "./globals.css";
 
 const GA_MEASUREMENT_ID =
@@ -12,8 +17,18 @@ const GOOGLE_ADS_ID = getPublicEnv("NEXT_PUBLIC_GOOGLE_ADS_ID");
 const GOOGLE_TAG_LOADER_ID = GA_MEASUREMENT_ID || GOOGLE_ADS_ID;
 
 export const metadata: Metadata = {
-  title: "DREAMWISH",
-  description: "DREAMWISH Local First Agentic AI OS.",
+  metadataBase: new URL(SITE_URL),
+  applicationName: SITE_NAME,
+  title: {
+    default: "DREAMWISH - 나만의 개인두뇌 AI",
+    template: "%s | DREAMWISH"
+  },
+  description: SITE_DESCRIPTION,
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: { index: true, follow: true, "max-image-preview": "large" }
+  },
   other: {
     "google-adsense-account": "ca-pub-5650931082151367",
     "naver-site-verification": NAVER_SITE_VERIFICATION

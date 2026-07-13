@@ -1,18 +1,11 @@
 "use client";
 
-import {
-  CheckCircle2,
-  CreditCard,
-  KeyRound,
-  Loader2
-} from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
-import { LoginShell } from "@/components/auth/LoginShell";
-import {
-  AUTH_SESSION_KEY,
-  stringifyUnknownError,
-  type AccessState
-} from "@/src/lib/auth/access-control";
+import { KeyRound, Loader2 } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { LoginDialog } from "@/components/auth/LoginDialog";
+import { GuestChatHome } from "@/components/home/GuestChatHome";
+import { AUTH_SESSION_KEY, type AccessState } from "@/src/lib/auth/access-control";
+import { AUTH_SESSION_CLEARED_EVENT } from "@/src/lib/auth/auth-events";
 import { AuthSessionError, readAuthSessionAccess } from "@/src/lib/auth/auth-session-errors";
 import {
   getAuthModeResetState,
@@ -23,11 +16,11 @@ import {
   createFirebasePasswordAccount,
   firebaseUserHasPasswordProvider,
   getFirebaseClientAuth,
-  logoutFirebaseUser,
   sendFirebasePasswordReset,
   signInWithFirebaseGithub,
   signInWithFirebaseGoogle,
   signInWithFirebasePassword,
+  subscribeToFirebaseIdToken,
   waitForFirebaseUser
 } from "@/src/lib/firebase/firebase-client";
 import {
@@ -48,6 +41,7 @@ export function AuthGate({ children }: AuthGateProps) {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(true);
+  const [loginOpen, setLoginOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resetMessage, setResetMessage] = useState<string | null>(null);
@@ -58,11 +52,62 @@ export function AuthGate({ children }: AuthGateProps) {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
+  const authenticatingRef = useRef(false);
+  const lastFirebaseTokenRef = useRef<string | null>(null);
   const { t } = useAppLanguage();
 
   useEffect(() => {
-    void restoreSession();
+    const searchParams = new URLSearchParams(window.location.search);
+    if (searchParams.get("login") === "1") setLoginOpen(true);
+    let active = true;
+    let unsubscribeFromTokens: () => void = () => undefined;
+
+    const handleSessionCleared = () => clearAuthenticatedClientState();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== "visible" || authenticatingRef.current) return;
+      const firebaseUser = getFirebaseClientAuth()?.currentUser;
+      if (firebaseUser) void refreshFirebaseSession(firebaseUser, true);
+    };
+
+    window.addEventListener(AUTH_SESSION_CLEARED_EVENT, handleSessionCleared);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    void (async () => {
+      await restoreSession();
+      if (!active) return;
+      unsubscribeFromTokens = subscribeToFirebaseIdToken((firebaseUser) => {
+        if (!active || authenticatingRef.current) return;
+        void refreshFirebaseSession(firebaseUser);
+      });
+    })();
+
+    return () => {
+      active = false;
+      unsubscribeFromTokens();
+      window.removeEventListener(AUTH_SESSION_CLEARED_EVENT, handleSessionCleared);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, []);
+
+  function clearAuthenticatedClientState() {
+    lastFirebaseTokenRef.current = null;
+    window.localStorage.removeItem(AUTH_SESSION_KEY);
+    setAccess(null);
+    setEmail("");
+    setCanChangePassword(false);
+    setShowPasswordChange(false);
+    setLoading(false);
+  }
+
+  function applyAuthenticatedAccess(nextAccess: AccessState, idToken: string) {
+    lastFirebaseTokenRef.current = idToken;
+    setAccess(nextAccess);
+    setEmail(nextAccess.email);
+    setCanChangePassword(firebaseUserHasPasswordProvider());
+    setError(null);
+    setLoading(false);
+    window.localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify({ email: nextAccess.email }));
+  }
 
   async function restoreSession() {
     setLoading(true);
@@ -71,31 +116,51 @@ export function AuthGate({ children }: AuthGateProps) {
       const firebaseUser = await waitForFirebaseUser();
       if (!firebaseUser) {
         window.localStorage.removeItem(AUTH_SESSION_KEY);
-        setAccess(null);
-        setEmail("");
-        setCanChangePassword(false);
+        clearAuthenticatedClientState();
         await logoutServerSession();
         return;
       }
 
       const idToken = await firebaseUser.getIdToken();
       const nextAccess = await fetchAccess(idToken, t("auth.sessionFailed"));
-      setAccess(nextAccess);
-      setEmail(nextAccess.email);
-      setCanChangePassword(firebaseUserHasPasswordProvider());
-      window.localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify({ email: nextAccess.email }));
+      applyAuthenticatedAccess(nextAccess, idToken);
     } catch (caught) {
       setError(getAuthActionError(caught));
-      setAccess(null);
+      clearAuthenticatedClientState();
+      setLoginOpen(true);
     } finally {
       setLoading(false);
     }
   }
 
+  async function refreshFirebaseSession(
+    firebaseUser: Awaited<ReturnType<typeof waitForFirebaseUser>>,
+    forceRefresh = false
+  ) {
+    if (!firebaseUser) {
+      clearAuthenticatedClientState();
+      await logoutServerSession();
+      return;
+    }
+
+    try {
+      const idToken = forceRefresh
+        ? await firebaseUser.getIdToken(true)
+        : await firebaseUser.getIdToken();
+      if (!forceRefresh && idToken === lastFirebaseTokenRef.current) return;
+      const nextAccess = await fetchAccess(idToken, t("auth.sessionFailed"));
+      applyAuthenticatedAccess(nextAccess, idToken);
+    } catch (caught) {
+      clearAuthenticatedClientState();
+      setError(getAuthActionError(caught));
+      setLoginOpen(true);
+    }
+  }
+
   async function login() {
     setSubmitting(true);
-    setError(null);
-    setResetMessage(null);
+    authenticatingRef.current = true;
+    clearMessages();
     try {
       const firebaseAuth = getFirebaseClientAuth();
       if (!firebaseAuth) {
@@ -107,19 +172,19 @@ export function AuthGate({ children }: AuthGateProps) {
         email: normalizedEmail,
         password
       });
-      const idToken = await credential.user.getIdToken();
-      await completeFirebaseLogin(idToken);
+      await completeFirebaseLogin(await credential.user.getIdToken());
     } catch (caught) {
       setError(getAuthActionError(caught, "password"));
     } finally {
+      authenticatingRef.current = false;
       setSubmitting(false);
     }
   }
 
   async function signup() {
     setSubmitting(true);
-    setError(null);
-    setResetMessage(null);
+    authenticatingRef.current = true;
+    clearMessages();
     try {
       if (password.length < 6) {
         throw new AuthSessionError("비밀번호는 6자 이상이어야 합니다.");
@@ -130,10 +195,70 @@ export function AuthGate({ children }: AuthGateProps) {
         password,
         name
       });
-      const idToken = await credential.user.getIdToken();
-      await completeFirebaseLogin(idToken);
+      await completeFirebaseLogin(await credential.user.getIdToken());
     } catch (caught) {
       setError(getAuthActionError(caught, "password"));
+    } finally {
+      authenticatingRef.current = false;
+      setSubmitting(false);
+    }
+  }
+
+  async function loginWithGoogle() {
+    setSubmitting(true);
+    authenticatingRef.current = true;
+    clearMessages();
+    try {
+      const credential = await signInWithFirebaseGoogle();
+      await completeFirebaseLogin(await credential.user.getIdToken());
+    } catch (caught) {
+      setError(getAuthActionError(caught, "google"));
+    } finally {
+      authenticatingRef.current = false;
+      setSubmitting(false);
+    }
+  }
+
+  async function loginWithGithub() {
+    setSubmitting(true);
+    authenticatingRef.current = true;
+    clearMessages();
+    try {
+      const credential = await signInWithFirebaseGithub();
+      await completeFirebaseLogin(await credential.user.getIdToken());
+    } catch (caught) {
+      setError(getAuthActionError(caught, "github"));
+    } finally {
+      authenticatingRef.current = false;
+      setSubmitting(false);
+    }
+  }
+
+  async function completeFirebaseLogin(idToken: string) {
+    const response = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ idToken })
+    });
+    const nextAccess = await readAuthSessionAccess(response);
+    applyAuthenticatedAccess(nextAccess, idToken);
+    setPassword("");
+    setLoginOpen(false);
+    clearLoginQuery();
+  }
+
+  async function resetPassword() {
+    setSubmitting(true);
+    clearMessages();
+    try {
+      if (!email.trim()) {
+        setError("비밀번호를 재설정할 이메일을 먼저 입력해주세요.");
+        return;
+      }
+      await sendFirebasePasswordReset(email.trim());
+      setResetMessage("비밀번호 재설정 이메일을 보냈습니다. 이메일의 링크를 확인해주세요.");
+    } catch (caught) {
+      setError(getFirebaseAuthErrorMessage(caught, "password"));
     } finally {
       setSubmitting(false);
     }
@@ -166,111 +291,29 @@ export function AuthGate({ children }: AuthGateProps) {
     }
   }
 
-  async function loginWithGoogle() {
-    setSubmitting(true);
-    setError(null);
-    setResetMessage(null);
-    try {
-      const credential = await signInWithFirebaseGoogle();
-      const idToken = await credential.user.getIdToken();
-      await completeFirebaseLogin(idToken);
-    } catch (caught) {
-      setError(getAuthActionError(caught, "google"));
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function loginWithGithub() {
-    setSubmitting(true);
-    setError(null);
-    setResetMessage(null);
-    try {
-      const credential = await signInWithFirebaseGithub();
-      const idToken = await credential.user.getIdToken();
-      await completeFirebaseLogin(idToken);
-    } catch (caught) {
-      setError(getAuthActionError(caught, "github"));
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function completeFirebaseLogin(idToken: string) {
-    const response = await fetch("/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ idToken })
-    });
-    const nextAccess = await readAuthSessionAccess(response);
-    window.localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify({ email: nextAccess.email }));
-    setAccess(nextAccess);
-    setEmail(nextAccess.email);
-    setPassword("");
-    setCanChangePassword(firebaseUserHasPasswordProvider());
-  }
-
-  async function resetPassword() {
-    setSubmitting(true);
-    setError(null);
-    setResetMessage(null);
-    try {
-      if (!email.trim()) {
-        setError("비밀번호를 재설정할 이메일을 먼저 입력해주세요.");
-        return;
-      }
-      await sendFirebasePasswordReset(email.trim());
-      setResetMessage("비밀번호 재설정 이메일을 보냈습니다. 이메일의 링크를 확인해주세요.");
-    } catch (caught) {
-      setError(getFirebaseAuthErrorMessage(caught, "password"));
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function startCheckout() {
-    if (!access?.email) return;
-    setSubmitting(true);
-    setError(null);
-    try {
-      const response = await fetch("/api/payments/polar/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          customerEmail: access.email,
-          customerName: name || access.email,
-          externalCustomerId: access.email
-        })
-      });
-      const data = (await response.json()) as { checkoutUrl?: string; error?: string };
-      if (!response.ok || !data.checkoutUrl) {
-        throw new Error(data.error || t("auth.checkoutFailed"));
-      }
-      window.location.href = data.checkoutUrl;
-    } catch (caught) {
-      setError(stringifyUnknownError(caught));
-      setSubmitting(false);
-    }
-  }
-
-  async function logout() {
-    window.localStorage.removeItem(AUTH_SESSION_KEY);
-    setAccess(null);
-    setEmail("");
-    setPassword("");
-    setName("");
-    setResetMessage(null);
-    setCanChangePassword(false);
-    closePasswordDialog();
-    await Promise.allSettled([logoutFirebaseUser(), logoutServerSession()]);
-  }
-
   function changeAuthMode(nextCreatingAccount: boolean) {
     const resetState = getAuthModeResetState(nextCreatingAccount);
     setCreatingAccount(resetState.creatingAccount);
     setPassword(resetState.password);
     setError(resetState.error);
     setResetMessage(resetState.resetMessage);
+  }
+
+  function openLogin() {
+    clearMessages();
+    setLoginOpen(true);
+  }
+
+  function closeLogin() {
+    if (submitting) return;
+    setLoginOpen(false);
+    clearMessages();
+    clearLoginQuery();
+  }
+
+  function clearMessages() {
+    setError(null);
+    setResetMessage(null);
   }
 
   function closePasswordDialog() {
@@ -282,47 +325,32 @@ export function AuthGate({ children }: AuthGateProps) {
     setError(null);
   }
 
-  if (loading) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-app-bg">
-        <Loader2 className="animate-spin text-app-primary" size={26} />
-      </main>
-    );
-  }
-
   if (!access) {
     return (
-      <LoginShell
-        email={email}
-        name={name}
-        password={password}
-        error={error}
-        resetMessage={resetMessage}
-        submitting={submitting}
-        onEmailChange={setEmail}
-        onPasswordChange={setPassword}
-        onNameChange={setName}
-        onSubmit={login}
-        onSignup={signup}
-        creatingAccount={creatingAccount}
-        onModeChange={changeAuthMode}
-        onResetPassword={resetPassword}
-        onGoogle={loginWithGoogle}
-        onGithub={canEnableFirebaseGitHubLogin() ? loginWithGithub : undefined}
-      />
-    );
-  }
-
-  if (!access.canUseApp) {
-    return (
-      <PaymentRequiredShell
-        access={access}
-        error={error}
-        submitting={submitting}
-        onCheckout={startCheckout}
-        onRefresh={() => void restoreSession()}
-        onLogout={logout}
-      />
+      <>
+        <GuestChatHome onLoginRequest={openLogin} restoringSession={loading} />
+        <LoginDialog
+          open={loginOpen}
+          email={email}
+          name={name}
+          password={password}
+          error={error}
+          resetMessage={resetMessage}
+          submitting={submitting}
+          creatingAccount={creatingAccount}
+          githubEnabled={canEnableFirebaseGitHubLogin()}
+          onClose={closeLogin}
+          onEmailChange={setEmail}
+          onPasswordChange={setPassword}
+          onNameChange={setName}
+          onSubmit={login}
+          onSignup={signup}
+          onModeChange={changeAuthMode}
+          onResetPassword={resetPassword}
+          onGoogle={loginWithGoogle}
+          onGithub={loginWithGithub}
+        />
+      </>
     );
   }
 
@@ -427,32 +455,14 @@ function PasswordChangeDialog({
           />
         </div>
 
-        {error ? (
-          <p className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-            {error}
-          </p>
-        ) : null}
-        {message ? (
-          <p className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
-            {message}
-          </p>
-        ) : null}
+        {error ? <p className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p> : null}
+        {message ? <p className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">{message}</p> : null}
 
         <div className="mt-5 grid grid-cols-2 gap-3">
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={submitting}
-            className="h-11 rounded-app border border-app-border bg-white text-sm font-semibold text-app-muted hover:bg-app-hover disabled:bg-slate-100"
-          >
+          <button type="button" onClick={onCancel} disabled={submitting} className="h-11 rounded-app border border-app-border bg-white text-sm font-semibold text-app-muted hover:bg-app-hover disabled:bg-slate-100">
             닫기
           </button>
-          <button
-            type="button"
-            onClick={onSubmit}
-            disabled={submitting || !currentPassword || !newPassword || !confirmPassword}
-            className="flex h-11 items-center justify-center gap-2 rounded-app bg-app-primary text-sm font-semibold text-white disabled:bg-slate-200"
-          >
+          <button type="button" onClick={onSubmit} disabled={submitting || !currentPassword || !newPassword || !confirmPassword} className="flex h-11 items-center justify-center gap-2 rounded-app bg-app-primary text-sm font-semibold text-white disabled:bg-slate-200">
             {submitting ? <Loader2 size={16} className="animate-spin" /> : <KeyRound size={16} />}
             변경하기
           </button>
@@ -487,91 +497,6 @@ function PasswordField({
   );
 }
 
-function PaymentRequiredShell({
-  access,
-  error,
-  submitting,
-  onCheckout,
-  onRefresh,
-  onLogout
-}: {
-  access: AccessState;
-  error: string | null;
-  submitting: boolean;
-  onCheckout: () => void;
-  onRefresh: () => void;
-  onLogout: () => void;
-}) {
-  const { t } = useAppLanguage();
-
-  return (
-    <main className="flex min-h-screen items-center justify-center bg-app-bg px-6">
-      <section className="w-full max-w-lg rounded-app border border-app-border bg-white p-7 text-center shadow-soft">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-[22px] bg-app-hover text-app-primary">
-          <CreditCard size={26} />
-        </div>
-        <h1 className="mt-5 text-2xl font-semibold text-app-text">{t("auth.paymentTitle")}</h1>
-        <p className="mt-2 text-sm leading-6 text-app-muted">
-          {t("auth.paymentBody", { email: access.email })}
-        </p>
-
-        <div className="mt-5 rounded-app border border-app-border bg-app-bg p-4 text-left text-xs">
-          <div className="flex items-center justify-between">
-            <span className="font-semibold text-app-muted">{t("auth.access")}</span>
-            <span className="font-semibold text-app-text">{t("auth.paymentRequired")}</span>
-          </div>
-          <div className="mt-2 flex items-center justify-between">
-            <span className="font-semibold text-app-muted">{t("auth.adminBypass")}</span>
-            <span className="font-semibold text-app-text">{t("auth.off")}</span>
-          </div>
-        </div>
-
-        {error ? (
-          <p className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-            {error}
-          </p>
-        ) : null}
-
-        <div className="mt-5 grid grid-cols-[1fr_auto] gap-3">
-          <button
-            type="button"
-            onClick={onCheckout}
-            disabled={submitting}
-            className="flex h-11 items-center justify-center gap-2 rounded-app bg-app-primary px-4 text-sm font-semibold text-white disabled:bg-slate-200"
-          >
-            {submitting ? <Loader2 size={16} className="animate-spin" /> : <CreditCard size={16} />}
-            {t("auth.pay")}
-          </button>
-          <button
-            type="button"
-            onClick={onRefresh}
-            className="h-11 rounded-app border border-app-border bg-white px-4 text-sm font-semibold text-app-muted hover:bg-app-hover"
-          >
-            {t("common.refresh")}
-          </button>
-        </div>
-        <button
-          type="button"
-          onClick={onLogout}
-          className="mt-4 text-xs font-semibold text-app-muted hover:text-app-primary"
-        >
-          {t("auth.otherEmail")}
-        </button>
-      </section>
-    </main>
-  );
-}
-
-export function AccessBadge({ access }: { access: AccessState }) {
-  if (!access.canUseApp) return null;
-  return (
-    <span className="inline-flex items-center gap-1 rounded-2xl border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700">
-      <CheckCircle2 size={12} />
-      {access.adminBypass ? "Admin" : "Paid"}
-    </span>
-  );
-}
-
 async function fetchAccess(idToken: string, fallback: string) {
   const response = await fetch("/api/auth/session", {
     method: "POST",
@@ -583,6 +508,10 @@ async function fetchAccess(idToken: string, fallback: string) {
 
 async function logoutServerSession() {
   await fetch("/api/auth/logout", { method: "POST" });
+}
+
+function clearLoginQuery() {
+  if (window.location.search) window.history.replaceState(null, "", "/");
 }
 
 function getAuthActionError(error: unknown, method: FirebaseAuthMethod = "generic") {

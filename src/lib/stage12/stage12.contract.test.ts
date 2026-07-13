@@ -20,10 +20,6 @@ import {
   buildKnowledgeTabModel
 } from "@/src/lib/knowledge/knowledge-tabs";
 import {
-  PAYMENT_STATUS_KEY,
-  buildPaymentButtonState
-} from "@/src/lib/payments/payment-state";
-import {
   resolveLanguagePreference,
   resolveThemePreference
 } from "@/src/lib/settings/app-preferences";
@@ -90,10 +86,6 @@ async function assertStage12Contracts() {
   aiState.providers[0].connected satisfies boolean;
   const firebase = getFirebaseConnectionState();
   firebase.clientConfigured satisfies boolean;
-
-  const payment = buildPaymentButtonState(true);
-  payment.hidden satisfies boolean;
-  PAYMENT_STATUS_KEY satisfies string;
 
   resolveThemePreference("dark").dataTheme satisfies "light" | "dark";
   resolveLanguagePreference("ko").htmlLang satisfies "ko" | "en" | "ja";

@@ -1,6 +1,7 @@
-import { readJsonStore, writeJsonStore } from "@/src/lib/local-db/json-store";
+import { readJsonStore, writeJsonStore } from "../local-db/json-store";
 
 export type IntegrationSyncSetting = {
+  ownerId: string;
   connectorId: string;
   enabled: boolean;
   syncDays: number;
@@ -14,15 +15,16 @@ type IntegrationSettingsDb = {
 
 const EMPTY_DB: IntegrationSettingsDb = { settings: [] };
 
-export async function listIntegrationSyncSettings() {
-  return (await readDb()).settings;
+export async function listIntegrationSyncSettings(ownerId: string) {
+  return (await readDb()).settings.filter((setting) => setting.ownerId === ownerId);
 }
 
-export async function listEnabledIntegrationApps() {
-  return (await listIntegrationSyncSettings()).filter((setting) => setting.enabled);
+export async function listEnabledIntegrationApps(ownerId: string) {
+  return (await listIntegrationSyncSettings(ownerId)).filter((setting) => setting.enabled);
 }
 
 export async function saveIntegrationSyncSetting(input: {
+  ownerId: string;
   connectorId: string;
   enabled: boolean;
   syncDays: number;
@@ -30,13 +32,16 @@ export async function saveIntegrationSyncSetting(input: {
 }) {
   const db = await readDb();
   const setting: IntegrationSyncSetting = {
+    ownerId: input.ownerId,
     connectorId: input.connectorId,
     enabled: input.enabled,
     syncDays: Math.max(1, Math.min(30, input.syncDays)),
     commandPrefix: input.commandPrefix,
     updatedAt: new Date().toISOString()
   };
-  const index = db.settings.findIndex((item) => item.connectorId === input.connectorId);
+  const index = db.settings.findIndex(
+    (item) => item.ownerId === input.ownerId && item.connectorId === input.connectorId
+  );
   if (index >= 0) db.settings[index] = setting;
   else db.settings.unshift(setting);
   await writeDb(db);

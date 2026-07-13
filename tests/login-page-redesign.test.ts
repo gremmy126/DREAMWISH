@@ -141,46 +141,45 @@ test("auth mode reset state clears transient credentials in both directions", ()
   });
 });
 
-test("login shell provides the approved responsive accessible SaaS layout", () => {
-  assert.equal(fs.existsSync("components/auth/LoginShell.tsx"), true);
-  const source = fs.readFileSync("components/auth/LoginShell.tsx", "utf8");
+test("login dialog provides the approved responsive accessible SaaS layout", () => {
+  assert.equal(fs.existsSync("components/auth/LoginDialog.tsx"), true);
+  const source = fs.readFileSync("components/auth/LoginDialog.tsx", "utf8");
 
   for (const contract of [
-    /lg:grid-cols-\[55fr_45fr\]/u,
     /max-w-\[440px\]/u,
-    /lg:min-w-\[420px\]/u,
-    /lg:px-4 xl:px-10/u,
-    /당신의 지식과 업무를 하나로 연결하세요/u,
-    /다시 오신 것을 환영합니다/u,
-    /계정에 로그인하고 작업을 계속하세요/u,
+    /role="dialog"/u,
+    /aria-modal="true"/u,
+    /aria-describedby="login-dialog-description"/u,
+    /id="login-dialog-description"/u,
+    /나만의 기억과 업무 데이터를 AI가 안전하게 이어갑니다/u,
+    /나만의 AI와 대화를 시작할 수 있습니다/u,
     /<form/u,
     /onSubmit=/u,
-    /id="email"/u,
-    /name="email"/u,
+    /id="auth-email"/u,
     /type="email"/u,
     /autoComplete="email"/u,
     /placeholder="name@example.com"/u,
-    /id="password"/u,
-    /name="password"/u,
-    /autoComplete=\{creatingAccount \? "new-password" : "current-password"\}/u,
+    /id="auth-password"/u,
+    /autoComplete=\{props\.creatingAccount \? "new-password" : "current-password"\}/u,
     /aria-invalid/u,
-    /aria-describedby/u,
     /role="alert"/u,
-    /aria-live="polite"/u,
     /Google로 계속하기/u,
     /GitHub로 계속하기/u,
-    /안전하게 보호됩니다/u,
-    /useReducedMotion/u,
-    /motion\./u,
-    /const submitDecision = decideLoginSubmission\(/u,
-    /const resetDecision = decidePasswordReset\(/u
+    /const decision = decideLoginSubmission\(/u,
+    /const decision = decidePasswordReset\(/u
   ]) {
     assert.match(source, contract);
   }
 
-  for (const icon of ["Mail", "LockKeyhole", "Network", "CalendarCheck", "ShieldCheck"]) {
+  for (const icon of ["Mail", "LockKeyhole", "Chrome", "Github", "UserRound"]) {
     assert.match(source, new RegExp(`\\b${icon}\\b`, "u"));
   }
+
+  assert.match(source, /useRef/u);
+  assert.match(source, /getFocusableElements/u);
+  assert.match(source, /event\.key === "Tab"/u);
+  assert.match(source, /emailInputRef\.current\?\.focus\(\)/u);
+  assert.match(source, /previousActiveElement\?\.focus\(\)/u);
 });
 
 test("auth session failures are stable Korean messages without server details", () => {
@@ -286,16 +285,16 @@ test("auth session access reader preserves the successful-response missing-acces
   );
 });
 
-test("AuthGate delegates presentation and keeps Firebase auth effects", () => {
+test("AuthGate delegates modal presentation and keeps Firebase auth effects", () => {
   const source = fs.readFileSync("components/auth/AuthGate.tsx", "utf8");
-  assert.match(source, /import \{ LoginShell \} from "@\/components\/auth\/LoginShell"/u);
+  assert.match(source, /import \{ LoginDialog \} from "@\/components\/auth\/LoginDialog"/u);
   assert.match(
     source,
     /import \{ AuthSessionError, readAuthSessionAccess \} from "@\/src\/lib\/auth\/auth-session-errors"/u
   );
   assert.match(source, /getAuthModeResetState\(nextCreatingAccount\)/u);
   assert.match(source, /function changeAuthMode/u);
-  assert.doesNotMatch(source, /export function LoginShell/u);
+  assert.doesNotMatch(source, /export function LoginDialog/u);
   assert.doesNotMatch(source, /class AuthSessionError/u);
   assert.doesNotMatch(source, /response\.json\(\)\.catch/u);
   assert.equal(source.match(/readAuthSessionAccess\(response(?:, fallback)?\)/gu)?.length, 2);
@@ -316,7 +315,8 @@ test("AuthGate delegates presentation and keeps Firebase auth effects", () => {
     /onSignup=\{signup\}/u,
     /onResetPassword=\{resetPassword\}/u,
     /onGoogle=\{loginWithGoogle\}/u,
-    /onGithub=\{canEnableFirebaseGitHubLogin\(\) \? loginWithGithub : undefined\}/u,
+    /githubEnabled=\{canEnableFirebaseGitHubLogin\(\)\}/u,
+    /onGithub=\{loginWithGithub\}/u,
     /onModeChange=\{changeAuthMode\}/u
   ]) {
     assert.match(source, wiring);
