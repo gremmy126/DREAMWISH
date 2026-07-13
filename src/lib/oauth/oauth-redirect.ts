@@ -3,6 +3,7 @@ import {
   getOAuthProviderConfig
 } from "./oauth-provider-registry";
 import type { ConnectableOAuthProviderId } from "./oauth.types";
+import { SITE_URL as CANONICAL_SITE_URL } from "../site/metadata";
 
 export function getOAuthRedirectUri(provider: ConnectableOAuthProviderId, requestUrl: string) {
   const config = getOAuthProviderConfig(assertConnectableOAuthProvider(provider));
@@ -15,6 +16,14 @@ export type OAuthRedirectDiagnostic = {
   expected: string;
   configured: string | null;
 };
+
+export function buildPublicReturnUrl(requestUrl: string, params: Record<string, string>) {
+  const url = new URL("/", getPublicAppUrl(requestUrl));
+  for (const [key, value] of Object.entries(params)) {
+    url.searchParams.set(key, value);
+  }
+  return url;
+}
 
 export function getOAuthRedirectDiagnostic(
   provider: ConnectableOAuthProviderId,
@@ -41,6 +50,10 @@ export function getPublicAppUrl(requestUrl: string) {
     "SITE_URL"
   ]);
   if (configured) return validateAppUrl(configured, "APP_URL");
+
+  if (isHostedDeployment()) {
+    return validateAppUrl(CANONICAL_SITE_URL, "SITE_URL");
+  }
 
   const url = new URL(requestUrl);
   return validateAppUrl(url.origin, "request URL");
@@ -101,7 +114,10 @@ function isLocalhost(hostname: string) {
   return (
     hostname === "localhost" ||
     hostname === "127.0.0.1" ||
+    hostname === "0.0.0.0" ||
     hostname === "::1" ||
+    hostname === "::" ||
+    hostname === "[::]" ||
     hostname.endsWith(".localhost")
   );
 }

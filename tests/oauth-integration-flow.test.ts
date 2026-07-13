@@ -5,6 +5,7 @@ import {
 } from "../src/lib/oauth/oauth-connect-url";
 import { createOAuthAuthorizationUrl } from "../src/lib/oauth/oauth.service";
 import {
+  buildPublicReturnUrl,
   getOAuthRedirectDiagnostic,
   getOAuthRedirectUri
 } from "../src/lib/oauth/oauth-redirect";
@@ -23,6 +24,50 @@ test("getOAuthRedirectUri builds canonical integration callback urls from APP_UR
       assert.equal(
         getOAuthRedirectUri("google", "http://127.0.0.1:3100/api/integrations/google/connect"),
         "https://dreamwish.co.kr/api/integrations/google/callback"
+      );
+    }
+  );
+});
+
+test("hosted OAuth falls back to the canonical site when Railway exposes an internal origin", () => {
+  withEnv(
+    {
+      APP_URL: undefined,
+      NEXT_PUBLIC_APP_URL: undefined,
+      PUBLIC_APP_URL: undefined,
+      NEXT_PUBLIC_SITE_URL: undefined,
+      SITE_URL: undefined,
+      RAILWAY_ENVIRONMENT: "production"
+    },
+    () => {
+      assert.equal(
+        getOAuthRedirectUri(
+          "google",
+          "https://0.0.0.0:8080/api/integrations/google/connect?service=drive"
+        ),
+        "https://dreamwish.co.kr/api/integrations/google/callback"
+      );
+    }
+  );
+});
+
+test("public callback return urls never use the Railway internal origin", () => {
+  withEnv(
+    {
+      APP_URL: undefined,
+      NEXT_PUBLIC_APP_URL: undefined,
+      PUBLIC_APP_URL: undefined,
+      NEXT_PUBLIC_SITE_URL: undefined,
+      SITE_URL: undefined,
+      RAILWAY_ENVIRONMENT: "production"
+    },
+    () => {
+      assert.equal(
+        buildPublicReturnUrl("https://0.0.0.0:8080/api/integrations/google/callback", {
+          view: "integrations",
+          connected: "drive"
+        }).toString(),
+        "https://dreamwish.co.kr/?view=integrations&connected=drive"
       );
     }
   );
@@ -79,6 +124,24 @@ test("getOAuthRedirectUri rejects localhost APP_URL in hosted deployments", () =
       );
     }
   );
+});
+
+test("getOAuthRedirectUri rejects unspecified APP_URL in hosted deployments", () => {
+  for (const appUrl of ["https://0.0.0.0:8080", "https://[::]:8080"]) {
+    withEnv(
+      {
+        APP_URL: appUrl,
+        RAILWAY_ENVIRONMENT: "production",
+        GOOGLE_REDIRECT_URI: undefined
+      },
+      () => {
+        assert.throws(
+          () => getOAuthRedirectUri("google", "https://dreamwish.co.kr/api/integrations/google/connect"),
+          /APP_URL must be a public URL in hosted deployments/u
+        );
+      }
+    );
+  }
 });
 
 test("Google Drive authorization url uses only drive scopes and PKCE", () => {
