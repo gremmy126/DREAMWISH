@@ -19,10 +19,11 @@ export async function listBusinessConversations(ownerId: string, provider: Messa
     const [messages, threads] = await Promise.all([listGmailMessages(ownerId), listGmailThreads(ownerId)]);
     const byExternalId = new Map(messages.map((message) => [message.externalId, message]));
     const threadConversations: BusinessConversation[] = threads.map((thread) => {
-      const threadMessages = thread.messageIds.map((id) => byExternalId.get(id)).filter((message): message is ExternalMessage & { ownerId: string } => Boolean(message));
+      const threadMessages = thread.messageIds.map((id) => byExternalId.get(id)).filter((message): message is ExternalMessage & { ownerId: string } => Boolean(message)).sort((a, b) => a.receivedAt.localeCompare(b.receivedAt));
       const fallback = messages.find((message) => message.subject === thread.subject);
       const selected = threadMessages.length ? threadMessages : fallback ? [fallback] : [];
-      return { id: thread.threadId, provider, title: thread.subject || "(제목 없음)", subtitle: selected[0]?.sender || "Gmail", updatedAt: selected[0]?.receivedAt || thread.updatedAt, messages: selected };
+      const latest = selected.at(-1);
+      return { id: thread.threadId, provider, title: thread.subject || "(제목 없음)", subtitle: latest?.sender || "Gmail", updatedAt: latest?.receivedAt || thread.updatedAt, messages: selected };
     });
     const known = new Set(threadConversations.flatMap((conversation) => conversation.messages.map((message) => message.externalId)));
     const loose = messages.filter((message) => !known.has(message.externalId)).map((message) => ({ id: message.externalId, provider, title: message.subject || "(제목 없음)", subtitle: message.sender, updatedAt: message.receivedAt, messages: [message] } satisfies BusinessConversation));

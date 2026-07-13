@@ -1,5 +1,6 @@
 import { matchExternalIdentity } from "./identity-matcher";
 import { connectorRegistry } from "./registry";
+import { groupGmailThreads } from "./gmail-thread-grouping";
 import type { ConnectorSyncResult, ManualSyncOptions, SyncOptions } from "./types";
 import { getActiveAccessToken } from "@/src/lib/oauth/token.service";
 import { upsertCalendarEvents } from "@/src/lib/repositories/calendar-event.repository";
@@ -38,8 +39,11 @@ export async function runManualIntegrationSync(
     return result;
   }
 
-  const tokenProvider = connectorId === "slack" ? "slack" : "google";
-  const accessToken = await getActiveAccessToken(ownerId, tokenProvider);
+  const accessToken = connectorId === "gmail"
+    ? await getActiveAccessToken(ownerId, "google", "gmail")
+    : connectorId === "calendar"
+      ? await getActiveAccessToken(ownerId, "google", "calendar")
+      : await getActiveAccessToken(ownerId, "slack", "slack");
 
   if (!accessToken) {
     const blocked = createSyncResult(
@@ -163,7 +167,7 @@ async function fetchGmailMessages(
   const list = await fetchJson<{ messages?: Array<{ id: string }> }>(listUrl, accessToken);
   const messageIds = list.messages || [];
 
-  return Promise.all(
+  const details = await Promise.all(
     messageIds.map(async (message) => {
       const detailUrl = new URL(
         `https://gmail.googleapis.com/gmail/v1/users/me/messages/${message.id}`
@@ -174,34 +178,41 @@ async function fetchGmailMessages(
       detailUrl.searchParams.append("metadataHeaders", "Subject");
       detailUrl.searchParams.append("metadataHeaders", "Date");
       const detail = await fetchJson<GmailMessageDetail>(detailUrl, accessToken);
-      const headers = Object.fromEntries(
-        (detail.payload?.headers || []).map((header) => [
-          header.name.toLowerCase(),
-          header.value
-        ])
-      );
-      await upsertGmailThreads(ownerId, [
-        {
-          id: `gmail_thread_${detail.threadId || detail.id}`,
+      return detail;
+    })
+  );
+  const now = new Date().toISOString();
+  await upsertGmailThreads(
+    ownerId,
+    groupGmailThreads(
+      details.map((detail) => {
+        const headers = gmailHeaders(detail);
+        return {
+          id: detail.id,
           threadId: detail.threadId || detail.id,
-          messageIds: [detail.id],
           subject: headers.subject || "(제목 없음)",
-          updatedAt: new Date().toISOString()
-        }
-      ]);
-      await upsertGmailAttachments(
-        ownerId,
-        collectGmailAttachments(detail.payload).map((attachment) => ({
-          id: `gmail_attachment_${detail.id}_${attachment.attachmentId}`,
-          messageId: detail.id,
-          attachmentId: attachment.attachmentId,
-          fileName: attachment.fileName,
-          mimeType: attachment.mimeType,
-          size: attachment.size,
-          createdAt: new Date().toISOString()
-        }))
-      );
+          receivedAt: safeIsoDate(headers.date, now)
+        };
+      })
+    )
+  );
+  await upsertGmailAttachments(
+    ownerId,
+    details.flatMap((detail) =>
+      collectGmailAttachments(detail.payload).map((attachment) => ({
+        id: `gmail_attachment_${detail.id}_${attachment.attachmentId}`,
+        messageId: detail.id,
+        attachmentId: attachment.attachmentId,
+        fileName: attachment.fileName,
+        mimeType: attachment.mimeType,
+        size: attachment.size,
+        createdAt: now
+      }))
+    )
+  );
 
+  return details.map((detail) => {
+      const headers = gmailHeaders(detail);
       return normalizeExternalMessage({
         integrationId: "gmail",
         externalId: detail.id,
@@ -210,10 +221,9 @@ async function fetchGmailMessages(
         recipients: headers.to ? [headers.to] : [],
         subject: headers.subject || "(제목 없음)",
         bodyText: detail.snippet || "",
-        receivedAt: headers.date ? new Date(headers.date).toISOString() : undefined
+        receivedAt: safeIsoDate(headers.date, now)
       });
-    })
-  );
+    });
 }
 
 async function fetchCalendarEvents(accessToken: string, options: ManualSyncOptions) {
@@ -342,6 +352,21 @@ function collectGmailAttachments(payload?: GmailMessageDetail["payload"]) {
       mimeType: part.mimeType || "application/octet-stream",
       size: part.body?.size || 0
     }));
+}
+
+function gmailHeaders(detail: GmailMessageDetail) {
+  return Object.fromEntries(
+    (detail.payload?.headers || []).map((header) => [
+      header.name.toLowerCase(),
+      header.value
+    ])
+  );
+}
+
+function safeIsoDate(value: string | undefined, fallback: string) {
+  if (!value) return fallback;
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? date.toISOString() : fallback;
 }
 
 type GmailMessageDetail = {

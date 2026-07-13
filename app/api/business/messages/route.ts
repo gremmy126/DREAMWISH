@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireOwnerContext } from "@/src/lib/auth/owner-context";
 import { buildGmailRawMessage, listBusinessConversations, type MessageProvider } from "@/src/lib/business/business-message.service";
-import { runManualIntegrationSync } from "@/src/lib/integrations/sync-engine";
 import { getActiveAccessToken, getOAuthConnectionStatus } from "@/src/lib/oauth/token.service";
 
 export async function GET(request: Request) {
@@ -9,11 +8,13 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const provider = parseProvider(url.searchParams.get("provider"));
   if (!provider) return NextResponse.json({ error: "Gmail 또는 Slack을 선택해주세요." }, { status: 400 });
-  if (url.searchParams.get("sync") === "1") await runManualIntegrationSync(owner.uid, provider, { days: 30, limit: 50 });
   const status = provider === "gmail"
     ? await getOAuthConnectionStatus(owner.uid, "google", "gmail")
     : await getOAuthConnectionStatus(owner.uid, "slack", "slack");
-  return NextResponse.json({ provider, status, conversations: await listBusinessConversations(owner.uid, provider) });
+  return NextResponse.json(
+    { provider, status, conversations: await listBusinessConversations(owner.uid, provider) },
+    { headers: { "Cache-Control": "private, no-store" } }
+  );
 }
 
 export async function POST(request: Request) {

@@ -211,10 +211,14 @@ test("Slack authorization url uses Slack OAuth v2 bot scopes", () => {
 
       assert.equal(url.origin + url.pathname, "https://slack.com/oauth/v2/authorize");
       assert.deepEqual(url.searchParams.get("scope")?.split(",").sort(), [
+        "channels:history",
         "channels:read",
         "chat:write",
+        "groups:history",
         "groups:read",
+        "im:history",
         "im:read",
+        "mpim:history",
         "mpim:read",
         "team:read",
         "users:read"

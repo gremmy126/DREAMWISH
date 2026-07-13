@@ -59,9 +59,13 @@ export const OAUTH_PROVIDER_REGISTRY: Record<ConnectableOAuthProviderId, OAuthPr
     redirectUriEnv: "SLACK_REDIRECT_URI",
     redirectPath: "/api/integrations/slack/callback",
     defaultScopes: [
+      "channels:history",
       "channels:read",
+      "groups:history",
       "groups:read",
+      "im:history",
       "im:read",
+      "mpim:history",
       "mpim:read",
       "chat:write",
       "users:read",

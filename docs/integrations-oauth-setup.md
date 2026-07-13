@@ -93,7 +93,7 @@ Slack:
 - App type: Slack app using OAuth V2.
 - Authorization endpoint: `https://slack.com/oauth/v2/authorize`
 - Token endpoint: `https://slack.com/api/oauth.v2.access`
-- Bot scopes: `channels:read`, `groups:read`, `im:read`, `mpim:read`, `chat:write`, `users:read`, `team:read`
+- Bot scopes: `channels:read`, `channels:history`, `groups:read`, `groups:history`, `im:read`, `im:history`, `mpim:read`, `mpim:history`, `chat:write`, `users:read`, `team:read`
 - Redirect URL: `https://dreamwish.co.kr/api/integrations/slack/callback`
 
 GitHub:
