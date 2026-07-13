@@ -15,6 +15,7 @@ import {
 import { motion } from "framer-motion";
 import { useState } from "react";
 import { StorageStatus } from "@/components/Common/StorageStatus";
+import { UpgradeButton } from "@/components/billing/UpgradeButton";
 import type { ViewId } from "@/components/layout/types";
 import { useAppLanguage } from "@/src/lib/i18n/use-app-language";
 import { getNavLabel } from "@/src/lib/i18n/translations";
@@ -94,6 +95,7 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
       </nav>
 
       <div className="mt-4 shrink-0 space-y-3">
+        <UpgradeButton compact />
         <div className="rounded-app border border-app-border bg-white p-4 shadow-soft">
           <StorageStatus compact />
         </div>

@@ -30,6 +30,7 @@ import {
 import { canEnableFirebaseGitHubLogin } from "@/src/lib/firebase/firebase-auth-providers";
 import { validatePasswordChange } from "@/src/lib/firebase/firebase-password-policy";
 import { useAppLanguage } from "@/src/lib/i18n/use-app-language";
+import { AccessProvider } from "@/src/lib/auth/access-context";
 
 type AuthGateProps = {
   children: ReactNode;
@@ -355,7 +356,7 @@ export function AuthGate({ children }: AuthGateProps) {
   }
 
   return (
-    <>
+    <AccessProvider initialAccess={access}>
       {canChangePassword ? (
         <button
           type="button"
@@ -385,7 +386,7 @@ export function AuthGate({ children }: AuthGateProps) {
         />
       ) : null}
       {children}
-    </>
+    </AccessProvider>
   );
 }
 

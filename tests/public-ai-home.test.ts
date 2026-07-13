@@ -71,19 +71,21 @@ test("guest ads are manual consent-aware and cannot render in the signed-in work
   assert.doesNotMatch(ad, /import Script from "next\/script"/u);
 });
 
-test("obsolete chat login pricing and billing URLs redirect to the public home", () => {
+test("obsolete chat login and pricing URLs redirect while Polar success can refresh access", () => {
   const redirects = new Map([
     ["app/chat/page.tsx", 'permanentRedirect("/")'],
     ["app/login/page.tsx", 'permanentRedirect("/?login=1")'],
     ["app/pricing/page.tsx", 'permanentRedirect("/")'],
     ["app/payment/success/page.tsx", 'permanentRedirect("/")'],
-    ["app/billing/success/page.tsx", 'permanentRedirect("/")'],
     ["app/settings/billing/page.tsx", 'permanentRedirect("/")']
   ]);
 
   for (const [file, contract] of redirects) {
     assert.match(read(file), new RegExp(escapeRegExp(contract), "u"), file);
   }
+  const billingSuccess = read("app/billing/success/page.tsx");
+  assert.match(billingSuccess, /\/api\/billing\/status/u);
+  assert.match(billingSuccess, /canUseApp/u);
   assert.equal(fs.existsSync("app/pricing/PricingPageClient.tsx"), false);
 });
 
@@ -140,23 +142,28 @@ test("retired payment copy is absent from the active translation catalog", () =>
   assert.doesNotMatch(contracts, /pricing|billing|checkoutNotConfigured/u);
 });
 
-test("payment runtime and upgrade UI are removed while the signed-in sidebar remains", () => {
-  for (const removed of [
-    "app/api/payments/polar/checkout/route.ts",
-    "app/api/webhooks/polar/route.ts",
-    "src/lib/payments/polar.service.ts",
-    "tests/polar-checkout.test.ts"
-  ]) {
-    assert.equal(fs.existsSync(removed), false, removed);
-  }
-
+test("Polar entitlement locks unpaid content while preserving the signed-in sidebar", () => {
   const appShell = read("components/layout/AppShell.tsx");
   const sidebar = read("components/layout/Sidebar.tsx");
+  const authGate = read("components/auth/AuthGate.tsx");
+  const paymentGate = read("components/billing/PaymentGate.tsx");
+  const upgrade = read("components/billing/UpgradeButton.tsx");
+  const context = read("src/lib/auth/access-context.tsx");
+
   assert.match(appShell, /<Sidebar/u);
   assert.match(appShell, /<ChatView/u);
   assert.match(appShell, /<MemoryView/u);
   assert.match(appShell, /<BusinessHub/u);
-  assert.doesNotMatch(sidebar, /payment|checkout|upgrade|Sparkles/iu);
+  assert.match(appShell, /<PaymentGate/u);
+  assert.match(sidebar, /<UpgradeButton/u);
+  assert.match(sidebar, /<UpgradeButton[\s\S]*<StorageStatus/u);
+  assert.match(authGate, /AccessProvider/u);
+  assert.match(context, /refreshAccess/u);
+  assert.match(paymentGate, /requiresPayment/u);
+  assert.match(upgrade, /\/api\/billing\/checkout/u);
+  assert.match(upgrade, /\/api\/billing\/portal/u);
+  assert.match(upgrade, /adminBypass/u);
+  assert.equal(fs.existsSync("app/api/webhooks/polar/route.ts"), true);
 });
 
 function read(file: string) {

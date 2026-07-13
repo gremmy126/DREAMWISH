@@ -14,6 +14,8 @@
   "dependencies": {
     "@langchain/core": "^1.2.2",
     "@langchain/langgraph": "^1.4.7",
+    "@polar-sh/nextjs": "^0.9.6",
+    "@polar-sh/sdk": "^0.48.1",
     "firebase": "^12.16.0",
     "framer-motion": "^12.23.0",
     "js-cookie": "^3.0.8",

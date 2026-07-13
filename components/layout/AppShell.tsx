@@ -18,6 +18,7 @@ import { PageTransition } from "@/components/Common/PageTransition";
 import { openCookieSettings } from "@/components/consent/consent";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Topbar } from "@/components/layout/Topbar";
+import { PaymentGate } from "@/components/billing/PaymentGate";
 import type { ViewId } from "@/components/layout/types";
 
 export function AppShell() {
@@ -69,7 +70,9 @@ export function AppShell() {
           <main className="px-6 pb-6">
             <AnimatePresence mode="wait">
               <PageTransition key={activeView}>
-                <div className="min-w-0">{content}</div>
+                <PaymentGate>
+                  <div className="min-w-0">{content}</div>
+                </PaymentGate>
               </PageTransition>
             </AnimatePresence>
           </main>
