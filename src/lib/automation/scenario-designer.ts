@@ -54,25 +54,25 @@ export type ScenarioValidationIssue = {
 };
 
 export const AUTOMATION_MODULES: AutomationModule[] = [
-  module("schedule", "Schedule", "tool", "#10b981", "◷", "trigger", false),
-  module("gmail", "Gmail", "app", "#ef4444", "M", "action", true),
-  module("google-sheets", "Google Sheets", "app", "#16a34a", "S", "action", true),
-  module("slack", "Slack", "app", "#7c3aed", "S", "action", true),
-  module("notion", "Notion", "app", "#111827", "N", "action", true),
-  module("calendar", "Google Calendar", "app", "#2563eb", "C", "action", true),
-  module("discord", "Discord", "app", "#6366f1", "D", "action", true),
-  module("telegram", "Telegram", "app", "#0ea5e9", "T", "action", true),
-  module("github", "GitHub", "app", "#111827", "G", "action", true),
-  module("drive", "Google Drive", "app", "#f59e0b", "D", "action", true),
-  module("crm", "DREAMWISH CRM", "app", "#ec4899", "C", "action", false),
-  module("webhook", "Webhooks", "tool", "#db2777", "W", "trigger", true),
-  module("http", "HTTP 요청", "tool", "#0284c7", "H", "action", true),
-  module("ai", "AI 분석", "ai", "#6d5dfc", "✦", "action", false),
-  module("router", "라우터", "tool", "#22c55e", "R", "tool", false),
-  module("filter", "필터", "tool", "#8b5cf6", "F", "tool", false),
-  module("code", "코드", "tool", "#f97316", "{ }", "tool", false),
-  module("delay", "지연", "tool", "#a855f7", "◴", "tool", false),
-  module("iterator", "반복", "tool", "#06b6d4", "↻", "tool", false)
+  defineModule("schedule", "Schedule", "tool", "#10b981", "◷", "trigger", false),
+  defineModule("gmail", "Gmail", "app", "#ef4444", "M", "action", true),
+  defineModule("google-sheets", "Google Sheets", "app", "#16a34a", "S", "action", true),
+  defineModule("slack", "Slack", "app", "#7c3aed", "S", "action", true),
+  defineModule("notion", "Notion", "app", "#111827", "N", "action", true),
+  defineModule("calendar", "Google Calendar", "app", "#2563eb", "C", "action", true),
+  defineModule("discord", "Discord", "app", "#6366f1", "D", "action", true),
+  defineModule("telegram", "Telegram", "app", "#0ea5e9", "T", "action", true),
+  defineModule("github", "GitHub", "app", "#111827", "G", "action", true),
+  defineModule("drive", "Google Drive", "app", "#f59e0b", "D", "action", true),
+  defineModule("crm", "DREAMWISH CRM", "app", "#ec4899", "C", "action", false),
+  defineModule("webhook", "Webhooks", "tool", "#db2777", "W", "trigger", true),
+  defineModule("http", "HTTP 요청", "tool", "#0284c7", "H", "action", true),
+  defineModule("ai", "AI 분석", "ai", "#6d5dfc", "✦", "action", false),
+  defineModule("router", "라우터", "tool", "#22c55e", "R", "tool", false),
+  defineModule("filter", "필터", "tool", "#8b5cf6", "F", "tool", false),
+  defineModule("code", "코드", "tool", "#f97316", "{ }", "tool", false),
+  defineModule("delay", "지연", "tool", "#a855f7", "◴", "tool", false),
+  defineModule("iterator", "반복", "tool", "#06b6d4", "↻", "tool", false)
 ];
 
 export function buildScenarioFromPrompt(prompt: string, ownerId = "preview-owner") {
@@ -153,7 +153,7 @@ export function createScenarioNode(appId: string, index: number): ScenarioNode {
   };
 }
 
-function module(id: string, label: string, category: AutomationModule["category"], color: string, glyph: string, defaultKind: ScenarioNodeKind, requiresCredential: boolean): AutomationModule {
+function defineModule(id: string, label: string, category: AutomationModule["category"], color: string, glyph: string, defaultKind: ScenarioNodeKind, requiresCredential: boolean): AutomationModule {
   return { id, label, category, color, glyph, defaultKind, requiresCredential };
 }
 

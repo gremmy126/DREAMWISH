@@ -51,10 +51,11 @@ export default function RootLayout({
         >
           {buildConsentInitializerScript()}
         </Script>
-        <script
-          async
+        <Script
+          id="google-adsense"
           src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5650931082151367"
           crossOrigin="anonymous"
+          strategy="afterInteractive"
         />
       </head>
       <body>

@@ -68,6 +68,11 @@ test("guest ads are manual consent-aware and cannot render in the signed-in work
     /<head>[\s\S]*pagead2\.googlesyndication\.com\/pagead\/js\/adsbygoogle\.js\?client=ca-pub-5650931082151367[\s\S]*<\/head>/u
   );
   assert.match(layout, /crossOrigin="anonymous"/u);
+  assert.match(
+    layout,
+    /<Script[\s\S]*id="google-adsense"[\s\S]*strategy="afterInteractive"/u
+  );
+  assert.doesNotMatch(layout, /<script\s+async[\s\S]*pagead2\.googlesyndication\.com/u);
   assert.doesNotMatch(ad, /pagead2\.googlesyndication\.com/u);
   assert.doesNotMatch(ad, /import Script from "next\/script"/u);
 });

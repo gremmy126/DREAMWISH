@@ -67,6 +67,7 @@ test("automation workspace exposes canvas lifecycle and encrypted credential API
   assert.match(runApi, /validateScenario/u);
   assert.match(credentials, /aes-256-gcm/u);
   assert.doesNotMatch(credentials, /secretValue\s*:/u);
+  assert.doesNotMatch(read("src/lib/automation/scenario-designer.ts"), /function module\(/u);
   assert.match(chat, /\/api\/automation\/ai-draft/u);
   assert.match(chat, /dreamwish:navigate/u);
   assert.match(shell, /dreamwish:navigate/u);
