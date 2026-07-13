@@ -237,6 +237,88 @@ test("auth routes reject email-only identity with 401", async () => {
   }
 });
 
+test("auth routes classify rejected Firebase tokens as 401", async () => {
+  await withEnv({ NEXT_PUBLIC_FIREBASE_API_KEY: "firebase-test-key" }, async () => {
+    const originalFetch = globalThis.fetch;
+    try {
+      globalThis.fetch = async () =>
+        new Response(JSON.stringify({ error: { message: "INVALID_ID_TOKEN" } }), {
+          status: 400,
+          headers: { "Content-Type": "application/json" }
+        });
+
+      for (const routePath of ["login", "session"] as const) {
+        const route = requireProjectModule<{ POST(request: Request): Promise<Response> }>(
+          `app/api/auth/${routePath}/route.ts`
+        );
+        const response = await route.POST(
+          new Request(`http://localhost/api/auth/${routePath}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ idToken: "rejected-token" })
+          })
+        );
+
+        assert.equal(response.status, 401, routePath);
+      }
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+});
+
+test("auth routes hide session configuration failures", async () => {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "dreamwish-auth-config-failure-"));
+  const originalFetch = globalThis.fetch;
+  try {
+    await withEnv(
+      {
+        DATA_DIR: dataDir,
+        AUTH_SESSION_SECRET: undefined,
+        NEXT_PUBLIC_FIREBASE_API_KEY: "firebase-test-key",
+        NODE_ENV: "production"
+      },
+      async () => {
+        globalThis.fetch = async () =>
+          new Response(
+            JSON.stringify({
+              users: [
+                {
+                  localId: "firebase-config-test-user",
+                  email: "config-test@example.com",
+                  displayName: "Config Test"
+                }
+              ]
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          );
+
+        for (const routePath of ["login", "session"] as const) {
+          const route = requireProjectModule<{ POST(request: Request): Promise<Response> }>(
+            `app/api/auth/${routePath}/route.ts`
+          );
+          const response = await route.POST(
+            new Request(`http://localhost/api/auth/${routePath}`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ idToken: "verified-token" })
+            })
+          );
+
+          assert.equal(response.status, 500, routePath);
+          assert.deepEqual(await response.json(), {
+            ok: false,
+            error: "Authentication service is temporarily unavailable."
+          });
+        }
+      }
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
 test("verified auth routes use canonical Firebase claims and set hardened session cookies", async () => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "dreamwish-auth-cookie-"));
   const originalFetch = globalThis.fetch;

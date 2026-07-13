@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
 import { loginAccount } from "@/src/lib/auth/account.repository";
-import { stringifyUnknownError } from "@/src/lib/auth/access-control";
+import { getAuthRouteError } from "@/src/lib/auth/auth-route-error";
 import {
   createSessionToken,
   SESSION_COOKIE_NAME,
   SESSION_MAX_AGE_SECONDS
 } from "@/src/lib/auth/session-token";
-import { AIProviderError } from "@/src/lib/ai/errors";
 import { verifyFirebaseIdToken } from "@/src/lib/firebase/firebase-server-auth";
 
 export async function POST(request: Request) {
@@ -46,9 +45,10 @@ export async function POST(request: Request) {
 
     return response;
   } catch (error) {
+    const publicError = getAuthRouteError(error);
     return NextResponse.json(
-      { ok: false, error: stringifyUnknownError(error) },
-      { status: error instanceof AIProviderError && error.status === 401 ? 401 : 500 }
+      { ok: false, error: publicError.message },
+      { status: publicError.status }
     );
   }
 }
