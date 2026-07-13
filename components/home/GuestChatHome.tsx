@@ -3,6 +3,7 @@
 import { ArrowUp, Bot, CalendarDays, FileUp, Mail, Mic, Sparkles, UsersRound } from "lucide-react";
 import Link from "next/link";
 import { GuestAdSlot } from "@/components/ads/GuestAdSlot";
+import { BrainLogo } from "@/components/brand/BrainLogo";
 import { openCookieSettings } from "@/components/consent/consent";
 
 const EXAMPLE_PROMPTS = [
@@ -25,7 +26,7 @@ export function GuestChatHome({ onLoginRequest, restoringSession = false }: Gues
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
           <Link href="/" className="flex items-center gap-3" aria-label="DREAMWISH 홈">
             <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-blue-600 text-white shadow-lg shadow-violet-200">
-              <Sparkles size={17} aria-hidden="true" />
+              <BrainLogo className="h-6 w-6" />
             </span>
             <span>
               <span className="block text-sm font-extrabold tracking-tight">DREAMWISH</span>

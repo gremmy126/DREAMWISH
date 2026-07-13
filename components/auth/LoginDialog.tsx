@@ -1,6 +1,7 @@
 "use client";
 
-import { Chrome, Github, Loader2, LockKeyhole, Mail, Sparkles, UserRound, X } from "lucide-react";
+import { Chrome, Github, Loader2, LockKeyhole, Mail, UserRound, X } from "lucide-react";
+import { BrainLogo } from "@/components/brand/BrainLogo";
 import { useEffect, useRef, useState, type FormEvent, type ReactNode, type Ref } from "react";
 import {
   decideLoginSubmission,
@@ -119,7 +120,7 @@ export function LoginDialog(props: LoginDialogProps) {
         <header className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
             <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-blue-600 text-white shadow-lg shadow-violet-200">
-              <Sparkles size={19} aria-hidden="true" />
+              <BrainLogo className="h-6 w-6" />
             </span>
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.14em] text-violet-600">DREAMWISH</p>

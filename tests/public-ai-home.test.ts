@@ -102,6 +102,8 @@ test("public home publishes canonical social metadata schema robots and sitemap"
   const robots = read("app/robots.ts");
   const sitemap = read("app/sitemap.ts");
   const sidebar = read("components/layout/Sidebar.tsx");
+  const guestHome = read("components/home/GuestChatHome.tsx");
+  const loginDialog = read("components/auth/LoginDialog.tsx");
   const brainLogo = read("components/brand/BrainLogo.tsx");
   const appIcon = read("app/icon.svg");
 
@@ -122,6 +124,8 @@ test("public home publishes canonical social metadata schema robots and sitemap"
   assert.match(page, /height:\s*630/u);
   assert.match(page, /card:\s*"summary_large_image"/u);
   assert.match(sidebar, /<BrainLogo/u);
+  assert.match(guestHome, /<BrainLogo/u);
+  assert.match(loginDialog, /<BrainLogo/u);
   assert.match(brainLogo, /aria-hidden/u);
   assert.match(appIcon, /<svg/u);
   assert.equal(fs.existsSync("public/images/dreamwish-social-card.png"), true);
