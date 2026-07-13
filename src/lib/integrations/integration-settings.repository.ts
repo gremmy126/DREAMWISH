@@ -48,6 +48,17 @@ export async function saveIntegrationSyncSetting(input: {
   return setting;
 }
 
+export async function disableIntegrationSyncSetting(ownerId: string, connectorId: string) {
+  const current = (await listIntegrationSyncSettings(ownerId)).find((item) => item.connectorId === connectorId);
+  return saveIntegrationSyncSetting({
+    ownerId,
+    connectorId,
+    enabled: false,
+    syncDays: current?.syncDays || 30,
+    commandPrefix: current?.commandPrefix || connectorId,
+  });
+}
+
 async function readDb() {
   const db = await readJsonStore<IntegrationSettingsDb>("integration-settings.json", EMPTY_DB);
   return { settings: Array.isArray(db.settings) ? db.settings : [] };

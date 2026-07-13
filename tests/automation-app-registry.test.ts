@@ -23,6 +23,23 @@ test("automation credentials clearly identify each required key type", () => {
   assert.deepEqual(getAutomationApp("x")?.credentialFields.map((field) => field.id), ["apiKey", "apiSecret", "accessToken", "accessTokenSecret"]);
 });
 
+test("automation apps declare truthful supported auth modes and verification contracts", () => {
+  for (const app of AUTOMATION_APPS) {
+    assert.ok(app.supportedAuthModes.length > 0, `${app.id} must declare at least one auth mode`);
+    assert.equal(new Set(app.supportedAuthModes).size, app.supportedAuthModes.length, `${app.id} auth modes must be unique`);
+    if (app.credentialFields.length > 0) assert.ok(app.verificationKind, `${app.id} credentials must have a verifier`);
+  }
+
+  assert.deepEqual(getAutomationApp("gmail")?.supportedAuthModes, ["oauth"]);
+  assert.deepEqual(getAutomationApp("drive")?.oauthTarget, { provider: "google", service: "drive" });
+  assert.deepEqual(getAutomationApp("github")?.supportedAuthModes, ["oauth", "token"]);
+  assert.deepEqual(getAutomationApp("notion")?.supportedAuthModes, ["oauth", "token"]);
+  assert.deepEqual(getAutomationApp("discord")?.supportedAuthModes, ["oauth", "multi_field"]);
+  assert.equal(getAutomationApp("openai")?.verificationKind, "openai");
+  assert.equal(getAutomationApp("jira")?.verificationKind, "jira");
+  assert.equal(getAutomationApp("google-sheets")?.oauthTarget, undefined);
+});
+
 test("Automation tabs are interactive and module letters are replaced by app logos", () => {
   const source = fs.readFileSync("components/Automation/AutomationView.tsx", "utf8");
   const tabs = fs.readFileSync("components/Automation/AutomationTabs.tsx", "utf8");
@@ -39,7 +56,8 @@ test("structured app credentials are validated and encrypted as one secret paylo
   const repository = fs.readFileSync("src/lib/automation/credential.repository.ts", "utf8");
   assert.match(route, /getAutomationApp/u);
   assert.match(route, /credentialFields/u);
-  assert.match(route, /saveCredentialValues/u);
-  assert.match(repository, /JSON\.stringify\(input\.values\)/u);
+  assert.match(route, /verifyIntegrationCredential/u);
+  assert.match(route, /saveVerifiedCredential/u);
+  assert.match(repository, /JSON\.stringify\(values\)/u);
   assert.match(repository, /필드/u);
 });

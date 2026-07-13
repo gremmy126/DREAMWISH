@@ -27,6 +27,7 @@ import {
 
 export function AppShell({ hasServerSession }: { hasServerSession: boolean }) {
   const [activeView, setActiveView] = useState<ViewId>("chat");
+  const [pendingConnectorId, setPendingConnectorId] = useState<string | null>(null);
 
   const navigateToView = useCallback((view: ViewId) => {
     setActiveView(view);
@@ -40,9 +41,9 @@ export function AppShell({ hasServerSession }: { hasServerSession: boolean }) {
     }
 
     const handleNavigate = (event: Event) => {
-      const requested = normalizeWorkspaceView(
-        (event as CustomEvent<{ view?: string }>).detail?.view
-      );
+      const detail = (event as CustomEvent<{ view?: string; connectorId?: string }>).detail;
+      const requested = normalizeWorkspaceView(detail?.view);
+      if (requested === "integrations") setPendingConnectorId(detail?.connectorId || null);
       if (requested) navigateToView(requested);
     };
     window.addEventListener("dreamwish:navigate", handleNavigate);
@@ -66,13 +67,13 @@ export function AppShell({ hasServerSession }: { hasServerSession: boolean }) {
       case "files":
         return <FilesView />;
       case "integrations":
-        return <IntegrationsView />;
+        return <IntegrationsView selectedConnectorId={pendingConnectorId} />;
       case "settings":
         return <SettingsView />;
       default:
         return <ChatView />;
     }
-  }, [activeView]);
+  }, [activeView, pendingConnectorId]);
 
   return (
     <AuthGate hasServerSession={hasServerSession}>

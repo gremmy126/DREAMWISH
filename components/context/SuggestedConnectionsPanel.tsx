@@ -1,10 +1,12 @@
 "use client";
 
 import { Link2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PanelShell } from "@/components/context/PanelShell";
 import { useAppLanguage } from "@/src/lib/i18n/use-app-language";
 import type { SuggestedConnection } from "@/src/lib/connections/connections.types";
+import { getAutomationApp } from "@/src/lib/automation/app-registry";
+import type { VerifiedConnectionState } from "@/src/lib/integrations/verified-connection.service";
 
 export function SuggestedConnectionsPanel({
   suggestions,
@@ -14,7 +16,16 @@ export function SuggestedConnectionsPanel({
   onPreview: (path: string) => void;
 }) {
   const [approvalMessage, setApprovalMessage] = useState<string | null>(null);
+  const [connections, setConnections] = useState<VerifiedConnectionState[]>([]);
   const { t } = useAppLanguage();
+
+  useEffect(() => { void loadConnections(); }, []);
+
+  async function loadConnections() {
+    const response = await fetch("/api/integrations/status");
+    const data = await response.json().catch(() => ({})) as { connections?: VerifiedConnectionState[] };
+    if (response.ok) setConnections(data.connections || []);
+  }
 
   async function acceptConnection(connection: SuggestedConnection) {
     const response = await fetch("/api/local/connections/accept", {
@@ -31,6 +42,22 @@ export function SuggestedConnectionsPanel({
     });
     const data = await response.json();
     setApprovalMessage(data.message || t("context.accepted"));
+    if (data.connectionRequired && data.connectorId) {
+      window.dispatchEvent(new CustomEvent("dreamwish:navigate", { detail: { view: "integrations", connectorId: data.connectorId } }));
+    }
+    if (data.applied) await loadConnections();
+  }
+
+  async function disconnectConnection(connectorId: string, state: VerifiedConnectionState) {
+    const app = getAutomationApp(connectorId);
+    const target = app?.oauthTarget;
+    const response = state.authMode === "oauth" && target
+      ? await fetch(`/api/integrations/${encodeURIComponent(target.provider)}/disconnect?service=${encodeURIComponent(target.service)}`, { method: "POST" })
+      : await fetch(`/api/integrations/credentials/${encodeURIComponent(connectorId)}`, { method: "DELETE" });
+    if (response.ok) {
+      setApprovalMessage(`${app?.label || connectorId} 연결을 해제했습니다.`);
+      await loadConnections();
+    }
   }
 
   return (
@@ -47,6 +74,8 @@ export function SuggestedConnectionsPanel({
         <div className="space-y-2">
           {suggestions.slice(0, 5).map((connection) => {
             const opensExternal = connection.targetType === "app" || connection.targetType === "website";
+            const connectorId = connection.externalTargetId || connection.targetId;
+            const verified = connections.find((item) => item.connectorId === connectorId && item.status === "connected");
             return (
               <article
                 key={`${connection.sourceId}-${connection.targetId}`}
@@ -69,10 +98,10 @@ export function SuggestedConnectionsPanel({
                 <div className="mt-3 flex gap-2">
                   <button
                     type="button"
-                    onClick={() => acceptConnection(connection)}
-                    className="rounded-xl bg-app-primary px-3 py-1.5 text-[11px] font-semibold text-white"
+                    onClick={() => verified ? void disconnectConnection(connectorId, verified) : void acceptConnection(connection)}
+                    className={`rounded-xl px-3 py-1.5 text-[11px] font-semibold ${verified ? "border border-red-200 bg-white text-red-600" : "bg-app-primary text-white"}`}
                   >
-                    {t("context.accept")}
+                    {verified ? "연결 해제" : "연결하기"}
                   </button>
                   <button
                     type="button"

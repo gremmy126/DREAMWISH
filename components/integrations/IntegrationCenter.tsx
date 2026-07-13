@@ -26,6 +26,9 @@ import type {
 } from "@/src/lib/integrations/types";
 import { useAppLanguage } from "@/src/lib/i18n/use-app-language";
 import { readApiResponse } from "@/src/lib/api/api-response";
+import { AUTOMATION_APPS } from "@/src/lib/automation/app-registry";
+import type { VerifiedConnectionState } from "@/src/lib/integrations/verified-connection.service";
+import { AutomationAppLogo } from "@/components/Automation/AutomationAppLogo";
 import type {
   ConnectableOAuthProviderId,
   OAuthConnectionState,
@@ -46,6 +49,7 @@ import { PermissionScopeViewer } from "./PermissionScopeViewer";
 import { SlackIntegrationCard } from "./SlackIntegrationCard";
 import { SyncButton } from "./SyncButton";
 import { SyncHistoryTable } from "./SyncHistoryTable";
+import { KeyCredentialPanel } from "./KeyCredentialPanel";
 
 const iconMap = {
   drive: FileText,
@@ -88,9 +92,10 @@ type IntegrationStatusResponse = {
   ai?: {
     providers: Array<{ provider: string; connected: boolean }>;
   };
+  connections?: VerifiedConnectionState[];
 };
 
-export function IntegrationCenter() {
+export function IntegrationCenter({ selectedConnectorId }: { selectedConnectorId?: string | null }) {
   const connectors = useMemo(() => connectorRegistry.list(), []);
   const [items, setItems] = useState<ConnectorViewState[]>([]);
   const [selectedId, setSelectedId] = useState(connectors[0].id);
@@ -99,6 +104,9 @@ export function IntegrationCenter() {
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [statusSummary, setStatusSummary] = useState<IntegrationStatusResponse | null>(null);
+  const [connections, setConnections] = useState<VerifiedConnectionState[]>([]);
+  const [selectedAppId, setSelectedAppId] = useState(selectedConnectorId || "gmail");
+  const [statusVersion, setStatusVersion] = useState(0);
   const { t, language } = useAppLanguage();
 
   useEffect(() => {
@@ -117,6 +125,7 @@ export function IntegrationCenter() {
           (statusData?.items || []).map((item) => [item.connectorId, item])
         );
         setStatusSummary(statusData);
+        setConnections(statusData.connections || []);
         setItems(
           baseItems.map((item) => {
             const serverItem = statusById.get(item.connector.id);
@@ -138,10 +147,16 @@ export function IntegrationCenter() {
       }
     }
     void load();
-  }, [connectors, language]);
+  }, [connectors, language, statusVersion]);
+
+  useEffect(() => {
+    if (!selectedConnectorId) return;
+    setSelectedAppId(selectedConnectorId);
+    if (connectors.some((connector) => connector.id === selectedConnectorId)) setSelectedId(selectedConnectorId);
+  }, [connectors, selectedConnectorId]);
 
   const selected = items.find((item) => item.connector.id === selectedId) || items[0];
-  const connectedCount = items.filter((item) => item.integration.status === "connected").length;
+  const connectedCount = connections.filter((item) => item.status === "connected").length;
   const aiConnectedCount =
     statusSummary?.ai?.providers.filter((provider) => provider.connected).length || 0;
   const firebaseReady = Boolean(
@@ -201,6 +216,27 @@ export function IntegrationCenter() {
           value={firebaseReady ? t("integrations.firebaseConfigured") : t("integrations.firebaseMissing")}
         />
       </div>
+
+      <section className="grid gap-4 rounded-[24px] border border-app-border bg-app-bg/70 p-4 lg:grid-cols-[310px_minmax(0,1fr)]">
+        <div className="rounded-[20px] border border-app-border bg-white p-3 shadow-soft">
+          <div className="mb-3 flex items-center justify-between px-1">
+            <div><h2 className="text-sm font-bold text-app-text">앱 계정 연결</h2><p className="mt-1 text-[11px] text-app-muted">앱별 OAuth 또는 정확한 키 항목</p></div>
+            <span className="rounded-full bg-app-hover px-2 py-1 text-[10px] font-bold text-app-primary">{connectedCount}/{AUTOMATION_APPS.length}</span>
+          </div>
+          <div className="grid max-h-[560px] grid-cols-1 gap-1 overflow-y-auto pr-1 sm:grid-cols-2 lg:grid-cols-1">
+            {AUTOMATION_APPS.map((app) => {
+              const connection = connections.find((item) => item.connectorId === app.id);
+              return (
+                <button key={app.id} type="button" onClick={() => setSelectedAppId(app.id)} className={`flex min-w-0 items-center gap-3 rounded-xl px-3 py-2.5 text-left transition ${selectedAppId === app.id ? "bg-app-hover ring-1 ring-app-primary/20" : "hover:bg-app-bg"}`}>
+                  <AutomationAppLogo appId={app.id} size={30} color={app.color} />
+                  <span className="min-w-0 flex-1"><span className="block truncate text-xs font-bold text-app-text">{app.label}</span><span className={`mt-0.5 block text-[10px] ${connection?.status === "connected" ? "text-emerald-600" : connection?.status === "needs_reconnect" ? "text-amber-600" : "text-app-muted"}`}>{connection?.status === "connected" ? "연결됨" : connection?.status === "needs_reconnect" ? "재연결 필요" : "연결 안 됨"}</span></span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <KeyCredentialPanel appId={selectedAppId} connection={connections.find((item) => item.connectorId === selectedAppId)} onChanged={() => setStatusVersion((value) => value + 1)} />
+      </section>
 
       <div className="grid grid-cols-[minmax(0,1fr)_390px] gap-5">
         <SurfaceCard className="p-5">
@@ -391,6 +427,7 @@ function RedirectUriControl({ uri, matches }: { uri: string; matches: boolean | 
           {copyState === "copied" ? "Callback URI 복사됨" : "Callback URI 복사"}
         </button>
       </div>
+
       <p className="mt-2 break-all text-[11px] leading-5 text-app-muted">{uri}</p>
       <p aria-live="polite" className={`mt-1 text-[10px] ${copyState === "error" || matches === false ? "text-amber-700" : "text-emerald-700"}`}>
         {copyState === "error"

@@ -20,11 +20,8 @@ import {
 import "@xyflow/react/dist/style.css";
 import {
   Bot,
-  Check,
   ChevronDown,
   CirclePlay,
-  KeyRound,
-  Loader2,
   MoreVertical,
   Play,
   Plus,
@@ -48,6 +45,7 @@ import { AutomationAppLogo } from "@/components/Automation/AutomationAppLogo";
 import { ActionPicker } from "@/components/Automation/ActionPicker";
 import { AutomationTabs, type AutomationTab } from "@/components/Automation/AutomationTabs";
 import { AutomationGuide, ConnectionManager, RunHistory, TemplateGallery } from "@/components/Automation/AutomationSecondaryViews";
+import { getAutomationApp } from "@/src/lib/automation/app-registry";
 
 type CanvasData = { scenarioNode: ScenarioNode; order: number };
 type CanvasNode = Node<CanvasData, "scenarioModule">;
@@ -195,16 +193,6 @@ export function AutomationView() {
     setSelectedNodeId(null);
   }
 
-  async function addCredential(input: { appId: string; label: string; secret: string }) {
-    const response = await fetch("/api/automation/credentials", {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input)
-    });
-    const data = (await response.json().catch(() => ({}))) as { credential?: PublicAutomationCredential; error?: string };
-    if (!response.ok || !data.credential) throw new Error(data.error || "API 키를 저장하지 못했습니다.");
-    setCredentials((current) => [data.credential!, ...current]);
-    if (selectedNode?.data.scenarioNode.appId === input.appId) updateSelectedNode({ credentialId: data.credential.id });
-  }
-
   async function addStructuredCredential(input: { appId: string; label: string; values: Record<string, string> }) {
     const response = await fetch("/api/automation/credentials", {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input)
@@ -258,7 +246,7 @@ export function AutomationView() {
           <ScenarioInspector
             scenario={active} selectedNode={selectedNode?.data.scenarioNode || null}
             credentials={credentials} onNodeChange={updateSelectedNode} onDeleteNode={deleteSelectedNode}
-            onAddCredential={addCredential}
+            onOpenConnections={() => setActiveTab("connections")}
           />
         </div>
       </section>
@@ -304,12 +292,18 @@ function ModuleCatalog({ search, onSearch, onAdd }: { search: string; onSearch: 
   return <aside className="min-w-0 overflow-hidden bg-white"><div className="border-b border-slate-100 p-3"><h2 className="text-xs font-bold text-slate-900">기본 모듈</h2><label className="mt-3 flex h-9 min-w-0 items-center gap-2 rounded-xl border border-slate-200 px-3"><Search size={14} className="shrink-0 text-slate-400" /><input value={search} onChange={(event) => onSearch(event.target.value)} placeholder="모듈 검색" className="min-w-0 flex-1 text-xs outline-none" /></label></div><div className="max-h-[510px] overflow-y-auto p-2 app-scrollbar">{["app", "ai", "tool"].map((category) => <div key={category} className="mb-3"><p className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">{category === "app" ? "앱" : category === "ai" ? "AI" : "도구"}</p>{modules.filter((item) => item.category === category).map((item) => <button type="button" key={item.id} onClick={() => onAdd(item)} className="group flex w-full min-w-0 items-center gap-2.5 rounded-xl px-2 py-2 text-left hover:bg-violet-50"><AutomationAppLogo appId={item.id} size={28} color={item.color} /><span className="min-w-0 flex-1 truncate text-xs font-semibold text-slate-700 group-hover:text-violet-700">{item.label}</span><Plus size={13} className="shrink-0 text-slate-300 group-hover:text-violet-500" /></button>)}</div>)}</div></aside>;
 }
 
-function ScenarioInspector({ scenario, selectedNode, credentials, onNodeChange, onDeleteNode, onAddCredential }: { scenario: AutomationScenario | null; selectedNode: ScenarioNode | null; credentials: PublicAutomationCredential[]; onNodeChange: (patch: Partial<ScenarioNode>) => void; onDeleteNode: () => void; onAddCredential: (input: { appId: string; label: string; secret: string }) => Promise<void> }) {
-  const [secret, setSecret] = useState(""); const [saving, setSaving] = useState(false); const [error, setError] = useState<string | null>(null);
+function ScenarioInspector({ scenario, selectedNode, credentials, onNodeChange, onDeleteNode, onOpenConnections }: { scenario: AutomationScenario | null; selectedNode: ScenarioNode | null; credentials: PublicAutomationCredential[]; onNodeChange: (patch: Partial<ScenarioNode>) => void; onDeleteNode: () => void; onOpenConnections: () => void }) {
   const matchingCredentials = credentials.filter((item) => !selectedNode || item.appId === selectedNode.appId);
-  async function saveKey() { if (!selectedNode || !secret.trim()) return; setSaving(true); setError(null); try { await onAddCredential({ appId: selectedNode.appId, label: `${selectedNode.label} API`, secret }); setSecret(""); } catch (caught) { setError(caught instanceof Error ? caught.message : "저장하지 못했습니다."); } finally { setSaving(false); } }
   const selectedModule = selectedNode ? AUTOMATION_MODULES.find((item) => item.id === selectedNode.appId) || AUTOMATION_MODULES[0]! : null;
-  return <aside className="min-w-0 overflow-hidden bg-white p-4"><div className="flex items-center justify-between"><h2 className="truncate text-sm font-bold text-slate-950">{selectedNode ? "모듈 설정" : "시나리오 정보"}</h2><MoreVertical size={16} className="shrink-0 text-slate-400" /></div>{selectedNode && selectedModule ? <div className="mt-5 space-y-4"><div className="flex min-w-0 items-center gap-3"><AutomationAppLogo appId={selectedModule.id} size={40} color={selectedModule.color} /><div className="min-w-0"><p className="truncate text-sm font-bold text-slate-900">{selectedNode.label}</p><p className="truncate text-xs text-slate-400">{selectedNode.operation}</p></div></div><InspectorField label="모듈 이름" value={selectedNode.label} onChange={(label) => onNodeChange({ label })} /><ActionPicker appId={selectedNode.appId} value={selectedNode.operation} onChange={(operation) => onNodeChange({ operation })} />{selectedNode.requiresCredential ? <div><label className="text-[11px] font-bold text-slate-500">연결된 계정 / API 키</label><select value={selectedNode.credentialId || ""} onChange={(event) => onNodeChange({ credentialId: event.target.value || null })} className="mt-2 h-10 w-full min-w-0 truncate rounded-xl border border-slate-200 px-3 text-xs outline-none"><option value="">연결 필요</option>{matchingCredentials.map((item) => <option key={item.id} value={item.id}>{item.label} · {item.masked}</option>)}</select><div className="mt-3 rounded-xl bg-slate-50 p-3"><div className="flex items-center gap-2 text-[11px] font-bold text-slate-600"><KeyRound size={13} />빠른 Token 추가</div><input type="password" value={secret} onChange={(event) => setSecret(event.target.value)} placeholder="정확한 필드는 연결 관리 탭에서 입력" className="mt-2 h-9 w-full min-w-0 rounded-lg border border-slate-200 bg-white px-2.5 text-xs outline-none" /><button type="button" onClick={() => void saveKey()} disabled={!secret.trim() || saving} className="mt-2 flex h-8 w-full items-center justify-center gap-1 rounded-lg bg-violet-600 text-[11px] font-bold text-white disabled:opacity-40">{saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}암호화하여 저장</button>{error ? <p className="mt-2 break-words text-[10px] leading-4 text-red-600">{error}</p> : null}</div></div> : <p className="rounded-xl bg-emerald-50 p-3 text-[11px] leading-5 text-emerald-700">이 모듈은 별도 API 키 없이 DREAMWISH 내부에서 실행됩니다.</p>}<button type="button" onClick={onDeleteNode} className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-red-100 text-xs font-bold text-red-600 hover:bg-red-50"><Trash2 size={14} />모듈 삭제</button></div> : <ScenarioSummary scenario={scenario} credentials={credentials} />}</aside>;
+  const app = selectedNode ? getAutomationApp(selectedNode.appId) : null;
+  function openConnectionSetup() {
+    if (app?.supportedAuthModes.length === 1 && app.supportedAuthModes[0] === "oauth") {
+      window.dispatchEvent(new CustomEvent("dreamwish:navigate", { detail: { view: "integrations", connectorId: app.id } }));
+      return;
+    }
+    onOpenConnections();
+  }
+  return <aside className="min-w-0 overflow-hidden bg-white p-4"><div className="flex items-center justify-between"><h2 className="truncate text-sm font-bold text-slate-950">{selectedNode ? "모듈 설정" : "시나리오 정보"}</h2><MoreVertical size={16} className="shrink-0 text-slate-400" /></div>{selectedNode && selectedModule ? <div className="mt-5 space-y-4"><div className="flex min-w-0 items-center gap-3"><AutomationAppLogo appId={selectedModule.id} size={40} color={selectedModule.color} /><div className="min-w-0"><p className="truncate text-sm font-bold text-slate-900">{selectedNode.label}</p><p className="truncate text-xs text-slate-400">{selectedNode.operation}</p></div></div><InspectorField label="모듈 이름" value={selectedNode.label} onChange={(label) => onNodeChange({ label })} /><ActionPicker appId={selectedNode.appId} value={selectedNode.operation} onChange={(operation) => onNodeChange({ operation })} />{selectedNode.requiresCredential ? <div><label className="text-[11px] font-bold text-slate-500">검증된 계정 / API 키</label><select value={selectedNode.credentialId || ""} onChange={(event) => onNodeChange({ credentialId: event.target.value || null })} className="mt-2 h-10 w-full min-w-0 truncate rounded-xl border border-slate-200 px-3 text-xs outline-none"><option value="">연결 필요</option>{matchingCredentials.filter((item) => item.verificationStatus === "verified").map((item) => <option key={item.id} value={item.id}>{item.accountLabel || item.label} · {item.masked}</option>)}</select><div className="mt-3 rounded-xl bg-slate-50 p-3"><p className="text-[11px] leading-5 text-slate-600">앱별 정확한 키 항목 또는 OAuth를 연결 관리에서 인증하세요.</p><button type="button" onClick={openConnectionSetup} className="mt-2 flex h-9 w-full items-center justify-center rounded-lg bg-violet-600 text-[11px] font-bold text-white">연결 관리에서 인증</button></div></div> : <p className="rounded-xl bg-emerald-50 p-3 text-[11px] leading-5 text-emerald-700">이 모듈은 별도 API 키 없이 DREAMWISH 내부에서 실행됩니다.</p>}<button type="button" onClick={onDeleteNode} className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-red-100 text-xs font-bold text-red-600 hover:bg-red-50"><Trash2 size={14} />모듈 삭제</button></div> : <ScenarioSummary scenario={scenario} credentials={credentials} />}</aside>;
 }
 
 function ScenarioSummary({ scenario, credentials }: { scenario: AutomationScenario | null; credentials: PublicAutomationCredential[] }) {

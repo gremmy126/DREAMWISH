@@ -1,25 +1,68 @@
 export type AutomationCredentialField = { id: string; label: string; secret: boolean; required: boolean; placeholder?: string; help?: string };
+export type AutomationAuthMode = "oauth" | "api_key" | "token" | "multi_field";
+export type AutomationOAuthTarget = { provider: string; service: string };
 export type AutomationAppDefinition = {
   id: string; label: string; logoPath: string; color: string;
   authType: "none" | "oauth" | "api_key" | "token" | "multi_field";
+  supportedAuthModes: AutomationAuthMode[];
+  oauthTarget?: AutomationOAuthTarget;
+  verificationKind: string | null;
   credentialFields: AutomationCredentialField[];
   help: string;
 };
 
 const field = (id: string, label: string, secret = true, placeholder = ""): AutomationCredentialField => ({ id, label, secret, required: true, placeholder });
-const oauth = (id: string, label: string, color: string, help: string): AutomationAppDefinition => ({ id, label, logoPath: `/automation-icons/${id}.svg`, color, authType: "oauth", credentialFields: [], help });
-const token = (id: string, label: string, color: string, fields: AutomationCredentialField[], help: string): AutomationAppDefinition => ({ id, label, logoPath: `/automation-icons/${id}.svg`, color, authType: fields.length > 1 ? "multi_field" : "token", credentialFields: fields, help });
+const oauth = (
+  id: string,
+  label: string,
+  color: string,
+  help: string,
+  oauthTarget?: AutomationOAuthTarget,
+): AutomationAppDefinition => ({
+  id,
+  label,
+  logoPath: `/automation-icons/${id}.svg`,
+  color,
+  authType: "oauth",
+  supportedAuthModes: ["oauth"],
+  ...(oauthTarget ? { oauthTarget } : {}),
+  verificationKind: null,
+  credentialFields: [],
+  help,
+});
+const token = (
+  id: string,
+  label: string,
+  color: string,
+  fields: AutomationCredentialField[],
+  help: string,
+  oauthTarget?: AutomationOAuthTarget,
+): AutomationAppDefinition => {
+  const credentialMode: AutomationAuthMode = fields.length > 1 ? "multi_field" : "token";
+  return {
+    id,
+    label,
+    logoPath: `/automation-icons/${id}.svg`,
+    color,
+    authType: credentialMode,
+    supportedAuthModes: oauthTarget ? ["oauth", credentialMode] : [credentialMode],
+    ...(oauthTarget ? { oauthTarget } : {}),
+    verificationKind: id,
+    credentialFields: fields,
+    help,
+  };
+};
 
 export const AUTOMATION_APPS: AutomationAppDefinition[] = [
-  oauth("gmail", "Gmail", "#EA4335", "Google OAuth 계정 연결 · 운영자 Client ID/Secret 필요"),
+  oauth("gmail", "Gmail", "#EA4335", "Google OAuth 계정 연결 · 운영자 Client ID/Secret 필요", { provider: "google", service: "gmail" }),
   oauth("google-sheets", "Google Sheets", "#0F9D58", "Google OAuth 계정 연결"),
-  oauth("calendar", "Google Calendar", "#4285F4", "Google OAuth 계정 연결"),
-  oauth("drive", "Google Drive", "#F9AB00", "Google OAuth 계정 연결"),
+  oauth("calendar", "Google Calendar", "#4285F4", "Google OAuth 계정 연결", { provider: "google", service: "calendar" }),
+  oauth("drive", "Google Drive", "#F9AB00", "Google OAuth 계정 연결", { provider: "google", service: "drive" }),
   oauth("youtube", "YouTube", "#FF0000", "Google OAuth 계정 연결"),
-  oauth("slack", "Slack", "#4A154B", "Slack OAuth 계정 연결 · 운영자 Client ID/Secret/Signing Secret 필요"),
-  token("notion", "Notion", "#111111", [field("integrationToken", "Integration Token")], "Notion Internal Integration에서 발급"),
-  token("github", "GitHub", "#181717", [field("personalAccessToken", "Fine-grained Personal Access Token")], "GitHub Settings > Developer settings에서 발급"),
-  token("discord", "Discord", "#5865F2", [field("botToken", "Bot Token"), field("serverId", "Server ID", false), field("channelId", "Channel ID", false)], "Discord Developer Portal Bot 설정"),
+  oauth("slack", "Slack", "#4A154B", "Slack OAuth 계정 연결 · 운영자 Client ID/Secret/Signing Secret 필요", { provider: "slack", service: "slack" }),
+  token("notion", "Notion", "#111111", [field("integrationToken", "Integration Token")], "Notion Internal Integration에서 발급", { provider: "notion", service: "notion" }),
+  token("github", "GitHub", "#181717", [field("personalAccessToken", "Fine-grained Personal Access Token")], "GitHub Settings > Developer settings에서 발급", { provider: "github", service: "github" }),
+  token("discord", "Discord", "#5865F2", [field("botToken", "Bot Token"), field("serverId", "Server ID", false), field("channelId", "Channel ID", false)], "Discord Developer Portal Bot 설정", { provider: "discord", service: "discord" }),
   token("telegram", "Telegram", "#26A5E4", [field("botToken", "Bot Token"), field("chatId", "Chat ID", false)], "BotFather에서 Bot Token 발급"),
   oauth("outlook", "Outlook", "#0078D4", "Microsoft OAuth · 운영자 Client ID/Secret/Tenant 필요"),
   oauth("microsoft-teams", "Microsoft Teams", "#6264A7", "Microsoft OAuth · 운영자 Client ID/Secret/Tenant 필요"),

@@ -9,6 +9,7 @@ import {
 } from "@/src/lib/connections/external-actions";
 import { saveIntegrationSyncSetting } from "@/src/lib/integrations/integration-settings.repository";
 import { requireOwnerContext } from "@/src/lib/auth/owner-context";
+import { getVerifiedConnectionStates } from "@/src/lib/integrations/verified-connection.service";
 
 export async function POST(request: Request) {
   const owner = await requireOwnerContext(request);
@@ -30,6 +31,18 @@ export async function POST(request: Request) {
       return NextResponse.json({
         requiresApproval: true,
         message: "Connection preview created. Accepting will enable this app command in AI Chat.",
+        plan
+      });
+    }
+
+    const connection = (await getVerifiedConnectionStates(owner.uid, request.url))
+      .find((item) => item.connectorId === target.id);
+    if (!connection || connection.status !== "connected") {
+      return NextResponse.json({
+        applied: false,
+        connectionRequired: true,
+        connectorId: target.id,
+        message: `${target.label} 계정 연결이 필요합니다. 연동 화면에서 먼저 인증해 주세요.`,
         plan
       });
     }

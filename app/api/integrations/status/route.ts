@@ -7,16 +7,18 @@ import {
 import { listIntegrationSyncSettings } from "@/src/lib/integrations/integration-settings.repository";
 import { connectorRegistry } from "@/src/lib/integrations/registry";
 import { requireOwnerContext } from "@/src/lib/auth/owner-context";
+import { getVerifiedConnectionStates } from "@/src/lib/integrations/verified-connection.service";
 
 export async function GET(request: Request) {
   const owner = await requireOwnerContext(request);
   const connectors = connectorRegistry.list();
-  const [settings, authStates] = await Promise.all([
+  const [settings, authStates, connections] = await Promise.all([
     listIntegrationSyncSettings(owner.uid),
     getAllConnectorAuthStates(owner.uid, [
       ...connectors.map((connector) => connector.id),
       "firebase"
-    ], request.url)
+    ], request.url),
+    getVerifiedConnectionStates(owner.uid, request.url)
   ]);
 
   const items = await Promise.all(
@@ -42,6 +44,7 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     items,
+    connections,
     firebase: getFirebaseConnectionState(),
     ai: getAIProviderKeyState()
   });

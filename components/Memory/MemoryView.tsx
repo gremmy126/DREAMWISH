@@ -39,6 +39,8 @@ import {
   type KnowledgeTabId
 } from "@/src/lib/knowledge/knowledge-tabs";
 import { KnowledgeWorkspace } from "@/components/Knowledge/KnowledgeWorkspace";
+import { getAutomationApp } from "@/src/lib/automation/app-registry";
+import type { VerifiedConnectionState } from "@/src/lib/integrations/verified-connection.service";
 
 export function MemoryView() {
   const [snapshot, setSnapshot] = useState<MemoryDashboardSnapshot | null>(null);
@@ -48,12 +50,20 @@ export function MemoryView() {
   const [knowledgeNotes, setKnowledgeNotes] = useState<KnowledgeNote[]>([]);
   const [knowledgeTab, setKnowledgeTab] = useState<KnowledgeTabId>("network");
   const [connectionMessage, setConnectionMessage] = useState<string | null>(null);
+  const [connections, setConnections] = useState<VerifiedConnectionState[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const { language, t } = useAppLanguage();
 
   useEffect(() => {
     void loadDashboard();
+    void loadConnections();
   }, []);
+
+  async function loadConnections() {
+    const response = await fetch("/api/integrations/status");
+    const data = await response.json().catch(() => ({})) as { connections?: VerifiedConnectionState[] };
+    if (response.ok) setConnections(data.connections || []);
+  }
 
   async function loadDashboard() {
     setLoading(true);
@@ -156,8 +166,24 @@ export function MemoryView() {
         approved: true
       })
     });
-    const data = (await response.json()) as { message?: string };
+    const data = (await response.json()) as { message?: string; applied?: boolean; connectionRequired?: boolean; connectorId?: string };
     setConnectionMessage(data.message || t("memory.connectionAccepted"));
+    if (data.connectionRequired && data.connectorId) {
+      window.dispatchEvent(new CustomEvent("dreamwish:navigate", { detail: { view: "integrations", connectorId: data.connectorId } }));
+    }
+    if (data.applied) await loadConnections();
+  }
+
+  async function disconnectKnowledgeRecommendation(connectorId: string, state: VerifiedConnectionState) {
+    const app = getAutomationApp(connectorId);
+    const target = app?.oauthTarget;
+    const response = state.authMode === "oauth" && target
+      ? await fetch(`/api/integrations/${encodeURIComponent(target.provider)}/disconnect?service=${encodeURIComponent(target.service)}`, { method: "POST" })
+      : await fetch(`/api/integrations/credentials/${encodeURIComponent(connectorId)}`, { method: "DELETE" });
+    if (response.ok) {
+      setConnectionMessage(`${app?.label || connectorId} 연결을 해제했습니다.`);
+      await loadConnections();
+    }
   }
 
   if (loading && !snapshot) {
@@ -281,10 +307,14 @@ export function MemoryView() {
                 <p className="mt-2 line-clamp-2 text-xs leading-5 text-slate-600">{recommendation.reason}</p>
                 <button
                   type="button"
-                  onClick={() => void acceptKnowledgeRecommendation(recommendation)}
-                  className="mt-3 rounded-xl bg-app-primary px-3 py-1.5 text-[11px] font-semibold text-white"
+                  onClick={() => {
+                    const verified = connections.find((item) => item.connectorId === recommendation.targetId && item.status === "connected");
+                    if (verified) void disconnectKnowledgeRecommendation(recommendation.targetId, verified);
+                    else void acceptKnowledgeRecommendation(recommendation);
+                  }}
+                  className={`mt-3 rounded-xl px-3 py-1.5 text-[11px] font-semibold ${connections.some((item) => item.connectorId === recommendation.targetId && item.status === "connected") ? "border border-red-200 bg-white text-red-600" : "bg-app-primary text-white"}`}
                 >
-                  {t("memory.acceptConnection")}
+                  {connections.some((item) => item.connectorId === recommendation.targetId && item.status === "connected") ? "연결 해제" : "연결하기"}
                 </button>
               </div>
             ))}

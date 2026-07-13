@@ -121,7 +121,7 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
               <InfoRow label={t("sidebar.commerceNumber")} value="2026-부산사상구-0185" />
               <InfoRow label={t("sidebar.companyName")} value="드림위시" />
               <InfoRow label={t("sidebar.phone")} value="051-916-1222" />
-              <InfoRow label={t("sidebar.address")} value="부산 사상구 학장로 8-37, 202동 2504호" />
+              <InfoRow label={t("sidebar.address")} value="부산 사상구 덕상로 8-37, 202동 2504호" />
             </dl>
           </div>
         </div>

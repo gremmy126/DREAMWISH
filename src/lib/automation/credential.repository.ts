@@ -10,6 +10,11 @@ export type AutomationCredential = {
   ciphertext: string;
   iv: string;
   authTag: string;
+  accountLabel?: string | null;
+  providerAccountId?: string | null;
+  verificationStatus?: "verified" | "needs_reconnect";
+  verifiedAt?: string | null;
+  schemaVersion?: number;
   createdAt: string;
   updatedAt: string;
 };
@@ -42,22 +47,48 @@ export async function saveCredentialValues(input: {
   if (Object.keys(values).length === 0) throw new Error("연결 정보를 입력하세요.");
   return saveEncryptedCredential(
     input,
-    JSON.stringify(input.values),
+    JSON.stringify(values),
     `•••••• · ${Object.keys(values).length}개 필드`
+  );
+}
+
+export async function saveVerifiedCredential(input: {
+  ownerId: string;
+  appId: string;
+  label: string;
+  values: Record<string, string>;
+  accountLabel: string;
+  providerAccountId?: string | null;
+}) {
+  const values = Object.fromEntries(Object.entries(input.values).map(([key, value]) => [key, value.trim()]));
+  if (Object.keys(values).length === 0) throw new Error("연결 정보를 입력하세요.");
+  const verifiedAt = new Date().toISOString();
+  return saveEncryptedCredential(
+    input,
+    JSON.stringify(values),
+    `•••••• · ${Object.keys(values).length}개 필드`,
+    {
+      accountLabel: input.accountLabel,
+      providerAccountId: input.providerAccountId || null,
+      verificationStatus: "verified",
+      verifiedAt,
+      schemaVersion: 2,
+    },
   );
 }
 
 async function saveEncryptedCredential(
   input: { ownerId: string; appId: string; label: string },
   secret: string,
-  masked: string
+  masked: string,
+  metadata: Pick<AutomationCredential, "accountLabel" | "providerAccountId" | "verificationStatus" | "verifiedAt" | "schemaVersion"> = {},
 ) {
   const encrypted = encrypt(secret);
   const now = new Date().toISOString();
   const credential: AutomationCredential = {
     id: randomUUID(), appId: input.appId.trim(), label: input.label.trim() || `${input.appId} API`,
     masked, ciphertext: encrypted.ciphertext, iv: encrypted.iv,
-    authTag: encrypted.authTag, createdAt: now, updatedAt: now
+    authTag: encrypted.authTag, ...metadata, createdAt: now, updatedAt: now
   };
   await mutateDocument(input.ownerId, (document) => { document.credentials.unshift(credential); });
   return toPublicCredential(credential);
@@ -100,6 +131,16 @@ function encryptionKey() {
 function maskSecret(value: string) {
   const trimmed = value.trim();
   return trimmed.length < 8 ? "••••••••" : `${trimmed.slice(0, 4)}••••••••${trimmed.slice(-4)}`;
+}
+
+export async function deleteCredentialsByApp(ownerId: string, appId: string) {
+  let deleted = 0;
+  await mutateDocument(ownerId, (document) => {
+    const before = document.credentials.length;
+    document.credentials = document.credentials.filter((item) => item.appId !== appId);
+    deleted = before - document.credentials.length;
+  });
+  return deleted;
 }
 
 function toPublicCredential(credential: AutomationCredential): PublicAutomationCredential {

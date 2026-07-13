@@ -701,18 +701,16 @@ export function ChatView() {
   }
 
   async function saveAttachedFile(file: File, textPreview: string) {
-    await fetch("/api/files", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: file.name,
-        mimeType: file.type || "application/octet-stream",
-        size: file.size,
-        source: "aichat",
-        textPreview,
-        projectId: activeProjectId
-      })
-    });
+    const form = new FormData();
+    form.set("file", file);
+    form.set("source", "aichat");
+    form.set("textPreview", textPreview);
+    if (activeProjectId) form.set("projectId", activeProjectId);
+    const response = await fetch("/api/files", { method: "POST", body: form });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({})) as { error?: string };
+      throw new Error(data.error || "첨부 파일을 저장하지 못했습니다.");
+    }
   }
 
   function startVoiceInput() {
