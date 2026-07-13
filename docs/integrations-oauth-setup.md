@@ -21,6 +21,8 @@ Required Railway/server variables:
 ```env
 APP_URL=https://dreamwish.co.kr
 INTEGRATION_TOKEN_ENCRYPTION_KEY=<32+ byte random secret>
+OAUTH_TOKEN_ENCRYPTION_KEY=<optional separate 32+ byte random secret>
+AUTOMATION_CREDENTIAL_ENCRYPTION_KEY=<optional separate 32+ byte random secret>
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 GOOGLE_REDIRECT_URI=https://dreamwish.co.kr/api/integrations/google/callback
@@ -39,6 +41,10 @@ DISCORD_REDIRECT_URI=https://dreamwish.co.kr/api/integrations/discord/callback
 ```
 
 Do not put client secrets in `NEXT_PUBLIC_*` variables. Do not store access tokens or refresh tokens in localStorage, sessionStorage, or client cookies.
+
+User-entered automation credentials are encrypted with AES-256-GCM. The server chooses the first configured key in this order: `AUTOMATION_CREDENTIAL_ENCRYPTION_KEY`, `INTEGRATION_TOKEN_ENCRYPTION_KEY`, then `OAUTH_TOKEN_ENCRYPTION_KEY`. Production refuses to save a verified credential when all three are absent. Each record stores only the non-secret key identifier so adding a new preferred key does not make older records unreadable. `AUTH_SESSION_SECRET` is never used for credential encryption.
+
+Client IDs, client secrets, and encryption keys belong only in Railway or another server deployment environment. End users enter only the provider-specific API key, personal token, bot token, or other field explicitly requested by the app connection form.
 
 ## Callback URLs
 

@@ -10,6 +10,7 @@ export type AutomationCredential = {
   ciphertext: string;
   iv: string;
   authTag: string;
+  keyId?: CredentialKeyId;
   accountLabel?: string | null;
   providerAccountId?: string | null;
   verificationStatus?: "verified" | "needs_reconnect";
@@ -18,6 +19,29 @@ export type AutomationCredential = {
   createdAt: string;
   updatedAt: string;
 };
+
+export type CredentialKeyId = "automation" | "integration" | "oauth" | "development";
+export type CredentialPersistenceCode =
+  | "CREDENTIAL_ENCRYPTION_NOT_CONFIGURED"
+  | "CREDENTIAL_DATABASE_UNAVAILABLE"
+  | "CREDENTIAL_WRITE_FAILED";
+
+export class CredentialPersistenceError extends Error {
+  constructor(
+    public readonly code: CredentialPersistenceCode,
+    message: string,
+    public readonly status = 500
+  ) {
+    super(message);
+    this.name = "CredentialPersistenceError";
+  }
+}
+
+export function isCredentialPersistenceError(
+  error: unknown
+): error is CredentialPersistenceError {
+  return error instanceof CredentialPersistenceError;
+}
 
 export type PublicAutomationCredential = Omit<AutomationCredential, "ciphertext" | "iv" | "authTag">;
 type CredentialDocument = { credentials: AutomationCredential[] };
@@ -88,9 +112,24 @@ async function saveEncryptedCredential(
   const credential: AutomationCredential = {
     id: randomUUID(), appId: input.appId.trim(), label: input.label.trim() || `${input.appId} API`,
     masked, ciphertext: encrypted.ciphertext, iv: encrypted.iv,
-    authTag: encrypted.authTag, ...metadata, createdAt: now, updatedAt: now
+    authTag: encrypted.authTag, keyId: encrypted.keyId, ...metadata, createdAt: now, updatedAt: now
   };
-  await mutateDocument(input.ownerId, (document) => { document.credentials.unshift(credential); });
+  try {
+    await mutateDocument(input.ownerId, (document) => { document.credentials.unshift(credential); });
+  } catch (error) {
+    if (isCredentialPersistenceError(error)) throw error;
+    if (process.env.DATABASE_URL?.trim()) {
+      throw new CredentialPersistenceError(
+        "CREDENTIAL_DATABASE_UNAVAILABLE",
+        "검증은 완료됐지만 보안 저장소에 연결하지 못했습니다. 잠시 후 다시 시도해주세요.",
+        503
+      );
+    }
+    throw new CredentialPersistenceError(
+      "CREDENTIAL_WRITE_FAILED",
+      "검증은 완료됐지만 연결 정보를 저장하지 못했습니다. 잠시 후 다시 시도해주세요."
+    );
+  }
   return toPublicCredential(credential);
 }
 
@@ -111,21 +150,72 @@ export async function revealCredential(ownerId: string, credentialId: string) {
 
 function encrypt(value: string) {
   const iv = randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", encryptionKey(), iv);
+  const selected = selectEncryptionKey();
+  const cipher = createCipheriv("aes-256-gcm", selected.key, iv);
   const ciphertext = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
-  return { ciphertext: ciphertext.toString("base64"), iv: iv.toString("base64"), authTag: cipher.getAuthTag().toString("base64") };
+  return {
+    ciphertext: ciphertext.toString("base64"),
+    iv: iv.toString("base64"),
+    authTag: cipher.getAuthTag().toString("base64"),
+    keyId: selected.keyId
+  };
 }
 
 function decrypt(credential: AutomationCredential) {
-  const decipher = createDecipheriv("aes-256-gcm", encryptionKey(), Buffer.from(credential.iv, "base64"));
-  decipher.setAuthTag(Buffer.from(credential.authTag, "base64"));
-  return Buffer.concat([decipher.update(Buffer.from(credential.ciphertext, "base64")), decipher.final()]).toString("utf8");
+  let lastError: unknown = null;
+  const keyIds = credential.keyId
+    ? [credential.keyId]
+    : configuredKeyIds(true);
+  for (const keyId of keyIds) {
+    try {
+      const decipher = createDecipheriv(
+        "aes-256-gcm",
+        selectEncryptionKey(keyId).key,
+        Buffer.from(credential.iv, "base64")
+      );
+      decipher.setAuthTag(Buffer.from(credential.authTag, "base64"));
+      return Buffer.concat([
+        decipher.update(Buffer.from(credential.ciphertext, "base64")),
+        decipher.final()
+      ]).toString("utf8");
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  if (isCredentialPersistenceError(lastError)) throw lastError;
+  throw new CredentialPersistenceError(
+    "CREDENTIAL_WRITE_FAILED",
+    "저장된 연결 정보를 복호화하지 못했습니다. 계정을 다시 연결해주세요."
+  );
 }
 
-function encryptionKey() {
-  const configured = process.env.AUTOMATION_CREDENTIAL_ENCRYPTION_KEY?.trim();
-  if (!configured && process.env.NODE_ENV === "production") throw new Error("AUTOMATION_CREDENTIAL_ENCRYPTION_KEY is required.");
-  return createHash("sha256").update(configured || "dreamwish-local-development-only").digest();
+function selectEncryptionKey(preferred?: CredentialKeyId) {
+  const keyId = preferred || configuredKeyIds(false)[0];
+  const material = keyId ? keyMaterial(keyId) : null;
+  if (!keyId || !material) {
+    throw new CredentialPersistenceError(
+      "CREDENTIAL_ENCRYPTION_NOT_CONFIGURED",
+      "서버 암호화 키 설정이 필요합니다. 관리자에게 문의해주세요."
+    );
+  }
+  return {
+    keyId,
+    key: createHash("sha256").update(material).digest()
+  };
+}
+
+function configuredKeyIds(legacyOrder: boolean): CredentialKeyId[] {
+  const ordered: CredentialKeyId[] = legacyOrder
+    ? ["automation", "integration", "oauth", "development"]
+    : ["automation", "integration", "oauth", "development"];
+  return ordered.filter((keyId) => Boolean(keyMaterial(keyId)));
+}
+
+function keyMaterial(keyId: CredentialKeyId) {
+  if (keyId === "automation") return process.env.AUTOMATION_CREDENTIAL_ENCRYPTION_KEY?.trim() || null;
+  if (keyId === "integration") return process.env.INTEGRATION_TOKEN_ENCRYPTION_KEY?.trim() || null;
+  if (keyId === "oauth") return process.env.OAUTH_TOKEN_ENCRYPTION_KEY?.trim() || null;
+  return process.env.NODE_ENV === "production" ? null : "dreamwish-local-development-only";
 }
 
 function maskSecret(value: string) {

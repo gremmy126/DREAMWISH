@@ -49,7 +49,7 @@ export function isIntegrationCredentialError(error: unknown): error is Integrati
 const VERIFY: Record<string, CredentialVerifier> = {
   notion: async (values, fetcher) => {
     const data = await requestJson(fetcher, "https://api.notion.com/v1/users/me", {
-      headers: { Authorization: `Bearer ${values.integrationToken}`, "Notion-Version": "2022-06-28" },
+      headers: { Authorization: `Bearer ${values.integrationToken}`, "Notion-Version": "2026-03-11" },
     });
     return identity(labelOf(data, "name", "bot.workspace_name") || "Notion", idOf(data, "id"));
   },

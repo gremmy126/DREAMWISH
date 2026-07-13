@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { requireOwnerContext } from "@/src/lib/auth/owner-context";
-import { listCredentials, saveVerifiedCredential } from "@/src/lib/automation/credential.repository";
+import {
+  isCredentialPersistenceError,
+  listCredentials,
+  saveVerifiedCredential
+} from "@/src/lib/automation/credential.repository";
 import { getAutomationApp } from "@/src/lib/automation/app-registry";
 import { isIntegrationCredentialError, verifyIntegrationCredential } from "@/src/lib/integrations/credential-verifier";
 
@@ -49,6 +53,12 @@ export async function POST(request: Request) {
     } catch (error) {
       if (isIntegrationCredentialError(error)) {
         return NextResponse.json({ code: error.code, error: error.message.replace(/^\w+:\s*/u, "") }, { status: error.status });
+      }
+      if (isCredentialPersistenceError(error)) {
+        return NextResponse.json(
+          { code: error.code, error: error.message },
+          { status: error.status }
+        );
       }
       return NextResponse.json({ code: "CREDENTIAL_SAVE_FAILED", error: "검증된 연결 정보를 안전하게 저장하지 못했습니다." }, { status: 500 });
     }

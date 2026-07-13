@@ -13,6 +13,21 @@ test("OpenAI credentials are verified against the provider before save", async (
   assert.deepEqual(calls, ["https://api.openai.com/v1/models"]);
 });
 
+test("Notion credentials use the current provider API version", async () => {
+  const result = await verifyIntegrationCredential(
+    "notion",
+    { integrationToken: "notion-test" },
+    async (_url, init) => {
+      assert.equal(
+        new Headers(init?.headers).get("notion-version"),
+        "2026-03-11"
+      );
+      return Response.json({ id: "notion-bot", name: "DREAMWISH" });
+    }
+  );
+  assert.equal(result.providerAccountId, "notion-bot");
+});
+
 test("credential verifier rejects missing fields and unsafe provider URLs before fetch", async () => {
   let calls = 0;
   const fetcher = async () => { calls += 1; return Response.json({}); };
