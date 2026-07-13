@@ -1,5 +1,9 @@
 export type ChatModeIntent = "ask" | "plan" | "agent";
 
+export function parseChatMode(value: unknown): ChatModeIntent {
+  return value === "plan" || value === "agent" ? value : "ask";
+}
+
 export type IntegrationCommandApp = {
   commandPrefix: string;
 };

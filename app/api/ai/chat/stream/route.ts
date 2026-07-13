@@ -1,11 +1,14 @@
 import { streamChatWithAI } from "@/src/lib/ai/ai.service";
+import { createExecutionPreview } from "@/src/lib/agent/approval";
+import { planAgentExecution } from "@/src/lib/agent/planner";
 import { apiFailure } from "@/src/lib/api/api-response";
 import { parseJsonRequestBody } from "@/src/lib/api/json-request";
 import { requireOwnerContext } from "@/src/lib/auth/owner-context";
 import { parseProviderName } from "@/src/lib/ai/provider-options";
 import {
   appendApprovedMemoryToMessages,
-  buildContextAwareChatMessages
+  buildContextAwareChatMessages,
+  buildModeChatMessages
 } from "@/src/lib/ai/prompts";
 import { getChatExecutionPlan, getWebSearchQuery } from "@/src/lib/ai/question-classifier";
 import {
@@ -14,6 +17,7 @@ import {
   type ChatMessageRecord,
   type SourceDocument
 } from "@/src/lib/chat/chat.types";
+import { parseChatMode } from "@/src/lib/chat/chat-mode-policy";
 import {
   buildWebAnswerMessages,
   buildWebAnswerReferences,
@@ -51,6 +55,7 @@ type ChatRequestBody = {
   sessionId?: unknown;
   model?: unknown;
   provider?: unknown;
+  mode?: unknown;
 };
 
 export async function POST(request: Request) {
@@ -98,6 +103,7 @@ export async function POST(request: Request) {
   }
 
   const providerName = parseProviderName(body.model || body.provider);
+  const mode = parseChatMode(body.mode);
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream({
@@ -125,6 +131,57 @@ export async function POST(request: Request) {
             sources: []
           })
         );
+
+        if (mode !== "ask") {
+          send("status", { status: "generating" });
+          const executionPlan = await planAgentExecution(message);
+          const executionPreview = createExecutionPreview(executionPlan);
+          const chunks = await hybridSearch(message, 8);
+          const context = buildRagContext(chunks);
+          const sources = mergeSources(context.sources, memoryContext.sources);
+          const confidence = calculateConfidence(chunks);
+          const messages = buildModeChatMessages({
+            mode,
+            question: message,
+            contextText: context.contextText,
+            memoryContextText: memoryContext.contextText,
+            executionPreviewText: formatExecutionPreview(executionPreview)
+          });
+
+          send("sources", { sources, confidence });
+          send("status", { status: "streaming" });
+          let answer = "";
+          for await (const token of streamChatWithAI(messages, providerName)) {
+            answer += token;
+            send("delta", { text: token });
+          }
+
+          const verification =
+            context.sources.length > 0
+              ? verifyAnswer(answer, context.sources)
+              : emptyAnswerVerification();
+
+          const capture = await saveAssistantExchange(
+            owner.uid,
+            session.id,
+            userMessageRecord,
+            message,
+            answer,
+            sources,
+            confidence,
+            verification
+          );
+          send("done", {
+            answer,
+            sources,
+            confidence,
+            verification,
+            sessionId: session.id,
+            memoryStatus: capture?.status || memoryContext.status,
+            memoryCandidates: summarizeCandidates(capture?.candidates || [])
+          });
+          return;
+        }
 
         if (isQualityCommand(message)) {
           const report = await checkDocumentQuality(message);
@@ -284,6 +341,19 @@ export async function POST(request: Request) {
       Connection: "keep-alive"
     }
   });
+}
+
+function formatExecutionPreview(preview: ReturnType<typeof createExecutionPreview>) {
+  return [
+    `목표: ${preview.goal}`,
+    `위험도: ${preview.risk}`,
+    ...preview.steps.map(
+      (step) =>
+        `${step.order}. ${step.title}: ${step.description}${
+          step.requiresApproval ? " (사용자 승인 필요)" : ""
+        }`
+    )
+  ].join("\n");
 }
 
 async function saveAssistantExchange(

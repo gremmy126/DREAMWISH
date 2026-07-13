@@ -28,8 +28,6 @@ import {
   MemoryCandidateCard,
   type MemoryCandidateCardData
 } from "@/components/Memory/MemoryCandidateCard";
-import { createExecutionPreview } from "@/src/lib/agent/approval";
-import { planAgentExecution } from "@/src/lib/agent/planner";
 import { getErrorCode, readApiResponse } from "@/src/lib/api/api-response";
 import type {
   AnswerConfidence,
@@ -49,10 +47,7 @@ import {
   CHAT_QUICK_ACTIONS,
   type ChatQuickActionId
 } from "@/src/lib/chat/chat-ui-actions";
-import {
-  CHAT_MODE_BEHAVIOR,
-  shouldRouteToAgentPreview
-} from "@/src/lib/chat/chat-mode-policy";
+import { shouldRouteToAgentPreview } from "@/src/lib/chat/chat-mode-policy";
 import { stringifyUnknownError } from "@/src/lib/auth/access-control";
 import type { AIProviderName } from "@/src/lib/ai/ai-provider";
 import {
@@ -353,21 +348,28 @@ export function ChatView() {
     const contextualQuery = currentProject ? `${currentProject.name} ${message}` : message;
     setLastQuery(contextualQuery);
 
-    if (shouldRouteToAgentPreview(message, chatMode, integrationApps)) {
-      await addAgentPreview(message, chatMode);
-      return;
-    }
+    const effectiveMode: ChatMode = shouldRouteToAgentPreview(
+      message,
+      chatMode,
+      integrationApps
+    )
+      ? chatMode === "plan"
+        ? "plan"
+        : "agent"
+      : "ask";
 
-    const codeRun = parsePrefixedCommand(message, ["코드", "code", "js"]);
-    if (codeRun) {
-      await runCode(codeRun);
-      return;
-    }
+    if (effectiveMode === "ask") {
+      const codeRun = parsePrefixedCommand(message, ["코드", "code", "js"]);
+      if (codeRun) {
+        await runCode(codeRun);
+        return;
+      }
 
-    const localAction = parseLocalAction(message);
-    if (localAction) {
-      addChatAction(message, localAction);
-      return;
+      const localAction = parseLocalAction(message);
+      if (localAction) {
+        addChatAction(message, localAction);
+        return;
+      }
     }
 
     const userMessage: UiMessage = {
@@ -403,7 +405,8 @@ export function ChatView() {
           sessionId: currentSessionId,
           message,
           model: selectedModel,
-          projectId: activeProjectId
+          projectId: activeProjectId,
+          mode: effectiveMode
         })
       });
 
@@ -522,45 +525,6 @@ export function ChatView() {
         ? `${t("chat.actions.todoCreated")}\n\n- ${action.title}`
         : `${t("chat.actions.scheduleCreated")}\n\n- ${action.title}`
     );
-  }
-
-  async function addAgentPreview(userContent: string, mode: ChatMode = chatMode) {
-    setInput("");
-    setError(null);
-    setIsLoading(true);
-
-    try {
-      const plan = await planAgentExecution(userContent);
-      const preview = createExecutionPreview(plan);
-      const behavior = CHAT_MODE_BEHAVIOR[mode];
-      addLocalExchange(
-        userContent,
-        [
-          behavior.title,
-          "",
-          behavior.description,
-          "",
-          `${t("chat.mode.goal")}: ${preview.goal}`,
-          `${t("chat.mode.risk")}: ${preview.risk}`,
-          preview.summary,
-          "",
-          ...preview.steps.map(
-            (step) =>
-              `${step.order}. ${step.title}\n   ${step.description}${
-                step.requiresApproval ? `\n   ${t("chat.mode.approvalRequired")}` : ""
-              }`
-          ),
-          "",
-          mode === "plan"
-            ? t("chat.mode.planOnly")
-            : t("chat.mode.approvalFirst")
-        ].join("\n")
-      );
-    } catch (caught) {
-      setError(stringifyUnknownError(caught));
-    } finally {
-      setIsLoading(false);
-    }
   }
 
   function addLocalExchange(userContent: string, assistantContent: string) {
