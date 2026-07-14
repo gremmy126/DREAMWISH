@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { requireOwnerContext } from "@/src/lib/auth/owner-context";
 import { isBlockedFileName, listFileRecords, removeFileRecord, saveFileRecord, toPublicFileRecord } from "@/src/lib/files/file.repository";
 import { deleteOwnerFile, storeOwnerFile } from "@/src/lib/files/file-storage";
+import { withAccountStorageCapacity } from "@/src/lib/storage/account-storage-quota";
 
 const MAX_FILE_SIZE = 25 * 1024 * 1024;
 
@@ -32,26 +33,60 @@ export async function POST(request: Request) {
   const textPreview = String(form.get("textPreview") || "").slice(0, 12000);
   const fileId = randomUUID();
   const bytes = Buffer.from(await upload.arrayBuffer());
-  const stored = await storeOwnerFile({ ownerId: owner.uid, fileId, bytes });
   try {
-    const record = await saveFileRecord({
-      ownerId: owner.uid,
-      id: fileId,
-      name: upload.name,
-      mimeType: upload.type || "application/octet-stream",
-      size: upload.size,
-      source,
-      textPreview,
-      projectId,
-      folderId,
-      storageKey: stored.storageKey,
-      sha256: stored.sha256,
+    const record = await withAccountStorageCapacity(owner.uid, upload.size, async () => {
+      const stored = await storeOwnerFile({
+        ownerId: owner.uid,
+        fileId,
+        bytes,
+        contentType: upload.type || "application/octet-stream"
+      });
+      try {
+        return await saveFileRecord({
+          ownerId: owner.uid,
+          id: fileId,
+          name: upload.name,
+          mimeType: upload.type || "application/octet-stream",
+          size: upload.size,
+          source,
+          textPreview,
+          projectId,
+          folderId,
+          storageKey: stored.storageKey,
+          sha256: stored.sha256,
+        });
+      } catch (error) {
+        await deleteOwnerFile(owner.uid, stored.storageKey).catch(() => undefined);
+        await removeFileRecord(owner.uid, fileId).catch(() => undefined);
+        throw error;
+      }
     });
     return NextResponse.json({ file: toPublicFileRecord(record) }, { status: 201 });
   } catch (error) {
-    await deleteOwnerFile(owner.uid, stored.storageKey).catch(() => undefined);
-    await removeFileRecord(owner.uid, fileId).catch(() => undefined);
     const code = error instanceof Error ? error.message : "";
-    return NextResponse.json({ error: code === "FOLDER_NOT_FOUND" ? "선택한 폴더를 찾을 수 없습니다." : "파일을 저장하지 못했습니다." }, { status: code === "FOLDER_NOT_FOUND" ? 404 : 500 });
+    if (code === "STORAGE_QUOTA_EXCEEDED") {
+      return NextResponse.json(
+        {
+          code,
+          error: "계정 저장공간 10GB 한도를 초과했습니다. 파일을 정리한 뒤 다시 시도해주세요."
+        },
+        { status: 413 }
+      );
+    }
+    if (code === "STORAGE_BACKEND_UNAVAILABLE") {
+      return NextResponse.json(
+        { code, error: "파일 저장소를 사용할 수 없습니다. 잠시 후 다시 시도해주세요." },
+        { status: 503 }
+      );
+    }
+    return NextResponse.json(
+      {
+        error:
+          code === "FOLDER_NOT_FOUND"
+            ? "선택한 폴더를 찾을 수 없습니다."
+            : "파일을 저장하지 못했습니다."
+      },
+      { status: code === "FOLDER_NOT_FOUND" ? 404 : 500 }
+    );
   }
 }

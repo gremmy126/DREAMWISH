@@ -11,7 +11,9 @@ type StorageStatusProps = {
 
 type StorageInfo = {
   usageBytes: number;
-  quotaBytes: number | null;
+  quotaBytes: number;
+  remainingBytes: number;
+  percentUsed: number;
   measuredAt: string;
 };
 
@@ -51,7 +53,9 @@ export function StorageStatus({ compact = false }: StorageStatusProps) {
 
   const usage = info?.usageBytes ?? 0;
   const quota = info?.quotaBytes ?? null;
-  const percent = calculateStoragePercent(usage, quota);
+  const percent = info
+    ? calculateStoragePercent(info.percentUsed, 100)
+    : null;
 
   return (
     <div className={compact ? "" : "rounded-app border border-app-border bg-white p-4"}>
@@ -83,6 +87,14 @@ export function StorageStatus({ compact = false }: StorageStatusProps) {
             {quota ? formatBytes(quota) : t("storage.unknown")}
           </span>
         </div>
+        {info ? (
+          <div className="flex items-center justify-between gap-2">
+            <span>{t("storage.remaining")}</span>
+            <span className="font-medium text-app-text">
+              {formatBytes(info.remainingBytes)}
+            </span>
+          </div>
+        ) : null}
         {info?.measuredAt ? (
           <div className="flex items-center justify-between gap-2">
             <span>{t("storage.measuredAt")}</span>

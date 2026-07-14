@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, File, FileImage, FileSpreadsheet, FileText, Folder, FolderOpen, Image, Plus, Upload } from "lucide-react";
+import { Download, File, FileImage, FileSpreadsheet, FileText, Folder, FolderOpen, Image, Plus, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { EmptyState } from "@/components/Common/EmptyState";
 import { SectionHeader } from "@/components/Common/SectionHeader";
@@ -55,6 +55,7 @@ export function FilesView() {
       const data = await response.json().catch(() => ({})) as { error?: string };
       if (!response.ok) throw new Error(data.error || "파일을 업로드하지 못했습니다.");
       await loadWorkspace();
+      window.dispatchEvent(new Event("dreamwish:storage-updated"));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "파일을 업로드하지 못했습니다.");
     } finally { setBusy(false); }
@@ -83,6 +84,25 @@ export function FilesView() {
     const data = await response.json().catch(() => ({})) as { error?: string };
     if (!response.ok) { setError(data.error || "파일을 이동하지 못했습니다."); return; }
     await loadWorkspace();
+  }
+
+  async function deleteFile(fileId: string) {
+    if (!window.confirm("이 파일을 영구 삭제할까요?")) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/files/${fileId}`, {
+        method: "DELETE"
+      });
+      const data = await response.json().catch(() => ({})) as { error?: string };
+      if (!response.ok) throw new Error(data.error || "파일을 삭제하지 못했습니다.");
+      await loadWorkspace();
+      window.dispatchEvent(new Event("dreamwish:storage-updated"));
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "파일을 삭제하지 못했습니다.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   const visibleFiles = useMemo(() => files.filter((file) => {
@@ -121,7 +141,7 @@ export function FilesView() {
           <div className="mb-5 flex items-center justify-between"><p className="text-base font-semibold text-app-text">저장된 파일</p><span className="rounded-full border border-app-border bg-app-bg px-3 py-1 text-xs font-medium text-app-muted">{visibleFiles.length}개</span></div>
           {visibleFiles.length === 0 ? <EmptyState icon={Image} title="파일이 없습니다" description="현재 폴더나 형식에 해당하는 파일이 없습니다." /> : (
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {visibleFiles.map((file) => <FileCard key={file.id} file={file} folders={folders} onMove={moveFile} />)}
+              {visibleFiles.map((file) => <FileCard key={file.id} file={file} folders={folders} onMove={moveFile} onDelete={deleteFile} />)}
             </div>
           )}
         </SurfaceCard>
@@ -134,9 +154,9 @@ function FolderButton({ active, label, count, onClick }: { active: boolean; labe
   return <button type="button" onClick={onClick} className={`flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-semibold ${active ? "bg-app-hover text-app-primary" : "text-app-muted hover:bg-app-bg"}`}><Folder size={15} /><span className="min-w-0 flex-1 truncate">{label}</span><span>{count}</span></button>;
 }
 
-function FileCard({ file, folders, onMove }: { file: PublicFileRecord; folders: PublicFolder[]; onMove: (fileId: string, folderId: string) => Promise<void> }) {
+function FileCard({ file, folders, onMove, onDelete }: { file: PublicFileRecord; folders: PublicFolder[]; onMove: (fileId: string, folderId: string) => Promise<void>; onDelete: (fileId: string) => Promise<void> }) {
   const Icon = file.category === "image" ? FileImage : file.category === "excel" ? FileSpreadsheet : file.category === "pdf" ? FileText : File;
-  return <article className="min-w-0 rounded-app border border-app-border bg-white p-4 shadow-soft"><div className="mb-3 flex min-w-0 items-center gap-2"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-app-hover text-app-primary"><Icon size={17} /></span><div className="min-w-0"><p className="truncate text-sm font-semibold text-app-text" title={file.name}>{file.name}</p><p className="mt-1 text-[11px] text-app-muted">{formatBytes(file.size)} · {file.source}</p></div></div>{file.textPreview ? <p className="mb-3 line-clamp-2 text-xs leading-5 text-slate-600">{file.textPreview}</p> : null}<label className="block text-[10px] font-semibold text-app-muted">폴더<select value={file.folderId || ""} onChange={(event) => void onMove(file.id, event.target.value)} className="mt-1 h-9 w-full rounded-xl border border-app-border bg-white px-2 text-xs text-app-text outline-none"><option value="">분류되지 않음</option>{folders.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select></label>{file.downloadable ? <a href={`/api/files/${file.id}/download`} download className="mt-3 flex h-9 w-full items-center justify-center gap-2 rounded-xl bg-app-primary text-xs font-bold text-white"><Download size={14} />다운로드</a> : <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-center text-[11px] font-semibold text-amber-700">원본 파일 없음</p>}</article>;
+  return <article className="min-w-0 rounded-app border border-app-border bg-white p-4 shadow-soft"><div className="mb-3 flex min-w-0 items-center gap-2"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-app-hover text-app-primary"><Icon size={17} /></span><div className="min-w-0"><p className="truncate text-sm font-semibold text-app-text" title={file.name}>{file.name}</p><p className="mt-1 text-[11px] text-app-muted">{formatBytes(file.size)} · {file.source}</p></div></div>{file.textPreview ? <p className="mb-3 line-clamp-2 text-xs leading-5 text-slate-600">{file.textPreview}</p> : null}<label className="block text-[10px] font-semibold text-app-muted">폴더<select value={file.folderId || ""} onChange={(event) => void onMove(file.id, event.target.value)} className="mt-1 h-9 w-full rounded-xl border border-app-border bg-white px-2 text-xs text-app-text outline-none"><option value="">분류되지 않음</option>{folders.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select></label><div className="mt-3 grid grid-cols-[1fr_auto] gap-2">{file.downloadable ? <a href={`/api/files/${file.id}/download`} download className="flex h-9 items-center justify-center gap-2 rounded-xl bg-app-primary text-xs font-bold text-white"><Download size={14} />다운로드</a> : <p className="rounded-xl bg-amber-50 px-3 py-2 text-center text-[11px] font-semibold text-amber-700">원본 파일 없음</p>}<button type="button" onClick={() => void onDelete(file.id)} aria-label={`${file.name} 삭제`} className="flex h-9 items-center justify-center gap-1 rounded-xl border border-red-200 px-3 text-xs font-semibold text-red-600 hover:bg-red-50"><Trash2 size={13} />삭제</button></div></article>;
 }
 
 async function readPreview(file: globalThis.File) {

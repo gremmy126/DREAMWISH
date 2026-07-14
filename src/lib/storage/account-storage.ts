@@ -17,10 +17,15 @@ import { getSession, listSessions } from "../db/repositories/chat.repository";
 import { listFileRecords } from "../files/file.repository";
 import { listKnowledgeNotes } from "../knowledge/knowledge.repository";
 import { readMemoryDb } from "../memory/memory-repository";
+import { getStorageCapacity } from "./account-storage-quota";
+
+export { ACCOUNT_STORAGE_QUOTA_BYTES } from "./account-storage-quota";
 
 export type AccountStorageUsage = {
   usageBytes: number;
-  quotaBytes: number | null;
+  quotaBytes: number;
+  remainingBytes: number;
+  percentUsed: number;
   breakdown: {
     files: number;
     memories: number;
@@ -105,12 +110,21 @@ export async function calculateAccountStorageUsage(
     automation: recordsBytes([...automations, ...scenarios, ...credentials])
   };
 
+  const usageBytes = Object.values(breakdown).reduce(
+    (sum, value) => sum + value,
+    0
+  );
+
   return {
-    usageBytes: Object.values(breakdown).reduce((sum, value) => sum + value, 0),
-    quotaBytes: null,
+    usageBytes,
+    ...getStorageCapacity(usageBytes),
     breakdown,
     measuredAt: new Date().toISOString()
   };
+}
+
+export function calculateAccountQuotaMetrics(usageBytes: number) {
+  return getStorageCapacity(usageBytes);
 }
 
 export function recordsBytes(records: readonly unknown[]): number {

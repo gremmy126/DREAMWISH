@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { classifyFileCategory, createFolder, getFileRecord, listFolders, moveFileToFolder, saveFileRecord } from "../src/lib/files/file.repository";
-import { deleteOwnerFile, readOwnerFile, storeOwnerFile } from "../src/lib/files/file-storage";
+import { createOwnerStorageKey, deleteOwnerFile, readOwnerFile, storeOwnerFile } from "../src/lib/files/file-storage";
 
 test("file categories distinguish PDF Word Excel images and other files", () => {
   assert.equal(classifyFileCategory("report.pdf", "application/pdf"), "pdf");
@@ -21,6 +21,19 @@ test("file bytes round trip only for the owning account", async () => {
     await deleteOwnerFile("owner-a", stored.storageKey);
     await assert.rejects(() => readOwnerFile("owner-a", stored.storageKey), /FILE_NOT_FOUND/u);
   });
+});
+
+test("production storage fails closed when Railway Bucket configuration is missing", async () => {
+  const { readBucketStorageConfig } = await import(
+    "../src/lib/files/railway-bucket-storage"
+  );
+  assert.throws(() => readBucketStorageConfig({}), /STORAGE_BACKEND_UNAVAILABLE/u);
+});
+
+test("bucket object keys contain only owner hash and file id", () => {
+  const key = createOwnerStorageKey("owner@example.com", "file-1");
+  assert.match(key, /^owners\/[a-f0-9]{32}\/files\/file-1$/u);
+  assert.doesNotMatch(key, /owner@example\.com/u);
 });
 
 test("folders and file moves remain owner scoped and folder names are unique", async () => {
@@ -44,6 +57,23 @@ test("file routes use multipart bytes, 25 MiB limits, safe downloads, and owner 
   assert.match(download, /requireOwnerContext/u);
   assert.match(download, /Content-Disposition/u);
   assert.match(download, /filename\*=UTF-8''/u);
+});
+
+test("file upload checks owner quota before storing bytes", async () => {
+  const source = await fs.readFile("app/api/files/route.ts", "utf8");
+  assert.match(source, /withAccountStorageCapacity/u);
+  assert.match(source, /withAccountStorageCapacity[\s\S]*storeOwnerFile/u);
+  assert.match(source, /STORAGE_QUOTA_EXCEEDED/u);
+  assert.match(source, /status:\s*413/u);
+});
+
+test("file delete removes the owner object and metadata", async () => {
+  const source = await fs.readFile("app/api/files/[fileId]/route.ts", "utf8");
+  assert.match(source, /export async function DELETE/u);
+  assert.match(source, /requireOwnerContext/u);
+  assert.match(source, /getFileRecord/u);
+  assert.match(source, /deleteOwnerFile/u);
+  assert.match(source, /removeFileRecord/u);
 });
 
 async function withTempData(run: () => Promise<void>) {

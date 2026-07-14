@@ -711,6 +711,7 @@ export function ChatView() {
       const data = await response.json().catch(() => ({})) as { error?: string };
       throw new Error(data.error || "첨부 파일을 저장하지 못했습니다.");
     }
+    window.dispatchEvent(new Event("dreamwish:storage-updated"));
   }
 
   function startVoiceInput() {

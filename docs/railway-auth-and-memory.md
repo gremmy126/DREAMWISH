@@ -2,7 +2,17 @@
 
 ## Persistent storage
 
-Mount a Railway volume at `/data` and set `DATA_DIR=/data`. Chat and memory JSON files otherwise live in the deployment filesystem and can be lost during redeploys.
+For the `DREAMWISH` service, create a Railway Volume named `dreamwish-data`, mount it at `/data`, and set `DATA_DIR=/data`. Chat, OAuth, Gmail sync, and memory JSON files otherwise live in the deployment filesystem and can be lost during redeploys.
+
+Create a private production Railway Storage Bucket named `dreamwish-files`. Connect the Bucket-provided values to the service as Railway reference variables:
+
+- `STORAGE_BUCKET_NAME` from the Bucket name
+- `STORAGE_BUCKET_ACCESS_KEY_ID` from `ACCESS_KEY_ID`
+- `STORAGE_BUCKET_SECRET_ACCESS_KEY` from `SECRET_ACCESS_KEY`
+- `STORAGE_BUCKET_REGION` from `REGION`
+- `STORAGE_BUCKET_ENDPOINT` from `ENDPOINT`
+
+Bucket credentials are server-only. Never paste any Bucket value into a `NEXT_PUBLIC_*` variable. Production intentionally fails with `STORAGE_BACKEND_UNAVAILABLE` when this configuration is incomplete; it does not fall back to the deployment filesystem.
 
 ## Firebase Authentication
 
