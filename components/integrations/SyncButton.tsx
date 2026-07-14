@@ -24,11 +24,26 @@ export function SyncButton({ connectorId }: { connectorId: string }) {
       const response = await fetch(`/api/integrations/${connectorId}/sync`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ days: 30, limit: 20 })
+        body: JSON.stringify({
+          days: 30,
+          limit: connectorId === "gmail" ? 50 : 20
+        })
       });
-      const data = (await response.json()) as { message?: string; normalizedCount?: number };
+      const data = (await response.json().catch(() => null)) as {
+        status?: "success" | "blocked" | "failed";
+        message?: string;
+        normalizedCount?: number;
+      } | null;
+      if (!response.ok || !data) {
+        throw new Error(data?.message || "동기화에 실패했습니다.");
+      }
+      if (data.status !== "success") {
+        throw new Error(data.message || "연결 권한을 확인해주세요.");
+      }
       setMessage(data.message || `${data.normalizedCount || 0}개 항목을 동기화했습니다.`);
       await saveSetting(true);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "동기화에 실패했습니다.");
     } finally {
       setLoading(false);
     }
@@ -58,7 +73,7 @@ export function SyncButton({ connectorId }: { connectorId: string }) {
           className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-app-border bg-white px-4 text-xs font-semibold text-app-text hover:bg-app-hover disabled:text-app-muted"
         >
           {loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
-          최근 30일 Sync
+          {connectorId === "gmail" ? "최신 50개 Sync" : "최근 30일 Sync"}
         </button>
         <label className="inline-flex h-10 items-center gap-2 rounded-2xl border border-app-border bg-white px-3 text-xs font-semibold text-app-muted">
           <input

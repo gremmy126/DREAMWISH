@@ -1,18 +1,31 @@
 import { NextResponse } from "next/server";
 import { requireOwnerContext } from "@/src/lib/auth/owner-context";
 import { buildGmailRawMessage, listBusinessConversations, type MessageProvider } from "@/src/lib/business/business-message.service";
+import { getGmailSyncReadiness } from "@/src/lib/integrations/gmail-readiness";
 import { getActiveAccessToken, getOAuthConnectionStatus } from "@/src/lib/oauth/token.service";
+import { listSyncHistory } from "@/src/lib/repositories/sync-history.repository";
 
 export async function GET(request: Request) {
   const owner = await requireOwnerContext(request);
   const url = new URL(request.url);
   const provider = parseProvider(url.searchParams.get("provider"));
   if (!provider) return NextResponse.json({ error: "Gmail 또는 Slack을 선택해주세요." }, { status: 400 });
-  const status = provider === "gmail"
-    ? await getOAuthConnectionStatus(owner.uid, "google", "gmail")
-    : await getOAuthConnectionStatus(owner.uid, "slack", "slack");
+  const readiness = provider === "gmail"
+    ? await getGmailSyncReadiness(owner.uid)
+    : await getSlackReadiness(owner.uid);
+  const [conversations, history] = await Promise.all([
+    listBusinessConversations(owner.uid, provider),
+    listSyncHistory(owner.uid)
+  ]);
   return NextResponse.json(
-    { provider, status, conversations: await listBusinessConversations(owner.uid, provider) },
+    {
+      provider,
+      status: readiness.status,
+      syncReady: readiness.syncReady,
+      syncBlockReason: readiness.syncBlockReason,
+      latestSync: history.find((item) => item.connectorId === provider) || null,
+      conversations
+    },
     { headers: { "Cache-Control": "private, no-store" } }
   );
 }
@@ -55,3 +68,20 @@ export async function POST(request: Request) {
 }
 
 function parseProvider(value: string | null): MessageProvider | null { return value === "gmail" || value === "slack" ? value : null; }
+
+async function getSlackReadiness(ownerId: string) {
+  const status = await getOAuthConnectionStatus(ownerId, "slack", "slack");
+  const hasReadScope = status.scope.some((item) =>
+    ["channels:history", "groups:history", "im:history", "mpim:history"].includes(item)
+  );
+  return {
+    status,
+    syncReady: status.connectionState === "connected" && hasReadScope,
+    syncBlockReason:
+      status.connectionState !== "connected"
+        ? "reconnect_required"
+        : hasReadScope
+          ? null
+          : "missing_read_scope"
+  };
+}

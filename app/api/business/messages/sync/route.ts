@@ -4,6 +4,7 @@ import {
   listBusinessConversations,
   type MessageProvider
 } from "@/src/lib/business/business-message.service";
+import { getGmailSyncReadiness } from "@/src/lib/integrations/gmail-readiness";
 import { runManualIntegrationSync } from "@/src/lib/integrations/sync-engine";
 import { getOAuthConnectionStatus } from "@/src/lib/oauth/token.service";
 
@@ -18,32 +19,60 @@ export async function POST(request: Request) {
     );
   }
 
-  const status = provider === "gmail"
-    ? await getOAuthConnectionStatus(owner.uid, "google", "gmail")
-    : await getOAuthConnectionStatus(owner.uid, "slack", "slack");
+  const readiness = provider === "gmail"
+    ? await getGmailSyncReadiness(owner.uid)
+    : await getSlackReadiness(owner.uid);
+  const { status, syncReady, syncBlockReason } = readiness;
   const cached = await listBusinessConversations(owner.uid, provider);
-  if (status.connectionState !== "connected") {
+  if (!syncReady) {
     return NextResponse.json(
-      { provider, status, conversations: cached, code: "reconnect_required", error: "계정을 다시 연결해주세요." },
-      { status: 409 }
-    );
-  }
-  if (!hasReadScope(provider, status.scope)) {
-    return NextResponse.json(
-      { provider, status, conversations: cached, code: "reconnect_required", error: `${provider === "gmail" ? "Gmail 읽기" : "Slack 대화 기록"} 권한으로 다시 연결해주세요.` },
+      {
+        provider,
+        status,
+        syncReady,
+        syncBlockReason,
+        latestSync: null,
+        conversations: cached,
+        code: "reconnect_required",
+        error: getReadinessError(provider, syncBlockReason)
+      },
       { status: 409 }
     );
   }
 
   const sync = await runManualIntegrationSync(owner.uid, provider, {
     days: 30,
-    limit: 50
+    limit: provider === "gmail" ? 50 : 20
   });
   const conversations = await listBusinessConversations(owner.uid, provider);
-  const response = { provider, status, sync, conversations };
+  const response = {
+    provider,
+    status,
+    syncReady: true,
+    syncBlockReason: null,
+    latestSync: sync,
+    sync,
+    conversations
+  };
   if (sync.status === "failed") {
+    if (isAuthorizationFailure(sync.message)) {
+      return NextResponse.json(
+        {
+          ...response,
+          syncReady: false,
+          syncBlockReason: "token_unavailable",
+          code: "reconnect_required",
+          error: `${provider === "gmail" ? "Gmail" : "Slack"} 인증이 만료되었습니다. 다시 연결해주세요.`
+        },
+        { status: 409 }
+      );
+    }
     return NextResponse.json(
-      { ...response, code: "SYNC_FAILED", error: sync.message || "동기화에 실패했습니다." },
+      {
+        ...response,
+        code: "SYNC_TEMPORARY_ERROR",
+        error: `${provider === "gmail" ? "Gmail" : "Slack"} 서비스와 통신하지 못했습니다. 잠시 후 다시 시도해주세요.`
+      },
       { status: 502 }
     );
   }
@@ -60,15 +89,33 @@ function parseProvider(value: unknown): MessageProvider | null {
   return value === "gmail" || value === "slack" ? value : null;
 }
 
-function hasReadScope(provider: MessageProvider, scope: string[]) {
-  if (provider === "gmail") {
-    return scope.some((item) =>
-      item.includes("gmail.readonly") ||
-      item.includes("gmail.modify") ||
-      item.includes("mail.google.com")
-    );
-  }
-  return scope.some((item) =>
+async function getSlackReadiness(ownerId: string) {
+  const status = await getOAuthConnectionStatus(ownerId, "slack", "slack");
+  const hasReadScope = status.scope.some((item) =>
     ["channels:history", "groups:history", "im:history", "mpim:history"].includes(item)
   );
+  return {
+    status,
+    syncReady: status.connectionState === "connected" && hasReadScope,
+    syncBlockReason:
+      status.connectionState !== "connected"
+        ? "reconnect_required"
+        : hasReadScope
+          ? null
+          : "missing_read_scope"
+  };
+}
+
+function getReadinessError(provider: MessageProvider, reason: string | null) {
+  if (reason === "missing_read_scope") {
+    return `${provider === "gmail" ? "Gmail 읽기" : "Slack 대화 기록"} 권한으로 다시 연결해주세요.`;
+  }
+  if (reason === "token_unavailable") {
+    return `${provider === "gmail" ? "Gmail" : "Slack"} 인증을 갱신하지 못했습니다. 다시 연결해주세요.`;
+  }
+  return "계정을 다시 연결해주세요.";
+}
+
+function isAuthorizationFailure(message: string) {
+  return /(?:^|\D)(?:401|403)(?:\D|$)/u.test(message);
 }

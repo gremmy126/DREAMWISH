@@ -29,6 +29,13 @@ type ProviderStatus = {
 type ResponseData = {
   provider: MessageProvider;
   status: ProviderStatus;
+  syncReady: boolean;
+  syncBlockReason:
+    | "reconnect_required"
+    | "missing_read_scope"
+    | "token_unavailable"
+    | null;
+  latestSync: ConnectorSyncResult | null;
   conversations: BusinessConversation[];
   error?: string;
   code?: string;
@@ -96,8 +103,7 @@ export function MessageWorkspace() {
       result &&
       allowAutoSync &&
       nextProvider === "gmail" &&
-      result.status.connectionState === "connected" &&
-      hasGmailReadScope(result.status.scope) &&
+      result.syncReady &&
       result.conversations.length === 0 &&
       !autoSyncAttempted.current.has(nextProvider)
     ) {
@@ -139,6 +145,7 @@ export function MessageWorkspace() {
 
   function applyData(result: ResponseData) {
     setData(result);
+    setLastSyncAt(result.latestSync?.ranAt || null);
     setSelectedId((current) =>
       result.conversations.some((item) => item.id === current)
         ? current
@@ -186,13 +193,15 @@ export function MessageWorkspace() {
   }
 
   const connected = data?.status.connectionState === "connected";
-  const emptyMessage = error
-    ? "동기화 오류를 확인한 뒤 다시 시도해주세요."
-    : connected && provider === "gmail" && lastSyncAt
-      ? "최근 30일 Gmail 메일이 없습니다."
-      : connected
-        ? "연결됐지만 아직 동기화된 대화가 없습니다."
-        : "계정을 연결하면 대화 목록을 확인할 수 있습니다.";
+  const syncReady = data?.syncReady === true;
+  const needsReconnect = Boolean(data && !data.syncReady);
+  const emptyMessage = getEmptyMessage({
+    provider,
+    error,
+    syncReady,
+    syncBlockReason: data?.syncBlockReason || null,
+    latestSync: data?.latestSync || null
+  });
 
   return (
     <section className="overflow-hidden rounded-app border border-app-border bg-white shadow-soft">
@@ -202,15 +211,21 @@ export function MessageWorkspace() {
           <p className="mt-1 text-xs text-app-muted">
             연결된 Gmail과 Slack 대화를 확인하고 이 화면에서 답장합니다.
           </p>
+          {provider === "gmail" ? (
+            <p className="mt-1 text-[10px] text-app-muted">
+              날짜 제한 없이 최신 50개 Gmail 메시지를 동기화합니다.
+            </p>
+          ) : null}
           {lastSyncAt ? (
             <p className="mt-1 text-[10px] text-app-muted">
               마지막 동기화 {new Date(lastSyncAt).toLocaleString("ko-KR")}
+              {data?.latestSync ? ` · ${data.latestSync.readCount}개 읽음` : ""}
             </p>
           ) : null}
         </div>
         <button
           type="button"
-          disabled={busy || !connected}
+          disabled={busy || !syncReady}
           onClick={() => void synchronize(provider)}
           className="inline-flex items-center gap-2 rounded-2xl border border-app-border px-3 py-2 text-xs font-semibold text-app-muted disabled:opacity-40"
         >
@@ -224,10 +239,12 @@ export function MessageWorkspace() {
           <span>{error}</span>
           <button
             type="button"
-            onClick={() => void synchronize(provider)}
+            onClick={() =>
+              syncReady ? void synchronize(provider) : navigateToIntegrations()
+            }
             className="shrink-0 font-semibold underline"
           >
-            다시 시도
+            {syncReady ? "다시 시도" : "재연결"}
           </button>
         </div>
       ) : null}
@@ -260,19 +277,19 @@ export function MessageWorkspace() {
                 data?.status.accountName ||
                 "계정 미연결"}
             </p>
-            <p className={`mt-1 text-[10px] font-semibold ${connected ? "text-emerald-600" : "text-amber-600"}`}>
-              {connected ? "검증 연결됨" : "재연결 필요"}
+            <p className={`mt-1 text-[10px] font-semibold ${syncReady ? "text-emerald-600" : "text-amber-600"}`}>
+              {syncReady
+                ? "동기화 준비됨"
+                : data?.syncBlockReason === "missing_read_scope"
+                  ? "읽기 권한 필요"
+                  : connected
+                    ? "인증 갱신 필요"
+                    : "재연결 필요"}
             </p>
-            {!connected ? (
+            {needsReconnect ? (
               <button
                 type="button"
-                onClick={() =>
-                  window.dispatchEvent(
-                    new CustomEvent("dreamwish:navigate", {
-                      detail: { view: "integrations" }
-                    })
-                  )
-                }
+                onClick={navigateToIntegrations}
                 className="mt-3 inline-flex items-center gap-1 text-[10px] font-semibold text-app-primary"
               >
                 연동으로 이동 <ExternalLink size={11} />
@@ -359,12 +376,44 @@ export function MessageWorkspace() {
   );
 }
 
-function hasGmailReadScope(scope: string[]) {
-  return scope.some(
-    (item) =>
-      item.includes("gmail.readonly") ||
-      item.includes("gmail.modify") ||
-      item.includes("mail.google.com")
+function getEmptyMessage({
+  provider,
+  error,
+  syncReady,
+  syncBlockReason,
+  latestSync
+}: {
+  provider: MessageProvider;
+  error: string | null;
+  syncReady: boolean;
+  syncBlockReason: ResponseData["syncBlockReason"];
+  latestSync: ConnectorSyncResult | null;
+}) {
+  if (syncBlockReason === "missing_read_scope") {
+    return `${provider === "gmail" ? "Gmail 읽기" : "Slack 대화 기록"} 권한으로 다시 연결해주세요.`;
+  }
+  if (syncBlockReason === "token_unavailable") {
+    return "인증을 갱신하지 못했습니다. 계정을 다시 연결해주세요.";
+  }
+  if (syncBlockReason === "reconnect_required") {
+    return "계정을 연결하면 대화 목록을 확인할 수 있습니다.";
+  }
+  if (error) return "동기화 오류를 확인한 뒤 다시 시도해주세요.";
+  if (syncReady && latestSync?.status === "success") {
+    return provider === "gmail"
+      ? "동기화된 최신 50개 Gmail 메시지가 없습니다."
+      : "동기화된 Slack 대화가 없습니다.";
+  }
+  return syncReady
+    ? "동기화 버튼을 눌러 최신 대화를 가져오세요."
+    : "계정을 연결하면 대화 목록을 확인할 수 있습니다.";
+}
+
+function navigateToIntegrations() {
+  window.dispatchEvent(
+    new CustomEvent("dreamwish:navigate", {
+      detail: { view: "integrations" }
+    })
   );
 }
 

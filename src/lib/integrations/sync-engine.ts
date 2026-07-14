@@ -1,5 +1,6 @@
 import { matchExternalIdentity } from "./identity-matcher";
 import { connectorRegistry } from "./registry";
+import { buildGmailMessageListUrl } from "./gmail-message-list-url";
 import { groupGmailThreads } from "./gmail-thread-grouping";
 import type { ConnectorSyncResult, ManualSyncOptions, SyncOptions } from "./types";
 import { getActiveAccessToken } from "@/src/lib/oauth/token.service";
@@ -161,9 +162,7 @@ async function fetchGmailMessages(
   accessToken: string,
   options: ManualSyncOptions
 ) {
-  const listUrl = new URL("https://gmail.googleapis.com/gmail/v1/users/me/messages");
-  listUrl.searchParams.set("maxResults", String(options.limit));
-  listUrl.searchParams.set("q", `newer_than:${options.days}d`);
+  const listUrl = buildGmailMessageListUrl(options.limit);
   const list = await fetchJson<{ messages?: Array<{ id: string }> }>(listUrl, accessToken);
   const messageIds = list.messages || [];
 

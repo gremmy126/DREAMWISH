@@ -19,15 +19,28 @@ export async function upsertGmailThreads(ownerId: string, threads: GmailThreadRe
   return withJsonStoreLock(FILE_NAME, async () => {
     const db = await readDb();
     const ownedThreads = threads.map((thread) => ({ ...thread, ownerId }));
+    const persistedThreads: typeof ownedThreads = [];
     for (const thread of ownedThreads) {
       const index = db.threads.findIndex(
         (item) => item.ownerId === ownerId && item.threadId === thread.threadId
       );
-      if (index >= 0) db.threads[index] = thread;
-      else db.threads.unshift(thread);
+      if (index >= 0) {
+        const existing = db.threads[index];
+        const newest = thread.updatedAt >= existing.updatedAt ? thread : existing;
+        const merged = {
+          ...newest,
+          messageIds: [...new Set([...existing.messageIds, ...thread.messageIds])],
+          ownerId
+        };
+        db.threads[index] = merged;
+        persistedThreads.push(merged);
+      } else {
+        db.threads.unshift(thread);
+        persistedThreads.push(thread);
+      }
     }
     await writeDb(db);
-    return ownedThreads;
+    return persistedThreads;
   });
 }
 
