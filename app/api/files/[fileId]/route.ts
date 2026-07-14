@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { requireOwnerContext } from "@/src/lib/auth/owner-context";
 import {
-  getFileRecord,
+  completeFileDeletion,
   moveFileToFolder,
-  removeFileRecord,
+  prepareFileDeletion,
   toPublicFileRecord
 } from "@/src/lib/files/file.repository";
 import { deleteOwnerFile } from "@/src/lib/files/file-storage";
@@ -28,21 +28,21 @@ export async function DELETE(
 ) {
   const owner = await requireOwnerContext(request);
   const { fileId } = await context.params;
-  const file = await getFileRecord(owner.uid, fileId);
-  if (!file) {
-    return NextResponse.json(
-      { error: "파일을 찾을 수 없습니다." },
-      { status: 404 }
-    );
-  }
   try {
+    const file = await prepareFileDeletion(owner.uid, fileId);
     if (file.storageKey) {
       await deleteOwnerFile(owner.uid, file.storageKey);
     }
-    await removeFileRecord(owner.uid, file.id);
+    await completeFileDeletion(owner.uid, file.id);
     return NextResponse.json({ ok: true });
   } catch (error) {
     const code = error instanceof Error ? error.message : "";
+    if (code === "FILE_NOT_FOUND") {
+      return NextResponse.json(
+        { error: "파일을 찾을 수 없습니다." },
+        { status: 404 }
+      );
+    }
     return NextResponse.json(
       {
         code: code === "STORAGE_BACKEND_UNAVAILABLE" ? code : undefined,

@@ -29,8 +29,12 @@ export type FileFolder = {
 };
 
 type StoredFileRecord = Partial<FileRecord> & Pick<FileRecord, "ownerId" | "id" | "name" | "mimeType" | "size" | "source" | "textPreview" | "projectId" | "createdAt">;
-type FileDb = { files: StoredFileRecord[]; folders: FileFolder[] };
-const EMPTY_DB: FileDb = { files: [], folders: [] };
+type FileDb = {
+  files: StoredFileRecord[];
+  folders: FileFolder[];
+  deletions: StoredFileRecord[];
+};
+const EMPTY_DB: FileDb = { files: [], folders: [], deletions: [] };
 
 export async function listFileRecords(ownerId: string, projectId?: string | null) {
   return (await readDb()).files.map(normalizeFile).filter(
@@ -86,10 +90,53 @@ export async function removeFileRecord(ownerId: string, fileId: string) {
     const db = await readDb();
     const before = db.files.length;
     db.files = db.files.filter((file) => !(file.ownerId === ownerId && file.id === fileId));
+    db.deletions = db.deletions.filter(
+      (file) => !(file.ownerId === ownerId && file.id === fileId)
+    );
     removed = before !== db.files.length;
     await writeDb(db);
   });
   return removed;
+}
+
+export async function prepareFileDeletion(ownerId: string, fileId: string) {
+  let pending!: FileRecord;
+  await withJsonStoreLock("files.json", async () => {
+    const db = await readDb();
+    const existing = db.deletions.find(
+      (file) => file.ownerId === ownerId && file.id === fileId
+    );
+    if (existing) {
+      pending = normalizeFile(existing);
+      return;
+    }
+    const file = db.files.find(
+      (item) => item.ownerId === ownerId && item.id === fileId
+    );
+    if (!file) throw fileError("FILE_NOT_FOUND");
+    pending = normalizeFile(file);
+    db.deletions.push(pending);
+    await writeDb(db);
+  });
+  return pending;
+}
+
+export async function completeFileDeletion(ownerId: string, fileId: string) {
+  return withJsonStoreLock("files.json", async () => {
+    const db = await readDb();
+    const pending = db.deletions.some(
+      (file) => file.ownerId === ownerId && file.id === fileId
+    );
+    if (!pending) throw fileError("FILE_NOT_FOUND");
+    db.files = db.files.filter(
+      (file) => !(file.ownerId === ownerId && file.id === fileId)
+    );
+    db.deletions = db.deletions.filter(
+      (file) => !(file.ownerId === ownerId && file.id === fileId)
+    );
+    await writeDb(db);
+    return true;
+  });
 }
 
 export async function listFolders(ownerId: string) {
@@ -173,6 +220,7 @@ async function readDb() {
   return {
     files: Array.isArray(db.files) ? db.files : [],
     folders: Array.isArray(db.folders) ? db.folders : [],
+    deletions: Array.isArray(db.deletions) ? db.deletions : [],
   };
 }
 

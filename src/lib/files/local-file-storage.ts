@@ -41,6 +41,13 @@ export function createLocalFileStorage(): FileStorageBackend {
 function resolveLocalKey(key: string) {
   const parts = key.split("/");
   if (
+    parts.length === 2 &&
+    /^[a-f0-9]{32}$/u.test(parts[0] || "") &&
+    /^[a-zA-Z0-9-]{1,128}$/u.test(parts[1] || "")
+  ) {
+    return path.join(getDataDirectory(), "files", ...parts);
+  }
+  if (
     parts.length !== 4 ||
     parts[0] !== "owners" ||
     !/^[a-f0-9]{32}$/u.test(parts[1] || "") ||

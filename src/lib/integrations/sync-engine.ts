@@ -2,6 +2,7 @@ import { matchExternalIdentity } from "./identity-matcher";
 import { connectorRegistry } from "./registry";
 import { buildGmailMessageListUrl } from "./gmail-message-list-url";
 import { groupGmailThreads } from "./gmail-thread-grouping";
+import { mapWithConcurrency } from "./promise-pool";
 import type { ConnectorSyncResult, ManualSyncOptions, SyncOptions } from "./types";
 import { getActiveAccessToken } from "@/src/lib/oauth/token.service";
 import { upsertCalendarEvents } from "@/src/lib/repositories/calendar-event.repository";
@@ -16,6 +17,9 @@ import {
   normalizeExternalEvent,
   normalizeExternalMessage
 } from "@/src/lib/sync/normalizer";
+
+const EXTERNAL_API_TIMEOUT_MS = 30_000;
+const GMAIL_DETAIL_CONCURRENCY = 5;
 
 export async function runMockSync(
   ownerId: string,
@@ -163,11 +167,18 @@ async function fetchGmailMessages(
   options: ManualSyncOptions
 ) {
   const listUrl = buildGmailMessageListUrl(options.limit);
-  const list = await fetchJson<{ messages?: Array<{ id: string }> }>(listUrl, accessToken);
+  const signal = AbortSignal.timeout(EXTERNAL_API_TIMEOUT_MS);
+  const list = await fetchJson<{ messages?: Array<{ id: string }> }>(
+    listUrl,
+    accessToken,
+    signal
+  );
   const messageIds = list.messages || [];
 
-  const details = await Promise.all(
-    messageIds.map(async (message) => {
+  const details = await mapWithConcurrency(
+    messageIds,
+    GMAIL_DETAIL_CONCURRENCY,
+    async (message) => {
       const detailUrl = new URL(
         `https://gmail.googleapis.com/gmail/v1/users/me/messages/${message.id}`
       );
@@ -176,9 +187,13 @@ async function fetchGmailMessages(
       detailUrl.searchParams.append("metadataHeaders", "To");
       detailUrl.searchParams.append("metadataHeaders", "Subject");
       detailUrl.searchParams.append("metadataHeaders", "Date");
-      const detail = await fetchJson<GmailMessageDetail>(detailUrl, accessToken);
+      const detail = await fetchJson<GmailMessageDetail>(
+        detailUrl,
+        accessToken,
+        signal
+      );
       return detail;
-    })
+    }
   );
   const now = new Date().toISOString();
   await upsertGmailThreads(
@@ -300,9 +315,14 @@ async function fetchSlackMessages(
   );
 }
 
-async function fetchJson<T>(url: URL, accessToken: string): Promise<T> {
+async function fetchJson<T>(
+  url: URL,
+  accessToken: string,
+  signal = AbortSignal.timeout(EXTERNAL_API_TIMEOUT_MS)
+): Promise<T> {
   const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${accessToken}` }
+    headers: { Authorization: `Bearer ${accessToken}` },
+    signal
   });
   if (!response.ok) {
     throw new Error(`External API 호출 실패: ${response.status}`);

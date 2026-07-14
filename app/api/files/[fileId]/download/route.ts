@@ -1,6 +1,7 @@
 import { requireOwnerContext } from "@/src/lib/auth/owner-context";
 import { getFileRecord } from "@/src/lib/files/file.repository";
 import { readOwnerFile } from "@/src/lib/files/file-storage";
+import { classifyFileStorageError } from "@/src/lib/files/file-storage-error";
 
 export async function GET(request: Request, context: { params: Promise<{ fileId: string }> }) {
   const owner = await requireOwnerContext(request);
@@ -21,7 +22,11 @@ export async function GET(request: Request, context: { params: Promise<{ fileId:
         "X-Content-Type-Options": "nosniff",
       },
     });
-  } catch {
-    return Response.json({ error: "원본 파일을 찾을 수 없습니다." }, { status: 410 });
+  } catch (error) {
+    const failure = classifyFileStorageError(error);
+    return Response.json(
+      { code: failure.code, error: failure.error },
+      { status: failure.status }
+    );
   }
 }

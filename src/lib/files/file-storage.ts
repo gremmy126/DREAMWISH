@@ -43,14 +43,17 @@ export function createOwnerStorageKey(ownerId: string, fileId: string) {
 
 function assertOwnerStorageKey(ownerId: string, storageKey: string) {
   const parts = storageKey.split("/");
+  const ownerHash = hashOwner(ownerId);
+  if (parts.length === 2 && parts[0] === ownerHash) {
+    assertFileId(parts[1] || "");
+    return;
+  }
   if (
     parts.length !== 4 ||
     parts[0] !== "owners" ||
-    parts[1] !== hashOwner(ownerId) ||
+    parts[1] !== ownerHash ||
     parts[2] !== "files"
-  ) {
-    throw new Error("FILE_NOT_FOUND");
-  }
+  ) throw new Error("FILE_NOT_FOUND");
   assertFileId(parts[3] || "");
 }
 

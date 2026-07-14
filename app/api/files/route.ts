@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { requireOwnerContext } from "@/src/lib/auth/owner-context";
-import { isBlockedFileName, listFileRecords, removeFileRecord, saveFileRecord, toPublicFileRecord } from "@/src/lib/files/file.repository";
-import { deleteOwnerFile, storeOwnerFile } from "@/src/lib/files/file-storage";
+import { isBlockedFileName, listFileRecords, saveFileRecord, toPublicFileRecord } from "@/src/lib/files/file.repository";
+import { withStoredOwnerFile } from "@/src/lib/files/file-upload-transaction";
 import { withAccountStorageCapacity } from "@/src/lib/storage/account-storage-quota";
 
 const MAX_FILE_SIZE = 25 * 1024 * 1024;
@@ -35,31 +35,28 @@ export async function POST(request: Request) {
   const bytes = Buffer.from(await upload.arrayBuffer());
   try {
     const record = await withAccountStorageCapacity(owner.uid, upload.size, async () => {
-      const stored = await storeOwnerFile({
-        ownerId: owner.uid,
-        fileId,
-        bytes,
-        contentType: upload.type || "application/octet-stream"
-      });
-      try {
-        return await saveFileRecord({
+      return withStoredOwnerFile(
+        {
           ownerId: owner.uid,
-          id: fileId,
-          name: upload.name,
-          mimeType: upload.type || "application/octet-stream",
-          size: upload.size,
-          source,
-          textPreview,
-          projectId,
-          folderId,
-          storageKey: stored.storageKey,
-          sha256: stored.sha256,
-        });
-      } catch (error) {
-        await deleteOwnerFile(owner.uid, stored.storageKey).catch(() => undefined);
-        await removeFileRecord(owner.uid, fileId).catch(() => undefined);
-        throw error;
-      }
+          fileId,
+          bytes,
+          contentType: upload.type || "application/octet-stream"
+        },
+        (stored) =>
+          saveFileRecord({
+            ownerId: owner.uid,
+            id: fileId,
+            name: upload.name,
+            mimeType: upload.type || "application/octet-stream",
+            size: upload.size,
+            source,
+            textPreview,
+            projectId,
+            folderId,
+            storageKey: stored.storageKey,
+            sha256: stored.sha256,
+          })
+      );
     });
     return NextResponse.json({ file: toPublicFileRecord(record) }, { status: 201 });
   } catch (error) {

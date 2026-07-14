@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -23,6 +24,26 @@ test("file bytes round trip only for the owning account", async () => {
   });
 });
 
+test("local storage reads and deletes legacy owner keys", async () => {
+  await withTempData(async (dataDir) => {
+    const ownerHash = createHash("sha256")
+      .update("owner-a")
+      .digest("hex")
+      .slice(0, 32);
+    const directory = path.join(dataDir, "files", ownerHash);
+    await fs.mkdir(directory, { recursive: true });
+    await fs.writeFile(path.join(directory, "legacy-file"), "legacy", "utf8");
+    const legacyKey = `${ownerHash}/legacy-file`;
+
+    assert.equal((await readOwnerFile("owner-a", legacyKey)).toString(), "legacy");
+    await deleteOwnerFile("owner-a", legacyKey);
+    await assert.rejects(
+      () => readOwnerFile("owner-a", legacyKey),
+      /FILE_NOT_FOUND/u
+    );
+  });
+});
+
 test("production storage fails closed when Railway Bucket configuration is missing", async () => {
   const { readBucketStorageConfig } = await import(
     "../src/lib/files/railway-bucket-storage"
@@ -34,6 +55,43 @@ test("bucket object keys contain only owner hash and file id", () => {
   const key = createOwnerStorageKey("owner@example.com", "file-1");
   assert.match(key, /^owners\/[a-f0-9]{32}\/files\/file-1$/u);
   assert.doesNotMatch(key, /owner@example\.com/u);
+});
+
+test("ambiguous bucket writes are cleaned up with the deterministic key", async () => {
+  const { withStoredOwnerFile } = await import(
+    "../src/lib/files/file-upload-transaction"
+  );
+  let objectExists = false;
+  let deletedKey = "";
+
+  await assert.rejects(
+    () =>
+      withStoredOwnerFile(
+        {
+          ownerId: "owner-a",
+          fileId: "ambiguous-file",
+          bytes: Buffer.from("bytes")
+        },
+        async () => "saved",
+        {
+          storeOwnerFile: async () => {
+            objectExists = true;
+            throw new Error("lost_acknowledgement");
+          },
+          deleteOwnerFile: async (_ownerId, storageKey) => {
+            deletedKey = storageKey;
+            objectExists = false;
+          },
+          removeFileRecord: async () => false
+        }
+      ),
+    /lost_acknowledgement/u
+  );
+  assert.equal(objectExists, false);
+  assert.equal(
+    deletedKey,
+    createOwnerStorageKey("owner-a", "ambiguous-file")
+  );
 });
 
 test("folders and file moves remain owner scoped and folder names are unique", async () => {
@@ -62,7 +120,7 @@ test("file routes use multipart bytes, 25 MiB limits, safe downloads, and owner 
 test("file upload checks owner quota before storing bytes", async () => {
   const source = await fs.readFile("app/api/files/route.ts", "utf8");
   assert.match(source, /withAccountStorageCapacity/u);
-  assert.match(source, /withAccountStorageCapacity[\s\S]*storeOwnerFile/u);
+  assert.match(source, /withAccountStorageCapacity[\s\S]*withStoredOwnerFile/u);
   assert.match(source, /STORAGE_QUOTA_EXCEEDED/u);
   assert.match(source, /status:\s*413/u);
 });
@@ -71,16 +129,61 @@ test("file delete removes the owner object and metadata", async () => {
   const source = await fs.readFile("app/api/files/[fileId]/route.ts", "utf8");
   assert.match(source, /export async function DELETE/u);
   assert.match(source, /requireOwnerContext/u);
-  assert.match(source, /getFileRecord/u);
+  assert.match(source, /prepareFileDeletion/u);
   assert.match(source, /deleteOwnerFile/u);
-  assert.match(source, /removeFileRecord/u);
+  assert.match(source, /completeFileDeletion/u);
 });
 
-async function withTempData(run: () => Promise<void>) {
+test("file deletion keeps metadata until object cleanup can complete", async () => {
+  await withTempData(async () => {
+    const {
+      completeFileDeletion,
+      getFileRecord,
+      prepareFileDeletion,
+      saveFileRecord
+    } = await import("../src/lib/files/file.repository");
+    const file = await saveFileRecord({
+      ownerId: "owner-a",
+      id: "delete-file",
+      name: "delete.txt",
+      mimeType: "text/plain",
+      size: 6,
+      source: "files",
+      projectId: null,
+      storageKey: createOwnerStorageKey("owner-a", "delete-file")
+    });
+
+    const pending = await prepareFileDeletion("owner-a", file.id);
+    assert.equal(pending.id, file.id);
+    assert.equal((await getFileRecord("owner-a", file.id))?.id, file.id);
+    await completeFileDeletion("owner-a", file.id);
+    assert.equal(await getFileRecord("owner-a", file.id), null);
+  });
+});
+
+test("download storage errors distinguish missing files from outages", async () => {
+  const { classifyFileStorageError } = await import(
+    "../src/lib/files/file-storage-error"
+  );
+  assert.equal(classifyFileStorageError(new Error("FILE_NOT_FOUND")).status, 410);
+  assert.equal(
+    classifyFileStorageError(new Error("STORAGE_BACKEND_UNAVAILABLE")).status,
+    503
+  );
+  assert.equal(classifyFileStorageError(new Error("socket timeout")).status, 502);
+
+  const source = await fs.readFile(
+    "app/api/files/[fileId]/download/route.ts",
+    "utf8"
+  );
+  assert.match(source, /classifyFileStorageError/u);
+});
+
+async function withTempData(run: (dataDir: string) => Promise<void>) {
   const previous = process.env.DATA_DIR;
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), "dreamwish-files-"));
   process.env.DATA_DIR = directory;
-  try { await run(); } finally {
+  try { await run(directory); } finally {
     if (previous === undefined) delete process.env.DATA_DIR;
     else process.env.DATA_DIR = previous;
     await fs.rm(directory, { recursive: true, force: true });

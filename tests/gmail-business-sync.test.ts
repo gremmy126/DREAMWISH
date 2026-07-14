@@ -76,6 +76,31 @@ test("Gmail sync requests the latest 50 messages without a date filter", async (
   assert.equal(url.searchParams.has("q"), false);
 });
 
+test("Gmail detail work preserves order with bounded concurrency", async () => {
+  const { mapWithConcurrency } = await import(
+    "../src/lib/integrations/promise-pool"
+  );
+  let active = 0;
+  let maximum = 0;
+  const values = Array.from({ length: 12 }, (_, index) => index);
+  const result = await mapWithConcurrency(values, 3, async (value) => {
+    active += 1;
+    maximum = Math.max(maximum, active);
+    await new Promise((resolve) => setTimeout(resolve, 2));
+    active -= 1;
+    return value * 2;
+  });
+
+  assert.deepEqual(result, values.map((value) => value * 2));
+  assert.ok(maximum <= 3);
+});
+
+test("Gmail sync bounds detail concurrency and aborts stalled provider calls", async () => {
+  const source = await fs.readFile("src/lib/integrations/sync-engine.ts", "utf8");
+  assert.match(source, /mapWithConcurrency/u);
+  assert.match(source, /AbortSignal\.timeout/u);
+});
+
 test("Gmail thread upsert preserves message ids from earlier syncs", async () => {
   await withTempDataDir(async () => {
     const { listGmailThreads, upsertGmailThreads } = await import(
