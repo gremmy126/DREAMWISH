@@ -65,7 +65,10 @@ export function KnowledgeWorkspace({
   useEffect(() => {
     const initial = buildInitialKnowledgeLayout(graph, size.width, size.height);
     const simulationNodes: SimulationNode[] = initial.nodes.map((node) => ({ ...node }));
-    const links: SimulationEdge[] = initial.edges.map((edge) => ({ ...edge }));
+    const nodeIds = new Set(simulationNodes.map((node) => node.id));
+    const links: SimulationEdge[] = initial.edges
+      .filter((edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target))
+      .map((edge) => ({ ...edge }));
     const simulation = forceSimulation(simulationNodes)
       .force("link", forceLink<SimulationNode, SimulationEdge>(links).id((node) => node.id).distance((edge) => 90 + (1 - edge.confidence) * 60).strength(0.55))
       .force("charge", forceManyBody().strength(-230))
@@ -127,11 +130,15 @@ export function KnowledgeWorkspace({
             <svg viewBox={`0 0 ${size.width} ${size.height}`} className="absolute inset-0 h-full w-full" role="img" aria-label="옵시디언 스타일 지식 네트워크">
               <g transform={`translate(${size.width * (1 - zoom) / 2} ${size.height * (1 - zoom) / 2}) scale(${zoom})`}>
                 {layoutEdges.map((edge) => {
-                  const source = linkNode(edge.source, layoutNodes);
-                  const target = linkNode(edge.target, layoutNodes);
-                  if (!source || !target || !visibleIds.has(source.id) || !visibleIds.has(target.id)) return null;
-                  const active = selectedId === source.id || selectedId === target.id;
-                  return <line key={edge.id} x1={source.x} y1={source.y} x2={target.x} y2={target.y} stroke={active ? "#6d5df6" : "#b9bfd0"} strokeOpacity={active ? 0.85 : Math.max(0.15, edge.confidence * 0.48)} strokeWidth={active ? 2 : Math.max(0.7, edge.confidence * 1.5)} />;
+                  try {
+                    const source = linkNode(edge.source, layoutNodes);
+                    const target = linkNode(edge.target, layoutNodes);
+                    if (!source || !target || !visibleIds.has(source.id) || !visibleIds.has(target.id)) return null;
+                    const active = selectedId === source.id || selectedId === target.id;
+                    return <line key={edge.id} x1={source.x} y1={source.y} x2={target.x} y2={target.y} stroke={active ? "#6d5df6" : "#b9bfd0"} strokeOpacity={active ? 0.85 : Math.max(0.15, edge.confidence * 0.48)} strokeWidth={active ? 2 : Math.max(0.7, edge.confidence * 1.5)} />;
+                  } catch {
+                    return null;
+                  }
                 })}
                 {layoutNodes.map((node) => {
                   const visible = visibleIds.has(node.id);
@@ -172,7 +179,13 @@ function KnowledgeTimeline({ timeline }: { timeline: ReturnType<typeof buildKnow
 
 function FilterButton({ label, count, active, onClick, color }: { label: string; count: number; active: boolean; onClick: () => void; color: string }) { return <button type="button" onClick={onClick} className={`flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left text-[11px] font-semibold ${active ? "bg-violet-50 text-violet-700" : "text-slate-600 hover:bg-slate-50"}`}><span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: color }} /><span className="min-w-0 flex-1 truncate">{label}</span><span className="shrink-0 text-[9px] text-slate-400">{count}</span></button>; }
 function Detail({ label, value }: { label: string; value: string }) { return <div className="flex min-w-0 items-center justify-between gap-3"><dt className="shrink-0 text-slate-400">{label}</dt><dd className="min-w-0 truncate font-bold text-slate-700">{value}</dd></div>; }
-function linkNode(value: string | number | SimulationNode, nodes: SimulationNode[]) { return typeof value === "object" ? value : nodes.find((node) => node.id === String(value)); }
+function linkNode(value: string | number | SimulationNode | null | undefined, nodes: SimulationNode[]): SimulationNode | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "object") {
+    return nodes.some((node) => node.id === value.id) ? value : null;
+  }
+  return nodes.find((node) => node.id === String(value)) || null;
+}
 function nodeColor(type: string) { return colors[type] || "#64748b"; }
 function nodeTypeLabel(type: string) { return ({ project: "프로젝트", memory: "기억", person: "사람", company: "회사", document: "문서", tag: "태그", event: "이벤트", schedule: "일정", idea: "아이디어" } as Record<string, string>)[type] || type; }
 function shortLabel(label: string) { return label.length > 16 ? `${label.slice(0, 15)}…` : label; }
