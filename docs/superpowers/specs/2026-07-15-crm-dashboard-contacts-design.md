@@ -147,6 +147,8 @@ Server validation applies normalized email and phone handling, length and array 
 
 Deleting a contact requires an explicit confirmation that identifies the contact. The server verifies the owner and current version, then writes an authoritative contact tombstone with an idempotent deletion operation ID. Every activity, task, deal, insight, mapping, memory, ERP, and AI-context query must verify that the parent contact is still active, so all related data becomes inaccessible immediately even if it lives in another store. Idempotent cleanup then revokes active mappings, marks contact-linked long-term memories `forgotten`, and tombstones the remaining CRM aggregates. Cleanup retries cannot resurrect content. The audit log retains identifiers and event metadata but not deleted note or memory content.
 
+Cross-store child creation uses a parent-write fence rather than a check-then-write sequence. The CRM store atomically claims a short-lived child-write lease against an active contact/version; the child repository stages the mapping or memory as non-readable, CRM rechecks the same lease and active parent, and only then may the child CAS to active. Deletion atomically blocks new leases and creates a durable cleanup job. That job remains incomplete while a lease is outstanding, cancels expired or staged children, and retries failed memory/mapping cleanup from persisted state with bounded backoff after process restart. A worker claims each job with its own ID and expiry; stale `running` claims are reclaimable and all completion/retry writes are fenced by the current claim ID. Authenticated CRM entry points drain a bounded number of due jobs, while all reads continue to fail closed independently of cleanup progress.
+
 ## Data Model
 
 ### Relationship stage
@@ -161,7 +163,7 @@ type CustomerRelationshipStage =
   | "customer";
 ```
 
-The compatible `Customer` model also gains `relationshipStage?: CustomerRelationshipStage`, `relationshipStageSource: "explicit" | "legacy_status"`, `expectedValueCurrency: string | null`, and `version: number`. Existing records normalize a missing version to `1`. `expectedValueCurrency` uses the verified workspace/ERP company base currency at entry time and otherwise remains `null`; it is never guessed from locale. Every accepted mutation atomically compares `expectedVersion` and increments the stored version. A mismatch returns the stable error `409 VERSION_CONFLICT` without applying any part of the mutation.
+The compatible `Customer` model also gains `relationshipStage?: CustomerRelationshipStage`, `relationshipStageSource: "explicit" | "legacy_status"`, `expectedValue: number | null`, `expectedValueCurrency: string | null`, and `version: number`. Existing records normalize a missing version to `1` and a missing/invalid forecast to `null`. An explicit `expectedValue: null` clears both amount and currency, while omission preserves both. `expectedValueCurrency` uses the verified workspace/ERP company base currency at entry time and otherwise remains `null`; it is never guessed from locale. Every accepted mutation atomically compares `expectedVersion` and increments the stored version. A mismatch returns the stable error `409 VERSION_CONFLICT` without applying any part of the mutation.
 
 `status` continues to represent operational availability (`active | lead | paused | inactive`). `relationshipStage` represents relationship progress. The two concepts must not overwrite one another.
 
@@ -189,15 +191,17 @@ type CrmErpCustomerMapping = {
   ownerId: string;
   provider: "erpnext";
   connectionId: string;
+  connectionRevision: number;
   externalSiteId: string;
-  externalCompanyId: string | null;
+  externalCompanyId: string;
   localContactId: string;
   externalCustomerId: string;
   externalCustomerLabel: string;
-  status: "approved" | "revoked";
+  status: "pending_parent_check" | "approved" | "revoked";
+  parentLeaseId: string;
   version: number;
-  approvedAt: string;
-  approvedBy: string;
+  approvedAt: string | null;
+  approvedBy: string | null;
   revokedAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -208,7 +212,7 @@ Candidate matches are generated on demand from an owner-scoped ERP search and ar
 
 Mapping rules:
 
-- A local contact has at most one active mapping per ERP provider, and that mapping is bound to one exact owner-scoped connection, ERP site, and optional ERP company.
+- A local contact has at most one active mapping per ERP provider, and that mapping is bound to one exact owner-scoped connection revision, ERP site, and verified ERP company.
 - The same ERP customer may map to multiple local contacts because one company can have multiple people.
 - The ERP target is a company/customer account even when the CRM source is a person. Orders, invoices, payments, and receivables are labeled as account-level data and must not be described as personal debt of the contact.
 - Names, companies, emails, and phones may rank candidates but never authorize a link.
@@ -216,7 +220,9 @@ Mapping rules:
 - Changing or revoking a mapping requires the current `version` and an audit event.
 - Cross-owner customer IDs and ERP connections fail closed. A customer ID from a different site or company also fails verification even when its text happens to match.
 - If the bound connection, site, or company changes, the mapping becomes unusable until the user reviews and approves a new exact mapping.
+- Toggling a connection capability such as `draft_write` does not change the connection identity revision and therefore does not invalidate the mapping.
 - A revoked mapping is excluded immediately from new context and live reads.
+- A live account-context read captures contact, mapping-version, and connection-identity preconditions before the remote ERP call, then revalidates all of them after the provider returns. If delete, revoke, mapping replacement, or connection identity change won the race, the fetched payload is discarded and never enters the response, cache, memory, or AI source manifest.
 
 ### Dashboard snapshot
 
@@ -229,6 +235,8 @@ type CrmDashboardSnapshot = {
     totalContacts: number;
     inProgressContacts: number;
     dueFollowUps: number;
+    openTasks: number;
+    todayMeetings: number;
     monthlySales: {
       value: number | null;
       currency: string | null;
@@ -248,6 +256,8 @@ type CrmDashboardSnapshot = {
 ```
 
 The endpoint returns bounded lists and aggregate counts; it does not send every CRM record to the browser to calculate totals. Explicit zero is distinct from unavailable ERP data.
+
+`openTasks` and `todayMeetings` are supporting aggregates for the existing Business Overview and are not additional CRM KPI cards. They use the same authenticated owner and owner-time-zone boundary as the CRM dashboard.
 
 `CrmInsightSummary` contains `summary`, `suggestedAction`, bounded evidence records, `generatedAt`, and `sourceVersions`. Dashboard GET returns only a stored insight whose CRM source versions still match and whose age is no more than 24 hours. Dashboard-level insight uses CRM aggregates and the single overall ERP monthly-sales snapshot only; it never performs per-contact ERP reads. A selected contact can request one exact mapped ERP context separately. When no valid insight exists, `insight` is `null`, and the panel offers `AI에게 분석 요청`; it never manufactures a fallback claim during dashboard loading.
 
@@ -315,9 +325,9 @@ Allowed contact sorts are `updated_desc`, `created_desc`, `name_asc`, and `next_
 
 - `GET /api/crm/customers/:id/erp-candidates?query=...&connectionId=...`: accepts 2–120 characters, times out after 8 seconds, returns at most 20 candidates, and exposes only external ID, label, company, email, and phone evidence from one exact owner-scoped ERP connection and site. Results are candidates only.
 - `GET /api/crm/customers/:id/erp-mapping`: returns the active or most recent mapping state.
-- `POST /api/crm/customers/:id/erp-mapping`: calls the shared provider's exact `verifyCustomer` method for the submitted connection/site/company/external customer ID immediately before versioned compare-and-swap approval; it never approves from a cached or ranked candidate alone.
+- `POST /api/crm/customers/:id/erp-mapping`: claims an active-parent child-write lease, calls the shared provider's exact `verifyCustomer` method for the submitted connection/site/company/external customer ID, stages a non-readable mapping, rechecks the parent lease, and then performs versioned compare-and-swap activation; it never approves from a cached or ranked candidate alone.
 - `DELETE /api/crm/customers/:id/erp-mapping`: revokes the current mapping with its version.
-- `GET /api/crm/customers/:id/erp-context`: returns bounded live customer financial context only for an approved mapping.
+- `GET /api/crm/customers/:id/erp-context`: returns bounded live customer financial context only for an approved mapping and only after the post-provider active-contact/mapping/version/connection revalidation fence succeeds.
 
 Every route derives the owner from authentication, validates the local contact belongs to that owner, and accesses only that owner's ERP connection.
 
@@ -396,8 +406,11 @@ Every route derives the owner from authentication, validates the local contact b
 - Cross-owner contact, mapping, and ERP connection access fails closed.
 - Dashboard survives partial ERP failure.
 - Candidate search, approval, context read, and revoke use the exact external identifier.
+- A revoke, contact delete, mapping replacement, or connection change racing an in-flight ERP context read causes the remote result to be discarded.
 - Search pagination is stable and query limits are enforced.
 - The authoritative tombstone hides all related records immediately, and idempotent cleanup completes or safely retries without resurrection.
+- A delete racing with remote mapping verification or contact-linked memory creation never exposes a late child; staged rows remain unreadable and the durable cleanup job resumes after restart.
+- A cleanup worker crash after claiming a job is recovered after lease expiry, and the stale worker cannot overwrite the reclaimed job outcome.
 
 ### UI contract tests
 

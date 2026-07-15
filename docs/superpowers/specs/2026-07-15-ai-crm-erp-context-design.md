@@ -11,6 +11,8 @@ This design depends on:
 
 The Business ERP dashboard remains read-only. This design adds a separate, opt-in `draft_write` provider capability for narrowly scoped AI-created ERP drafts; it does not turn the dashboard connector into a general write channel.
 
+The connection contract keeps identity `connectionRevision` separate from permission `capabilityVersion`. A `draft_write` toggle increments only the capability version and does not invalidate CRM customer mappings. Reconnect, credential, site, or company changes increment the identity revision, reset draft writing to disabled, and also advance the capability version. Draft proposals record and recheck both versions independently.
+
 ## Scope
 
 In scope:
@@ -95,8 +97,18 @@ type ChatTurn = {
   ordinal: number;
   userMessageId: string;
   assistantMessageId: string | null;
+  actionApprovalRef: {
+    proposalId: string;
+    proposalTurnId: string;
+    proposalVersion: number;
+  } | null;
   state: "generating" | "completed" | "failed";
   attempt: number;
+  executionLease: {
+    leaseId: string;
+    expiresAt: string;
+    heartbeatAt: string;
+  } | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -112,6 +124,7 @@ type AiChatRequest = {
   selectedContactId?: string;
   actionApproval?: {
     proposalId: string;
+    proposalVersion: number;
     approvalToken: string;
   };
   provider?: string;
@@ -119,7 +132,9 @@ type AiChatRequest = {
 };
 ```
 
-`beginTurn` uses `(ownerId, turnId)` as the unique key. When `sessionId` is absent, it creates the session and binds it to that turn in the same locked operation; a retry with the same turn ID therefore returns the same session instead of creating another one. When `sessionId` is present, it first verifies owner scope and then binds the turn. It allocates one session ordinal and stores the user message once. `completeTurn` stores one final assistant message and the safe final response snapshot. A repeated completed turn returns that saved result. A repeated generating turn returns `409 TURN_IN_PROGRESS` and can be observed through an owner-scoped turn-status endpoint instead of creating another message. A failed turn can retry under the same record and increment `attempt` without repeating inbound memory capture. Partial assistant text is not persisted as a completed answer or used as memory evidence. The post-turn conversation-summary job runs only after `completed`.
+`beginTurn` uses `(ownerId, turnId)` as the unique key. When `sessionId` is absent, it creates the session and binds it to that turn in the same locked operation; a retry with the same turn ID therefore returns the same session instead of creating another one. When `sessionId` is present, it first verifies owner scope and then binds the turn. It allocates one session ordinal and stores the user message once. A generating attempt owns a short execution lease renewed by heartbeat. A retry with an unexpired lease returns `409 TURN_IN_PROGRESS`; a retry after heartbeat/lease expiry reclaims the same turn, session, message, and ordinal with a new fenced lease and incremented attempt. Heartbeat, failure, and completion writes require the current lease ID, so the old process cannot write late after reclamation. `completeTurn` stores one final assistant message and the safe final response snapshot. A repeated completed turn returns that saved result. A failed turn can retry under the same record; inbound memory capture resumes from its independent lease/receipt state rather than an attempted boolean. Partial assistant text is not persisted as a completed answer or used as memory evidence. The post-turn conversation-summary job runs only after `completed`.
+
+When `actionApproval` exists, `prepareChatTurn` must not use ordinary `beginTurn`. It reads the same-owner/session proposal and calls `beginApprovalTurn` with request `turnId` as the distinct approval-turn ID plus the exact proposal turn and proposal version. That binding is persisted without the raw token before the executor runs. Stale versions, same proposal/approval turn IDs, or an ordinary turn already bound to that ID fail closed.
 
 ## Source Ownership and Precedence
 
@@ -143,7 +158,7 @@ The builder runs the following fixed sequence.
 
 - Call the existing authentication boundary and derive `ownerId` from it.
 - Verify the requested session belongs to that owner.
-- Require a client-generated UUID `turnId` and enforce uniqueness on `(ownerId, sessionId, turnId)`.
+- Require a client-generated UUID `turnId` and enforce uniqueness on `(ownerId, turnId)`; the immutable request hash verifies its bound requested/session identity and rejects reuse with another session or message.
 - Accept an optional `selectedContactId`; when present, verify it belongs to the owner before treating it as authoritative UI context.
 - Ignore or reject any request-supplied owner identity.
 - Create no side effects during context assembly.
@@ -274,16 +289,19 @@ interface ErpBusinessProvider {
   verifyCustomer(input: ExactConnectionScope & { externalCustomerId: string }): Promise<ErpCustomerIdentity>;
   getCustomerContext(input: ExactMappedCustomerScope): Promise<ErpCustomerContext>;
   searchItems(input: ExactConnectionScope & { query: string }): Promise<ErpItemCandidate[]>;
+  getDraftPreflight(input: ExactMappedCustomerScope & ErpDraftPreflightRequest): Promise<ErpDraftPreflight>;
   createDraftQuotation(input: ExactMappedCustomerScope & DraftQuotationInput): Promise<ErpDraftResult>;
   createDraftSalesOrder(input: ExactMappedCustomerScope & DraftSalesOrderInput): Promise<ErpDraftResult>;
 }
 ```
 
-The provider and connection/capability contracts live in the independent `src/lib/erp` layer. Business, CRM mapping, and AI context consume that layer; the ERP layer never imports CRM or AI. `ExactConnectionScope` contains authenticated `ownerId`, `connectionId`, `connectionRevision`, `externalSiteId`, and `externalCompanyId`. `ExactMappedCustomerScope` adds the approved mapping ID, mapping version, and external customer ID. `verifyCustomer` performs an exact identifier lookup within that connection/site/company and returns a bounded identity; mapping approval calls it immediately before compare-and-swap persistence and never relies on an earlier ranked search result. Each method checks `customer_search`, `customer_read`, or `draft_write` as appropriate; unsupported operations fail closed. There is no generic method, arbitrary endpoint, or pass-through provider payload.
+The provider and connection/capability contracts live in the independent `src/lib/erp` layer. Business, CRM mapping, and AI context consume that layer; the ERP layer never imports CRM or AI. `ExactConnectionScope` contains authenticated `ownerId`, `connectionId`, `connectionRevision`, `externalSiteId`, and `externalCompanyId`. `ExactMappedCustomerScope` adds the approved mapping ID, mapping version, and external customer ID. `verifyCustomer` performs an exact identifier lookup within that connection/site/company and returns a bounded identity; mapping approval calls it immediately before compare-and-swap persistence and never relies on an earlier ranked search result. `getDraftPreflight` is the only AI-visible read boundary for verified company/defaults, exact items/UOM/prices, tax/warehouse choices, optional custom integration field, modification times, and a normalized fingerprint. Draft creation rechecks that fingerprint immediately before dispatch. Each method checks `customer_search`, `customer_read`, or `draft_write` as appropriate; unsupported operations fail closed. There is no generic method, arbitrary endpoint, or pass-through provider payload.
 
-Connection capabilities are stored owner-scoped with a revision and default `draft_write` to disabled. Enabling it requires an authenticated connection-settings confirmation and increments the revision. The request body cannot grant capabilities. CRM write permission comes from server-side owner/role authorization; until role-based access is introduced, only the authenticated owner has `crm_write`.
+Connection capabilities are stored owner-scoped with a `capabilityVersion` separate from identity `connectionRevision`, and default `draft_write` to disabled. Enabling it requires an authenticated connection-settings confirmation and increments only the capability version. The request body cannot grant arbitrary capabilities. CRM write permission comes from server-side owner/role authorization; until role-based access is introduced, only the authenticated owner has `crm_write`.
 
-`PATCH /api/business/erp/connections/:id/capabilities` accepts an expected connection revision and an explicit `draft_write` boolean from the authenticated owner. It shows and records the risk confirmation, never accepts `ownerId`, and returns the incremented revision. Disabling the capability invalidates every unexecuted ERP proposal for that connection.
+`GET /api/business/erp/connections` and the per-connection capability GET return only safe owner-authenticated connection ID, label, identity revision, capability version, and flags. `PATCH /api/business/erp/connections/:id/capabilities` accepts `expectedCapabilityVersion`, an explicit `draft_write` boolean, and risk confirmation from the authenticated owner. It never accepts `ownerId` and returns the incremented capability version without changing identity revision.
+
+Capability CAS and ERP `prepared → dispatching` use the same connection-store lock. Dispatch atomically rechecks both versions and `draft_write` while creating its dispatch fence. If disable commits first, dispatch fails; if dispatch commits first, disable returns `409 DRAFT_DISPATCH_IN_FLIGHT` until that attempt is terminal, after which disable invalidates every still-unexecuted ERP proposal. Thus a successful disable has no approval-to-dispatch race.
 
 ### 8. Retrieve relevant documents
 
@@ -408,6 +426,10 @@ Each saved record preserves source message or action ID, session ID, extraction 
 
 The existing pending-only capture lifecycle remains unchanged for manual, model-based, external, and MCP capture. A separate server-only `captureInboundUserMemory` boundary is the only inbound path allowed to invoke this auto-save policy.
 
+Inbound capture uses a recoverable turn state machine: `not_started`, leased `claimed`, `completed`, or `retryable_failure`. The claim has an expiry rather than an irreversible attempted flag. The memory store writes a receipt keyed by owner, turn, and source user message in the same locked mutation as the canonical memory record/history. A retry after a crash before the memory write can reclaim an expired lease; a crash after the memory commit but before the turn outcome can recover the existing receipt without duplicating a memory. Derived embeddings and Markdown rebuild idempotently from the canonical record/version.
+
+When the resolved entity is a contact, both inbound and verified-action memory use the CRM design's full parent-write fence: claim an active-contact child lease, commit memory and receipt as non-readable `staged`, recheck the same parent version/lease, activate the memory and receipt by CAS, then complete the lease. A tombstone or lease conflict cancels/forgets the staged memory. A simple active-parent precheck is insufficient, and no staged/contact-deleted record enters recall or AI context.
+
 The client receives a distinct result rather than overloading the existing capture-job type:
 
 ```ts
@@ -435,6 +457,8 @@ type MemoryCaptureOutcome = {
 10. If it is sensitive, live ERP state, or unsupported, do not store the content.
 11. Generate the answer independently and in parallel only after step 2; the new memory is excluded from the current turn's context. Report the capture outcome without failing the answer if persistence fails.
 12. After an approved action succeeds, run the same policy once more using the verified action result as provenance.
+
+The current request starts this capture independently from model generation and does not cancel it on a streaming transport abort. If the process itself stops, the persisted lease and receipt make the same turn recoverable on retry rather than falsely treating an attempted timestamp as completion.
 
 An immediately saved memory is visible, editable, and deletable as soon as the request completes. Edits and deletes create history, invalidate stale embeddings, and prevent superseded text from entering later context.
 
@@ -483,8 +507,8 @@ type ErpDraftLine = {
 };
 
 type AiActionPayload =
-  | { kind: "crm.contact.create"; fields: CrmContactCreateFields }
-  | { kind: "crm.contact.update"; fields: CrmContactUpdateFields }
+  | { kind: "crm.contact.create"; fields: CustomerCreateInput }
+  | { kind: "crm.contact.update"; fields: CustomerEditablePatch }
   | { kind: "crm.activity.create"; activityType: CrmActivityType; title: string; body: string }
   | { kind: "crm.follow_up.set"; nextContactAt: string; timeZone: string }
   | { kind: "crm.relationship_stage.set"; relationshipStage: CustomerRelationshipStage }
@@ -509,9 +533,11 @@ type AiActionPayload =
 
 type AiActionProposal = {
   id: string;
+  version: number;
   ownerId: string;
   sessionId: string;
   proposalTurnId: string;
+  approvalTurnId: string | null;
   action: AiActionPayload;
   target: {
     localContactId: string | null;
@@ -526,12 +552,19 @@ type AiActionProposal = {
     contactVersion: number | null;
     mappingVersion: number | null;
     connectionRevision: number | null;
+    capabilityVersion: number | null;
     erpCustomerModifiedAt: string | null;
     items: Array<{ itemCode: string; modifiedAt: string }>;
   };
   permission: "crm_write" | "draft_write";
   idempotencyKey: string;
   approvalTokenHash: string;
+  executionLease: {
+    leaseId: string;
+    attempt: number;
+    expiresAt: string;
+    heartbeatAt: string;
+  } | null;
   status:
     | "proposed"
     | "approved"
@@ -549,7 +582,7 @@ type AiActionProposal = {
 };
 ```
 
-`CrmContactCreateFields` and `CrmContactUpdateFields` contain only the CRM edit allowlist from the CRM design and enforce the same length, enum, currency, and date validation. An ERP draft has 1–50 exact item codes, finite quantity greater than zero, verified UOM and non-negative unit price, one verified company currency and price list, and explicit nullable tax-template and warehouse defaults. Ambiguous free-text items produce choices and no proposal. The persisted action is a discriminated schema-validated payload, never arbitrary executable instructions.
+`CustomerCreateInput` and `CustomerEditablePatch` are the canonical exported CRM edit contracts and enforce the same length, enum, currency, and date validation in both CRM routes and action schemas. The AI layer does not maintain a second editable-field copy. An ERP draft has 1–50 exact item codes, finite quantity greater than zero, verified UOM and non-negative unit price, one verified company currency and price list, and explicit nullable tax-template and warehouse defaults. Ambiguous free-text items produce choices and no proposal. The persisted action is a discriminated schema-validated payload, never arbitrary executable instructions.
 
 Relative dates such as `금요일` resolve in the authenticated owner's stored IANA time zone, falling back to UTC. The proposal always displays the exact local date/time, time zone, and stored ISO instant before approval.
 
@@ -559,18 +592,24 @@ Relative dates such as `금요일` resolve in the authenticated owner's stored I
 2. Resolve the exact owner, contact, mapping, provider, and relevant current state.
 3. Resolve exact ERP item codes, quantities, UOM, prices, currency, price list, company, tax template, warehouse, dates, and provider modified timestamps before building an ERP proposal. Any ambiguity blocks the proposal.
 4. Build a validated proposal with the exact field diff or ERP draft payload and a precondition for every mutable dependency.
-5. Return the proposal plus a cryptographically random one-time approval token to the authenticated client; persist only its hash.
+5. Return the versioned safe proposal plus a cryptographically random one-time approval token to the authenticated client; persist only its hash.
 6. Display the proposal and warnings. Do not mutate yet.
-7. The authenticated user explicitly approves that exact proposal, and the client sends proposal ID plus the raw one-time token.
-8. Verify the proposal belongs to the owner and session, is unexpired, has a valid token, and has not already executed. Record the new approval turn separately from the proposal-creation turn.
-9. Re-read the contact version, mapping version, connection revision/capability, ERP customer modification time, item modification times, and all draft defaults.
+7. The authenticated user explicitly approves that exact proposal, and the client sends proposal ID, proposal version, and the raw one-time token.
+8. Verify the proposal belongs to the owner and session, the expected version matches, it is unexpired, has a valid token, and has not already executed. Persist the new approval turn through `beginApprovalTurn` separately from the proposal-creation turn before execution.
+9. Re-read the contact version, mapping version, connection identity revision, capability version/value, ERP customer modification time, item modification times, and all draft defaults.
 10. If any recorded precondition differs, expire the proposal and return a new preview instead of applying stale intent.
-11. Execute through an allowlisted service method with the idempotency key.
+11. Claim a fenced action-execution lease, then execute through an allowlisted service method with the idempotency key. ERP additionally atomically claims the exact capability-version dispatch fence immediately before bytes are sent.
 12. Record success, safe failure, or unknown outcome in the audit log and return the result.
 
-Free-text responses such as `응` approve only when the AI Chat client has one active proposal and attaches `actionApproval: { proposalId, approvalToken }` to the new approval turn. The proposal stores `proposalTurnId`; execution records the distinct `approvalTurnId`. They must share the same authenticated owner and session but must not be equal. The server validates the metadata; the model never decides that text alone is authorization. Without valid metadata, `응` changes nothing and the assistant asks the user to use or refresh the approval card. The raw token is returned only on proposal creation, kept in current client state, consumed once, and never written to chat text or logs. An owner-scoped token-rotation endpoint can replace a lost token while the proposal is still unexpired and `proposed`; rotation invalidates the old hash and is audited. Approval never grants a reusable broad permission.
+Free-text responses such as `응` approve only when the AI Chat client has one active proposal and attaches `actionApproval: { proposalId, proposalVersion, approvalToken }` to the new approval turn. The proposal stores `proposalTurnId`; execution records the distinct `approvalTurnId`. They must share the same authenticated owner and session but must not be equal. The server validates the versioned metadata and uses `beginApprovalTurn`; the model never decides that text alone is authorization. Without valid metadata, `응` changes nothing and the assistant asks the user to use or refresh the approval card. The raw token is returned only on proposal creation, kept in current client state, consumed once, and never written to chat text or logs. An owner-scoped token-rotation endpoint can replace a lost token while the proposal is still unexpired and `proposed`; rotation uses expected-version CAS, invalidates the old hash, increments the proposal version, and is audited. Approval never grants a reusable broad permission.
 
-Each execution creates an attempt record before contacting ERP. Successful results are cached by proposal and idempotency key. When the provider times out after transmission and creation cannot be disproved, the proposal becomes `outcome_unknown`; it is never automatically sent again. Reconciliation queries the provider by the safe integration reference or requires manual review. ERPNext does not provide a universal exactly-once guarantee, so this design guarantees no blind resend rather than claiming upstream exactly-once behavior.
+Every CRM execution passes the proposal idempotency key as a durable operation ID into the CRM repository. The CRM mutation and a bounded mutation receipt commit in the same CRM-store lock, so a process failure after contact/activity mutation but before action-result persistence is recovered by reading the receipt instead of executing again.
+
+An expired generic action-execution lease is always recoverable rather than permanently leaving `executing`. CRM recovery finalizes an existing receipt or safely re-enters the same operation ID when no receipt exists. ERP recovery may resume only when its provider attempt is absent or `prepared`; `dispatching` becomes `outcome_unknown` and is never resent. Every recovery/result write is fenced by the current action lease ID.
+
+Each ERP execution creates a durable attempt before contacting ERP and moves it from `prepared` to `dispatching` before any bytes are sent. The same connection-store lock serializes that transition with capability disable and the durable reconnect/delete/disconnect identity-mutation barrier. Mutation-first makes dispatch fail closed; dispatch-first returns `409 DRAFT_DISPATCH_IN_FLIGHT` before any credential or identity change.
+
+Only the current random dispatch fence can move an attempt from `dispatching` to immutable `succeeded`, authoritative `failed`, or `outcome_unknown`. The terminal attempt is committed before the separate action result. A timeout after transmission, an expired dispatch lease, a 2xx response that cannot be safely interpreted, or a process failure before terminal commit becomes `outcome_unknown`; none is automatically sent again. A process failure after terminal success but before action-result persistence is recovered from the terminal attempt without another POST. Successful results are cached by proposal and idempotency key. Reconciliation queries the provider by the verified safe integration reference or requires manual review. Capability-only changes do not block this read-only reconciliation; a site/company identity change does. ERPNext does not provide a universal exactly-once guarantee, so this design guarantees no blind resend rather than claiming upstream exactly-once behavior.
 
 ### Example
 
@@ -608,10 +647,10 @@ The two chat routes become thin transport layers around `prepareChatTurn` and `f
 
 Action routes are also thin authenticated transports:
 
-- `POST /api/ai/actions/:id/approve` accepts a new client-generated `approvalTurnId` and the raw one-time approval token, verifies the one active proposal, and moves it through fresh-state execution.
-- `POST /api/ai/actions/:id/cancel` cancels an owner/session-scoped unexecuted proposal.
-- `POST /api/ai/actions/:id/approval-token` rotates a lost token for an unexpired proposed action and invalidates the old token.
-- `GET /api/ai/actions/:id` returns a safe proposal/result view without secrets or internal policy fields.
+- `POST /api/ai/actions/:id/approve` accepts a new client-generated `approvalTurnId`, `expectedVersion`, and the raw one-time approval token, binds the versioned approval turn, and moves it through fresh-state execution.
+- `POST /api/ai/actions/:id/cancel` cancels an owner/session-scoped unexecuted proposal with expected-version CAS.
+- `POST /api/ai/actions/:id/approval-token` rotates a lost token for an unexpired proposed action with expected-version CAS, increments the version, and invalidates the old token.
+- `GET /api/ai/actions/:id` returns a versioned safe proposal/result view without secrets or internal policy fields.
 
 The existing `src/lib/agent/approval.ts` preview is a non-executing planning helper and is not reused as authorization for business mutations.
 
@@ -622,6 +661,52 @@ AI Chat presentation components are separated into a source/context drawer, memo
 The non-streaming route returns the answer plus additive metadata:
 
 ```ts
+type MemoryCandidateSummary = {
+  id: string;
+  title: string;
+  content: string;
+  preview: string;
+  version: number;
+  category?: string;
+  importance: number;
+  recency: number;
+  frequency: number;
+  confidence: number;
+};
+
+type AiActionStatus =
+  | "proposed"
+  | "approved"
+  | "executing"
+  | "succeeded"
+  | "failed"
+  | "outcome_unknown"
+  | "expired"
+  | "cancelled";
+
+type AiActionProposalView = {
+  id: string;
+  version: number;
+  kind: AiActionPayload["kind"];
+  status: AiActionStatus;
+  summary: string;
+  preview: Array<{ label: string; value: string }>;
+  warnings: string[];
+  expiresAt: string;
+  canApprove: boolean;
+  canRotateToken: boolean;
+};
+
+type AiActionResultView = {
+  proposalId: string;
+  kind: AiActionPayload["kind"];
+  status: "succeeded" | "failed" | "outcome_unknown" | "expired" | "cancelled";
+  summary: string;
+  entityRefs: Array<{ kind: "crm_contact" | "crm_activity" | "erp_draft"; id: string }>;
+  completedAt: string | null;
+  needsManualReview: boolean;
+};
+
 type AiChatResult = {
   answer: string;
   sources: AiContextSource[];
@@ -630,20 +715,31 @@ type AiChatResult = {
   sessionId: string;
   turnId: string;
   memoryStatus: string;
-  memoryCandidates: ExistingMemoryCandidateSummary[];
+  memoryCandidates: MemoryCandidateSummary[];
   contextState: {
-    crm: "aggregate" | "resolved" | "ambiguous" | "not_found" | "not_requested";
+    crm: "aggregate" | "resolved" | "ambiguous" | "not_found" | "unavailable" | "not_requested";
     erp: "dashboard" | "available" | "not_configured" | "not_mapped" | "unavailable" | "not_requested";
   };
   memoryResult: MemoryCaptureOutcome;
   actionProposal: AiActionProposalView | null;
+  actionResult: AiActionResultView | null;
   warnings: string[];
+};
+
+type TransientActionApproval = {
+  proposalId: string;
+  proposalVersion: number;
+  approvalToken: string;
+};
+
+type AiChatInitialTransportResult = AiChatResult & {
+  transientActionApproval: TransientActionApproval | null;
 };
 ```
 
-This preserves the existing top-level `answer`, `sources`, `confidence`, `verification`, `sessionId`, `memoryStatus`, and `memoryCandidates` fields and adds new metadata.
+This preserves the existing top-level `answer`, `sources`, `confidence`, `verification`, `sessionId`, `memoryStatus`, and `memoryCandidates` fields and adds new metadata. The persisted `AiChatResult` never contains a raw token. Only the first non-stream proposal response uses `AiChatInitialTransportResult` with a non-null `transientActionApproval`; completed replay and turn-status return `AiChatResult` only. Proposal/result views are bounded safe projections: they never contain owner IDs, approval tokens or hashes, credentials, raw provider bodies, or internal errors.
 
-The streaming route preserves existing `status`, token-chunk `delta`, and terminal `done` behavior. It adds `context`, `memory_result`, `sources`, and `action_proposal` events; the `done` payload retains its existing `answer`, `memoryStatus`, and `memoryCandidates` fields and adds `turnId`, context, and action metadata. The inbound memory pass runs once from the saved user message, and any later verified-action pass has its own source ID. The server saves one final assistant message but never extracts auto-approved facts from assistant prose. Reconnect or retry must not duplicate assistant messages, memory records, or actions.
+The streaming route preserves existing `status`, token-chunk `delta`, and terminal `done` behavior. It adds `context`, `memory_result`, `sources`, `action_proposal`, and `action_result` events. The first `action_proposal` event payload is exactly `{ proposal: AiActionProposalView, transientActionApproval: TransientActionApproval }`; token rotation returns the same transient shape once. The `done` payload retains its existing `answer`, `memoryStatus`, and `memoryCandidates` fields and adds `turnId`, context, safe action proposal/result metadata, and no raw approval token/transient field. Turn-status and completed replay return the same persisted token-free result. The inbound memory pass runs once from the saved user message, and any later verified-action pass has its own source ID. The server saves one final assistant message but never extracts auto-approved facts from assistant prose. Reconnect or retry must not duplicate assistant messages, memory records, or actions.
 
 ## Failure Behavior
 
@@ -652,7 +748,7 @@ The streaming route preserves existing `status`, token-chunk `delta`, and termin
 - No ERP mapping: explain that the contact must be manually linked; do not guess.
 - ERP timeout or authentication failure: continue with CRM/memory context and label live financial data unavailable.
 - Stale ERP response: include the value only with its `asOf` time and stale warning.
-- Memory persistence failure: return the answer and show `저장 실패`; a retry uses idempotency to prevent duplicates.
+- Memory persistence failure: return the answer and show `저장 실패`; an expired lease or retryable failure can resume, and a committed receipt prevents duplicates.
 - Action conflict: make no change and generate a refreshed proposal.
 - Action timeout or unknown provider result: mark the execution for safe reconciliation; do not blindly retry a write without the same idempotency key.
 - Streaming disconnect: no action executes without a separately verified approval request.
@@ -666,7 +762,7 @@ The streaming route preserves existing `status`, token-chunk `delta`, and termin
 - ERP reads use the exact approved external customer ID and allowlisted provider methods.
 - ERP draft writes default to disabled and require both an owner-scoped connection capability and an action-level permission.
 - Proposal payloads are schema validated and size limited; arbitrary URLs, methods, scripts, and provider commands are rejected.
-- Approval-token hash, expiration, exact preconditions, turn identity, and idempotency key prevent replay and stale execution.
+- Approval-token hash, expiration, exact preconditions, turn identity, repository operation receipt, and idempotency key prevent replay and stale execution.
 - Every mutation records actor, owner, proposal, target, before/after or created identifier, timestamp, and outcome.
 - Logs redact customer-sensitive free text where possible and never contain credentials or full context prompts.
 
@@ -698,24 +794,31 @@ The streaming route preserves existing `status`, token-chunk `delta`, and termin
 - Exact same-predicate/same-value duplicates create a no-op or version/frequency update; conflicting values remain pending.
 - Auto-approved memories are immediately visible, editable, deletable, and excluded after deletion.
 - A memory failure does not fail or duplicate the chat answer.
+- Crash before memory commit is recoverable after lease expiry, while crash after memory commit recovers the receipt and does not duplicate the record.
 
 ### Action tests
 
 - Reads do not require mutation approval.
 - Every CRM mutation creates a preview and changes nothing before approval.
-- ERP draft actions fail closed when `draft_write` is absent or the connection revision changed.
+- ERP draft actions fail closed when `draft_write` is absent, capability version changed, or connection identity revision changed; capability-only toggles do not invalidate CRM mappings.
 - Submit, invoice, payment, delete, cancel, accounting, and stock actions are rejected by the initial allowlist.
-- `응` approves only one unique active same-session proposal.
-- Owner, session, turn, approval token, expiry, every exact precondition, and idempotency checks reject replay and cross-owner execution.
-- Proposal and approval turn IDs are distinct, belong to the same owner/session, and are both preserved in audit.
+- `응` approves only one unique active same-session proposal when the request carries the exact proposal ID, proposal version, and one-time token; text alone never approves.
+- Owner, session, turn, proposal version, approval token, expiry, every exact precondition, and idempotency checks reject stale-version replay and cross-owner execution.
+- Proposal and approval turn IDs are distinct, belong to the same owner/session, are both preserved in audit, and the approval path enters through `beginApprovalTurn` rather than an ordinary chat turn.
+- The raw token appears only in the initial non-stream `transientActionApproval` field or the first streaming `action_proposal` event (and once after explicit rotation); persisted results, `done`, status, replay, logs, and renderable state remain token-free.
 - Fresh-state changes expire the proposal without partial mutation.
 - Successful execution produces one audit event and one result even after a retry.
+- A crash between CRM mutation and action-result persistence returns the same CRM receipt, while an ERP `dispatching` crash becomes reconcilable unknown outcome without a blind resend.
+- A crash immediately after claiming the generic action lease is reclaimed after expiry; CRM resumes by operation receipt and ERP resumes only from absent/prepared attempt state.
+- Capability disable, reconnect, credential deletion, and disconnect are linearized with ERP dispatch in one connection-store lock: mutation-first blocks dispatch, while dispatch-first makes every identity/capability mutation wait with `DRAFT_DISPATCH_IN_FLIGHT` before touching credentials.
+- Only the current dispatch fence can commit immutable `succeeded`, authoritative `failed`, or `outcome_unknown`; a crash after terminal success recovers the action result from the attempt without another POST.
 - An ambiguous item cannot create a proposal, and an unknown ERP outcome is never blindly retransmitted.
 
 ### Route and integration tests
 
 - Normal and streaming routes produce equivalent context sources and permissions.
 - Both routes use shared prepare/finalize turn services, context builder, and memory policy while preserving existing `answer`, `delta`, and `done` client contracts.
+- CRM repository/service failure sets `contextState.crm = "unavailable"`, omits current CRM facts and CRM mutation proposals, and still returns permitted conversation, memory, and document context with a warning.
 - ERP failure degrades only financial context.
 - Global CRM and ERP questions use their bounded dashboard snapshots without requiring or guessing a contact mapping.
 - CRM and ERP source labels and freshness reach the client safely.

@@ -28,7 +28,7 @@ Out of scope for this first sub-project:
 - Installing Docker, ERPNext, Frappe CRM, or Ollama.
 - Building the downloadable PowerShell setup wizard.
 - Rebuilding the standalone CRM workspace.
-- Removing the Calendar phone-import UI, fixing Automation connection state, or adding the deep-research worker. Those remain separate follow-up projects.
+- Adding the deep-research worker. Calendar phone-import presentation removal is included in this ERP increment, while Automation connection reconciliation is delivered first by `docs/superpowers/specs/2026-07-15-automation-connection-binding-design.md`.
 
 ## Approaches Considered
 
@@ -61,7 +61,8 @@ Implementation boundaries:
 - `components/Business/erp/ErpQuickActions.tsx`: safe links into ERPNext.
 - `src/lib/erp/erp-dashboard.types.ts`: UI-independent dashboard contract.
 - `src/lib/erp/erp-dashboard.service.ts`: validates and normalizes provider results.
-- `app/api/business/erp/dashboard/route.ts`: owner-scoped server endpoint for server-reachable ERPNext connections.
+- `app/api/business/erp/dashboard/handler.ts`: dependency-injected owner-scoped HTTP handler used by tests and production.
+- `app/api/business/erp/dashboard/route.ts`: App Router boundary exporting only the supported `GET` handler.
 
 The component split is deliberate: each unit has one responsibility and can be tested without reading or rendering the entire Business workspace.
 
@@ -137,8 +138,8 @@ type ErpDashboardSnapshot = {
     payables: ErpMetricValue;
     inventoryValue: ErpMetricValue;
   };
-  salesTrend: Array<{ period: string; value: number }>;
-  salesBreakdown: Array<{ label: string; value: number }>;
+  salesTrend: Array<{ period: string; value: number | null }>;
+  salesBreakdown: Array<{ label: string; value: number | null }>;
   recentActivity: ErpActivity[];
   receivables: ErpReceivable[];
   inventory: ErpInventoryItem[];
@@ -151,6 +152,12 @@ Every monetary field uses `number | null`. `null` means unknown or unavailable a
 
 `connectionState` and `connectionMode` come from the shared `src/lib/erp/erp-connection.types.ts` contract. CRM and AI can add request-specific states such as `not_requested`, `not_mapped`, `available`, or `unavailable`, but they do not redefine connection health. Freshness remains the separate `stale` flag.
 
+The shared connection identity separates `connectionRevision`, which changes when credentials, endpoint, site, or company identity changes, from `capabilityVersion`, which changes when an owner toggles permissions such as `draft_write`. CRM mappings bind to the identity revision only, so a capability-only toggle cannot invalidate an otherwise unchanged customer mapping. Any reconnect or identity change resets `draft_write` to disabled and increments both versions; an AI draft proposal records and rechecks both independently.
+
+This increment permits zero or one active ERPNext connection per owner. A verified reconnect uses an owner/provider-scoped durable workflow journal and monotonic generation fence: credential and identity rows are staged under one operation ID, and only the committed matching generation is publicly resolvable. Recovery runs before connection listing/resolution and resumes or aborts every crash phase; stale compensation cannot overwrite a newer generation. Delete and disconnect use the same staged workflow instead of deleting the credential first. Ambiguous legacy multiple-active records fail closed unless one exact newest credential/metadata pair can be reconciled deterministically. Disconnect never silently falls back to another company. This makes dashboard, CRM currency, and AI reads resolve one unambiguous connection.
+
+The connection document also owns the identity-mutation barrier used by future ERP draft dispatch. Save, reconnect, per-credential deletion, bulk disconnect, and capability changes all begin under the same owner-scoped connection-store lock. An identity mutation that commits its barrier first makes a later dispatch fail closed; a dispatch already fenced first makes the mutation return `409 DRAFT_DISPATCH_IN_FLIGHT` before any credential or identity row changes. Prepared but unsent work may be invalidated by the new connection revision, while an in-flight attempt must reach a fenced terminal state first.
+
 ## Data Flow
 
 1. Selecting `ERP 대시보드` starts a dashboard request.
@@ -161,6 +168,8 @@ Every monetary field uses `number | null`. `null` means unknown or unavailable a
 6. Detailed work opens ERPNext in a new tab using a validated configured base URL and `noopener,noreferrer`.
 
 ERPNext credentials remain server-side or inside the future local gateway. They are never serialized into React props, browser storage, logs, or error messages.
+
+All server-reachable ERPNext traffic uses one DNS-pinned HTTPS transport with certificate/SNI validation, no redirects, bounded JSON responses, and abort propagation. The transport accepts only `GET` and `POST`; `GET` has no body, and `POST` accepts only a bounded JSON object created by an allowlisted provider. Dashboard and CRM reads use only `GET`. A later explicitly approved AI draft provider may use `POST` only for its fixed quotation or sales-order resource path; no user-provided URL, DocType, or HTTP method reaches the transport.
 
 ## Empty, Loading, and Error States
 
@@ -180,7 +189,9 @@ Because the dashboard replaces the old sales surface, this change also:
 - Removes `Sales`, `ManualRevenueImport`, mobile revenue candidates, and the Business-only `DeviceConnectionPanel` usage.
 - Removes sales and company metrics from Overview.
 - Removes sales rows from the Business report panel.
+- Removes the Calendar screen's `휴대폰에서 가져오기` button, candidate fetch state, and review modal while preserving normal event creation and calendar views.
 - Keeps the underlying legacy revenue API and repositories untouched for now to avoid an unrelated destructive migration.
+- Keeps the device/calendar-candidate API and stored candidates untouched; this increment removes only the unsupported phone-import presentation.
 
 ## Security
 
@@ -209,6 +220,7 @@ Because the dashboard replaces the old sales surface, this change also:
 ### UI contract tests
 
 - Existing sidebar source remains unchanged.
+- Calendar phone-import UI and `/api/devices/calendar-candidates` fetch usage are absent while ordinary calendar event creation remains.
 - Business tabs include `dashboard` and exclude `sales`.
 - Mail, Business Cards, Meetings, and Reports remain available.
 - Six ERP metrics, three main panels, three lower panels, connection state, refresh, and safe ERP launch actions render.
