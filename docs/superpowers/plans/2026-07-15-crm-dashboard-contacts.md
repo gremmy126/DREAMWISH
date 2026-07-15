@@ -37,6 +37,7 @@
 - `src/lib/crm/crm-validation.ts`: create/update/query allowlist와 날짜·통화·문자열 검증.
 - `src/lib/crm/crm.repository.ts`: owner-scoped migration, CAS, page, 활동, tombstone-first lifecycle.
 - `src/lib/crm/crm-contact.service.ts`: 회사 선택, 검증된 ERP 통화, allowlisted contact mutation orchestration.
+- `src/lib/crm/crm-idempotent-mutation.service.ts`: direct UI와 AI action이 공유하는 canonical command hash, receipt replay와 one-write executor.
 - `src/lib/crm/crm-contact-lifecycle.service.ts`: tombstone-first delete와 cross-store cleanup retry.
 - `src/lib/crm/crm-dashboard.ts`: 부작용 없는 dashboard aggregate 계산.
 - `src/lib/account/account-preferences.repository.ts`: owner-scoped IANA time zone과 UTC fallback.
@@ -58,6 +59,7 @@
 - Create: `src/lib/crm/crm-validation.ts`
 - Modify: `src/lib/crm/crm.repository.ts`
 - Create: `src/lib/crm/crm-contact.service.ts`
+- Create: `src/lib/crm/crm-idempotent-mutation.service.ts`
 - Create: `src/lib/migrations/crm-v2.ts`
 - Create: `src/lib/account/account-preferences.repository.ts`
 - Create: `tests/crm-contact-domain.test.ts`
@@ -68,7 +70,7 @@
 
 **Interfaces:**
 
-- Produces: `CustomerRelationshipStage`, versioned `Customer`, canonical action fields `CustomerCreateInput`/`CustomerEditablePatch`, `CustomerListQuery`, `CustomerPage`, `CrmRepositoryError`, `createContact`, `updateContact`, `listCustomerPage`, `getActiveCustomer`, `runCrmV2Migration`.
+- Produces: `CustomerRelationshipStage`, versioned `Customer`, canonical action fields `CustomerCreateInput`/`CustomerEditablePatch`, `CustomerListQuery`, `CustomerPage`, `CrmRepositoryError`, `CrmMutationCommand`, `CrmMutationReceipt`, `executeCrmMutationOnce`, `createContact`, `updateContact`, `listCustomerPage`, `getActiveCustomer`, `runCrmV2Migration`.
 - Consumes: existing JSON/owner-document CRM store and ERP foundation `loadVerifiedErpCompanyCurrency(ownerId)`.
 
 - [ ] **Step 1: 실패하는 migration·CAS·validation 테스트 작성**
@@ -114,6 +116,7 @@ test("legacy CRM contacts migrate once and updates compare versions", async () =
 같은 파일에 다음 실제 assertion을 추가한다.
 
 - 같은 create/update operation ID와 같은 normalized command hash를 재시도하면 같은 contact/version receipt를 반환하고 mutation/audit를 중복 생성하지 않는다. 같은 ID와 다른 hash는 stable idempotency conflict다.
+- `executeCrmMutationOnce`에 create/update/activity/follow-up/stage command를 넘기면 direct service와 이후 AI executor가 같은 canonical receipt를 읽으며 별도 AI receipt row를 만들지 않는다.
 - company/contact/audit/receipt durable write 직후 response 전 crash를 주입하고 repository를 다시 열어 재시도하면 committed result 한 개만 복구된다.
 - pure `normalizeCustomerForRead`는 version 없는 legacy row를 version 1로 보여주지만 원본 파일 revision/mtime을 바꾸지 않는다.
 - `runCrmV2Migration(ownerId)`가 legacy `lead → new_lead`, `active → customer`, `paused|inactive → contacting`과 version 1을 한 번 저장하고 source를 `legacy_status`로 남긴다. 두 번째 실행은 store revision을 바꾸지 않는다.
@@ -245,11 +248,18 @@ export type CrmMutationReceipt = {
   kind: "contact_create" | "contact_update" | "activity_create" | "follow_up_update" | "stage_update" | "mapping_approve" | "mapping_revoke";
   resultIds: Record<string, string>;
   resultingVersions: Record<string, number>;
-  safeResult: unknown;
+  safeResult: CrmSafeMutationResult;
 };
+
+export function executeCrmMutationOnce(input: {
+  ownerId: string;
+  actorId: string;
+  operationId: string;
+  command: CrmMutationCommand;
+}): Promise<CrmMutationReceipt>;
 ```
 
-company exact-name reuse/create, contact membership, contact version, audit, and `CrmMutationReceipt` are written in one owner-document mutation. Same operation ID and hash returns the prior safe result; same ID with a different hash fails closed. Activity/task and mapping mutations use this same receipt contract, so the later AI executor does not create a second receipt store. If a future backend splits company and contact storage, it must use a staged recoverable company-membership journal and cannot report success before commit. Existing `createCustomerDraft`, `updateCustomer`, `listCustomers`는 아직 사용 중인 내부 caller를 위해 새 service로 위임하는 얇은 compatibility wrapper로 유지하고 Task 6의 원자적 caller 전환에서 제거한다. 원본 전체 `Customer`를 덮는 `upsertCustomer` bypass는 새 code에서 사용하지 못하게 deprecate하고 Task 7에서 제거하거나 expectedVersion CAS wrapper로 교체한다.
+`CrmMutationCommand`는 contact create/update, activity, follow-up, stage, mapping approve/revoke의 allowlisted discriminated union이고 `CrmSafeMutationResult`는 그 command별 bounded result union이다. company exact-name reuse/create, contact membership, contact version, audit, and `CrmMutationReceipt` are written in one owner-document mutation. Same operation ID and hash returns the prior safe result; same ID with a different hash fails closed. Direct services are thin typed callers of `executeCrmMutationOnce`; activity/task and mapping mutations use this same receipt contract, so the later AI executor does not create a second receipt store. If a future backend splits company and contact storage, it must use a staged recoverable company-membership journal and cannot report success before commit. Existing `createCustomerDraft`, `updateCustomer`, `listCustomers`는 아직 사용 중인 내부 caller를 위해 새 service로 위임하는 얇은 compatibility wrapper로 유지하고 Task 6의 원자적 caller 전환에서 제거한다. 원본 전체 `Customer`를 덮는 `upsertCustomer` bypass는 새 code에서 사용하지 못하게 deprecate하고 Task 7에서 제거하거나 expectedVersion CAS wrapper로 교체한다.
 
 - [ ] **Step 5: domain과 owner lifecycle 테스트 통과 확인**
 
@@ -264,7 +274,7 @@ Expected: CRM type/repository 파일 오류 없음.
 - [ ] **Step 6: domain 단위 커밋**
 
 ```powershell
-git add src/lib/crm/crm.types.ts src/lib/crm/crm-validation.ts src/lib/crm/crm.repository.ts src/lib/crm/crm-contact.service.ts src/lib/migrations/crm-v2.ts src/lib/account/account-preferences.repository.ts src/lib/stage7/stage7.contract.test.ts src/lib/stage12/stage12.contract.test.ts tests/crm-contact-domain.test.ts tests/account-preferences.test.ts tests/crm-owner-lifecycle.test.ts
+git add src/lib/crm/crm.types.ts src/lib/crm/crm-validation.ts src/lib/crm/crm.repository.ts src/lib/crm/crm-contact.service.ts src/lib/crm/crm-idempotent-mutation.service.ts src/lib/migrations/crm-v2.ts src/lib/account/account-preferences.repository.ts src/lib/stage7/stage7.contract.test.ts src/lib/stage12/stage12.contract.test.ts tests/crm-contact-domain.test.ts tests/account-preferences.test.ts tests/crm-owner-lifecycle.test.ts
 git commit -m "feat: version CRM contact records"
 ```
 

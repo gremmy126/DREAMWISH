@@ -127,7 +127,24 @@ types는 lifecycle `queued | running | completed | partial | failed | cancelled`
 
 - [ ] **Step 5: 환경 계약 기록**
 
-`.env.example`에 secret 값 없이 `DATABASE_URL`, `DEEP_RESEARCH_GLOBAL_CONCURRENCY=2`, owner day/rolling/storage limits, poll/lease/heartbeat/retention batch 설정을 기록한다. 범위는 concurrency 1–8, lease 120초, heartbeat 30초, retention 7일을 validation한다.
+`.env.example`에 secret 값 없이 아래 exact key/default를 기록하고 runtime parser도 같은 상수를 사용한다.
+
+```dotenv
+DATABASE_URL=""
+DEEP_RESEARCH_GLOBAL_CONCURRENCY="2"
+DEEP_RESEARCH_DAILY_MINUTES="60"
+DEEP_RESEARCH_ROLLING_30D_MINUTES="600"
+DEEP_RESEARCH_STORAGE_BYTES="104857600"
+DEEP_RESEARCH_WORKER_POLL_MIN_MS="750"
+DEEP_RESEARCH_WORKER_POLL_MAX_MS="2000"
+DEEP_RESEARCH_LEASE_SECONDS="120"
+DEEP_RESEARCH_HEARTBEAT_SECONDS="30"
+DEEP_RESEARCH_INTERMEDIATE_RETENTION_DAYS="7"
+DEEP_RESEARCH_RECOVERY_BATCH="50"
+DEEP_RESEARCH_CLEANUP_BATCH="100"
+```
+
+범위는 concurrency 1–8, poll min ≤ max, lease 120초, heartbeat 30초, retention 7일을 validation한다. 잘못된 값은 service 시작 전에 stable configuration error로 fail closed하며 서로 다른 web/worker/cron default를 만들지 않는다.
 
 - [ ] **Step 6: green 확인 및 커밋**
 
@@ -157,11 +174,16 @@ git commit -m "feat: define durable deep research schema"
 
 ```ts
 export function enqueueResearchJob(input: EnqueueResearchJobInput): Promise<DeepResearchJobPrivate>;
+export function listResearchJobs(ownerId: string, sessionId: string, limit?: number): Promise<DeepResearchJobView[]>;
+export function getResearchJob(ownerId: string, jobId: string): Promise<DeepResearchJobView | null>;
+export function getResearchReport(ownerId: string, jobId: string): Promise<DeepResearchReportView | null>;
 export function claimNextResearchJob(workerId: string): Promise<DeepResearchLease | null>;
 export function heartbeatResearchJob(jobId: string, leaseToken: string): Promise<boolean>;
 export function reserveResearchOperation(input: ResearchOperationReservation): Promise<ResearchOperation>;
 export function checkpointResearchJob(input: FencedResearchCheckpoint): Promise<DeepResearchJobPrivate>;
 export function requestResearchCancellation(ownerId: string, jobId: string): Promise<DeepResearchJobView>;
+export function deleteResearchJob(ownerId: string, jobId: string, operationId: string): Promise<boolean>;
+export function deleteResearchForSession(ownerId: string, sessionId: string, operationId: string): Promise<number>;
 export function persistResearchTerminal(input: FencedResearchTerminalWrite): Promise<DeepResearchJobPrivate>;
 export function recoverExpiredResearchJobs(limit: number): Promise<ResearchRecoverySummary>;
 export function cleanupExpiredResearchMaterial(limit: number): Promise<ResearchCleanupSummary>;
@@ -314,7 +336,7 @@ Search tests는 signal/deadline/response bound 전달, canonical URL dedup, curr
 - DNS A/AAAA를 모두 검증·pin하고 connect 직전/redirect마다 정책을 재검증한다.
 - auto redirect off, manual redirect maximum 3.
 - DNS/connect/TLS establishment 5초, total 15초와 job abort propagation.
-- decompressed body 2MiB, extracted text 120,000자, content type `text/html | text/plain`만.
+- compressed wire body와 decompressed body를 각각 2MiB에서 중단하고, extracted text는 120,000자, content type은 `text/html | text/plain`만 허용한다.
 - cookies/auth/user headers 없이 fixed user agent.
 - per-origin active 2, start interval 500ms.
 - robots disallow는 unavailable; script/style/form/hidden controls/raw markup은 extracted text에 없다.
@@ -620,7 +642,6 @@ git commit -m "feat: show durable research reports in chat"
 - Create: `railway.cron.toml`
 - Modify: `README.md`
 - Create: `tests/deep-research-railway-config.test.ts`
-- Modify: `docs/superpowers/plans/2026-07-15-business-suite-delivery.md`
 
 **Interfaces:**
 
@@ -628,7 +649,41 @@ git commit -m "feat: show durable research reports in chat"
 
 - [ ] **Step 1: failing config tests 작성**
 
-Worker config path는 repo root 기준 `/services/deep-research/railway.toml`이고 builder Railpack, clean install+typecheck, pre-deploy `npm run migrate:research`, start `npm run worker:deep-research`, `ON_FAILURE` bounded retry, public domain/health check 없음이어야 한다. Scheduler `/railway.cron.toml`은 같은 build/predeploy, `npm run cron:schedulers`, `cronSchedule = "*/5 * * * *"`, `NEVER`, no public domain, supported region `asia-southeast1-eqsg3a`를 고정한다.
+Worker config path는 repo root 기준 `/services/deep-research/railway.toml`이고 아래 exact supported keys를 사용한다.
+
+```toml
+[build]
+builder = "RAILPACK"
+buildCommand = "npm ci && npm run typecheck"
+
+[deploy]
+preDeployCommand = "npm run migrate:research"
+startCommand = "npm run worker:deep-research"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+
+[deploy.multiRegionConfig]
+"asia-southeast1-eqsg3a" = { numReplicas = 1 }
+```
+
+Scheduler `/railway.cron.toml`은 아래 exact keys를 사용한다.
+
+```toml
+[build]
+builder = "RAILPACK"
+buildCommand = "npm ci && npm run typecheck"
+
+[deploy]
+preDeployCommand = "npm run migrate:research"
+startCommand = "npm run cron:schedulers"
+cronSchedule = "*/5 * * * *"
+restartPolicyType = "NEVER"
+
+[deploy.multiRegionConfig]
+"asia-southeast1-eqsg3a" = { numReplicas = 1 }
+```
+
+Config as Code에 unsupported domain/health-check placeholder를 넣지 않는다. public domain 없음은 service provisioning 상태에서 별도로 확인하고 test/release evidence에 기록한다.
 
 - [ ] **Step 2: 실패 확인**
 
@@ -673,7 +728,7 @@ Expected: no forbidden runtime/deployment path or unsafe report renderer. Docume
 - [ ] **Step 6: commit and master delivery gate**
 
 ```powershell
-git add services/deep-research/railway.toml railway.cron.toml README.md tests/deep-research-railway-config.test.ts docs/superpowers/plans/2026-07-15-business-suite-delivery.md
+git add services/deep-research/railway.toml railway.cron.toml README.md tests/deep-research-railway-config.test.ts
 git commit -m "chore: deploy deep research workers"
 ```
 
