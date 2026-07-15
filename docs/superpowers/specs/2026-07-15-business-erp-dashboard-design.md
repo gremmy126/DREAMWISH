@@ -90,6 +90,8 @@ Six cards follow the reference layout:
 
 Each card contains the current value, optional previous-period percentage, trend direction, and an accessible text description. A missing comparison is omitted rather than rendered as `0%`.
 
+Metric semantics are provider-normalized and shared with CRM and AI. Current-month sales are the ERP company's base-currency sum of submitted Sales Invoice `base_net_total`, less submitted return/credit-note net totals, excluding tax, using ERP posting dates and the configured ERP company time zone. Purchases use the equivalent submitted Purchase Invoice net basis. Net profit comes from the ERP accounting report for the same company, period, and base currency. A provider that cannot verify these definitions returns `null` rather than a differently defined approximation.
+
 ### Main grid
 
 The middle row contains:
@@ -122,8 +124,8 @@ type ErpMetricValue = {
 };
 
 type ErpDashboardSnapshot = {
-  status: "not_configured" | "connected" | "degraded" | "error";
-  source: "server" | "local" | null;
+  connectionState: "not_configured" | "connected" | "degraded" | "error";
+  connectionMode: "server" | "local_gateway" | null;
   asOf: string | null;
   stale: boolean;
   currency: string;
@@ -147,6 +149,8 @@ type ErpDashboardSnapshot = {
 
 Every monetary field uses `number | null`. `null` means unknown or unavailable and must not be coerced to zero. The service rejects negative values where the underlying ERP measure cannot be negative, invalid dates, malformed external URLs, and non-finite numbers.
 
+`connectionState` and `connectionMode` come from the shared `src/lib/erp/erp-connection.types.ts` contract. CRM and AI can add request-specific states such as `not_requested`, `not_mapped`, `available`, or `unavailable`, but they do not redefine connection health. Freshness remains the separate `stale` flag.
+
 ## Data Flow
 
 1. Selecting `ERP 대시보드` starts a dashboard request.
@@ -160,7 +164,7 @@ ERPNext credentials remain server-side or inside the future local gateway. They 
 
 ## Empty, Loading, and Error States
 
-- `not_configured`: show the dashboard structure with unavailable values plus a clear `설치 및 연결` call to action.
+- `connectionState === "not_configured"`: show the dashboard structure with unavailable values plus a clear `설치 및 연결` call to action.
 - Loading without cached data: show fixed-size skeletons to prevent layout shift.
 - Refresh with cached data: retain the last dashboard and show an inline refresh indicator.
 - Partial provider failure: render available sections, mark the snapshot `degraded`, and explain which sections are unavailable.
