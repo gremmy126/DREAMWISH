@@ -31,7 +31,7 @@ Out of scope for this increment:
 - Rebuilding Calendar, Automation, Business Mail, Business Cards, or Meetings.
 - Adding a general-purpose deal engine, email client, custom report builder, or per-employee assignment model.
 - Persisting ERP financial values into CRM records or AI memory.
-- Installing ERPNext, Docker, Frappe CRM, Dolibarr, Twenty, or Ollama. Installation controls are separate product work.
+- Installing ERPNext, Docker, Frappe CRM, Dolibarr, Twenty, or Ollama. Installer controls are explicitly excluded from the approved Business Suite program.
 
 ## Existing Problems Being Corrected
 

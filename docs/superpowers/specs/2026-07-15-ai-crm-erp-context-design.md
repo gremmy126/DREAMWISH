@@ -37,9 +37,9 @@ Out of scope for this increment:
 - Installing or selecting a deep-research GitHub worker, crawling the public web, or adding long-running web/video research. That work can later use the source panel and reporting contracts defined here, but is a separate approved design and implementation increment.
 - Sending data to a provider that is not already selected and permitted by the user or workspace policy.
 
-## Preserved Follow-up Requirements
+## Related Approved and Excluded Work
 
-The user's earlier Docker, ERPNext/Dolibarr, Ollama installation buttons and long-running free research report with links and videos are not discarded. They require separate designs because a hosted DREAMWISH server cannot reach Docker services at the user's `localhost` without a trusted local gateway, and installation has operating-system and privilege consequences. The current provider boundary starts with ERPNext to match the selected ERP dashboard reference and leaves a future Dolibarr adapter possible. No implementation plan may claim those installer or deep-research requirements complete from this CRM/ERP context work alone.
+The long-running research report with links and videos is defined by the separately approved Deep Research design and follows this AI business-context stage. Docker, ERPNext/Dolibarr, Twenty, Frappe CRM, and Ollama installer buttons are explicitly excluded from the approved Business Suite program. The current provider boundary starts with an already-running ERPNext instance and no implementation plan may claim installation capability.
 
 ## Design Principles
 

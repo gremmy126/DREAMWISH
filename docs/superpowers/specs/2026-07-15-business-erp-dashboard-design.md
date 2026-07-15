@@ -8,12 +8,12 @@ The dashboard is a native DREAMWISH screen. It does not embed the ERPNext applic
 
 ## Scope
 
-This is the first independently deliverable part of the larger ERP/CRM/local-installation project.
+This is the second independently deliverable stage of the approved Business Suite program. Automation connection binding ships first; CRM, AI business context, and Deep Research follow in that order. Local installation is not part of the approved program.
 
 In scope:
 
 - Keep the existing DREAMWISH sidebar and top bar unchanged.
-- Change the Business tabs to `개요 · ERP 대시보드 · 메일 · 명함 · 회의 · 리포트`.
+- Change the Business tabs to `개요 · ERP · 메일 · 명함 · 회의 · 리포트`.
 - Remove the existing `영업·매출` tab and its mobile-revenue UI.
 - Keep Mail, Business Cards, and Meetings unchanged.
 - Remove company and sales-facing cards from Business Overview; keep the previously agreed operational cards: customers, follow-ups, open tasks, and today's meetings.
@@ -76,7 +76,7 @@ The header displays:
 - Connection state and last successful refresh time.
 - `새로고침` action.
 - `ERPNext 열기` action when a verified base URL exists.
-- `설치 및 연결` action when no connection exists. Until the setup-wizard project is delivered, this action opens an honest setup information panel and official Docker/ERPNext documentation; it must not claim to install software automatically.
+- `ERPNext 연결` action when no connection exists. It opens the existing connection-management flow for an ERPNext instance the user already operates. Official ERPNext documentation may appear only as secondary help; this increment does not provide Docker, ERPNext, or local installer buttons and must not claim to install software.
 
 ### Summary cards
 
@@ -125,11 +125,13 @@ type ErpMetricValue = {
 };
 
 type ErpDashboardSnapshot = {
-  connectionState: "not_configured" | "connected" | "degraded" | "error";
-  connectionMode: "server" | "local_gateway" | null;
+  connectionState: "not_configured" | "disconnected" | "connected" | "degraded" | "error";
+  connectionMode: "server" | null;
   asOf: string | null;
   stale: boolean;
-  currency: string;
+  company: { externalId: string; name: string } | null;
+  accountingPeriod: { start: string; end: string; label: string } | null;
+  currency: string | null;
   metrics: {
     monthlySales: ErpMetricValue;
     monthlyPurchases: ErpMetricValue;
@@ -150,7 +152,11 @@ type ErpDashboardSnapshot = {
 
 Every monetary field uses `number | null`. `null` means unknown or unavailable and must not be coerced to zero. The service rejects negative values where the underlying ERP measure cannot be negative, invalid dates, malformed external URLs, and non-finite numbers.
 
+For `not_configured` or `disconnected`, every metric value and comparison is `null`; company, accounting period, currency, and `asOf` are `null`; all chart, activity, receivable, inventory, and quick-action arrays are empty; and no ERP record link is emitted. A previously verified cache may render only during a temporary provider error with its original `asOf` and `stale: true`. Disconnect or any connection identity change invalidates that cache before the new state becomes readable.
+
 `connectionState` and `connectionMode` come from the shared `src/lib/erp/erp-connection.types.ts` contract. CRM and AI can add request-specific states such as `not_requested`, `not_mapped`, `available`, or `unavailable`, but they do not redefine connection health. Freshness remains the separate `stale` flag.
+
+The verified ERPNext secret is stored once as the canonical same-owner `erpnext` credential managed by Connection Management. The ERP identity document references that exact credential and stores only endpoint/site/company identity, connection revision, capability version, and recovery journal state; it does not copy the API secret. `GET /api/automation/connections` may project the same safe credential candidate for compatible Automation nodes, while Business, CRM, and AI resolve the identity through the ERP adapter. These APIs are projections over one credential authority, not independent connection stores.
 
 The shared connection identity separates `connectionRevision`, which changes when credentials, endpoint, site, or company identity changes, from `capabilityVersion`, which changes when an owner toggles permissions such as `draft_write`. CRM mappings bind to the identity revision only, so a capability-only toggle cannot invalidate an otherwise unchanged customer mapping. Any reconnect or identity change resets `draft_write` to disabled and increments both versions; an AI draft proposal records and rechecks both independently.
 
@@ -160,20 +166,19 @@ The connection document also owns the identity-mutation barrier used by future E
 
 ## Data Flow
 
-1. Selecting `ERP 대시보드` starts a dashboard request.
+1. Selecting the `ERP` tab starts a dashboard request.
 2. A server-reachable connection calls the owner-scoped DREAMWISH route.
-3. A future paired local runtime will use the same normalized contract through its loopback gateway; the component will not need to change.
-4. The service requests only the data needed for this dashboard from ERPNext/Frappe, normalizes it, and returns a single snapshot.
-5. The UI renders the snapshot and preserves the last successful snapshot during a manual refresh.
-6. Detailed work opens ERPNext in a new tab using a validated configured base URL and `noopener,noreferrer`.
+3. The service requests only the data needed for this dashboard from ERPNext/Frappe, normalizes it, and returns a single snapshot.
+4. The UI renders the snapshot and preserves the last successful snapshot during a manual refresh.
+5. Detailed work opens ERPNext in a new tab using a validated configured base URL and `noopener,noreferrer`.
 
-ERPNext credentials remain server-side or inside the future local gateway. They are never serialized into React props, browser storage, logs, or error messages.
+ERPNext credentials remain server-side. They are never serialized into React props, browser storage, logs, or error messages.
 
 All server-reachable ERPNext traffic uses one DNS-pinned HTTPS transport with certificate/SNI validation, no redirects, bounded JSON responses, and abort propagation. The transport accepts only `GET` and `POST`; `GET` has no body, and `POST` accepts only a bounded JSON object created by an allowlisted provider. Dashboard and CRM reads use only `GET`. A later explicitly approved AI draft provider may use `POST` only for its fixed quotation or sales-order resource path; no user-provided URL, DocType, or HTTP method reaches the transport.
 
 ## Empty, Loading, and Error States
 
-- `connectionState === "not_configured"`: show the dashboard structure with unavailable values plus a clear `설치 및 연결` call to action.
+- `connectionState === "not_configured"` or `"disconnected"`: show the dashboard structure with unavailable values plus a clear `ERPNext 연결` call to action.
 - Loading without cached data: show fixed-size skeletons to prevent layout shift.
 - Refresh with cached data: retain the last dashboard and show an inline refresh indicator.
 - Partial provider failure: render available sections, mark the snapshot `degraded`, and explain which sections are unavailable.
@@ -237,7 +242,7 @@ Because the dashboard replaces the old sales surface, this change also:
 ## Acceptance Criteria
 
 - The global DREAMWISH sidebar and top bar are visually and behaviorally unchanged.
-- `비즈니스 > ERP 대시보드` matches the attached ERPNext reference's information hierarchy while using DREAMWISH design tokens.
+- `비즈니스 > ERP` matches the attached ERPNext reference's information hierarchy while using DREAMWISH design tokens.
 - No second ERP sidebar appears inside Business.
 - Disconnected users receive an honest connection state, not sample financial data.
 - Connected users see normalized real ERP values and safe links to detailed ERPNext records.
