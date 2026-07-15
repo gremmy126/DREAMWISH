@@ -10,6 +10,8 @@ export type AIErrorCode =
   | "MODEL_RESPONSE_EMPTY"
   | "RETRIEVAL_ERROR"
   | "DATABASE_ERROR"
+  | "AI_TEXT_CONCURRENCY_LIMIT"
+  | "AI_TEXT_DAILY_LIMIT_EXCEEDED"
   | "INTERNAL_ERROR";
 
 export class AIProviderError extends Error {
