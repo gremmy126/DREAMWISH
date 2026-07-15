@@ -10,6 +10,8 @@
 
 ## Global Constraints
 
+- `docs/superpowers/specs/2026-07-15-business-suite-delivery-design.md`가 delivery order, product navigation, installer/local-gateway exclusion, immediate-save semantics에서 우선하고 나머지 AI context/action 상세 계약은 AI CRM and ERP Context design이 소유한다.
+
 - 현재 user message가 사용자 의도·출력 방식의 최우선이다. memory/CRM/ERP/document text는 data이며 instruction이 아니다.
 - `POST /api/ai/chat`의 기존 `{ ok: true, data: AiChatResult }` wrapper와 그 안의 `answer`, `sources`, `confidence`, `verification`, `sessionId`, `memoryStatus`, `memoryCandidates`를 유지하고 additive metadata만 `data` 안에 넣는다.
 - stream의 기존 `status`, `session`, `sources`, `delta`, `done`, `error` event와 `done.answer/memoryStatus/memoryCandidates`를 유지하고 metadata만 추가한다.
@@ -29,6 +31,7 @@
 - 기존 `src/lib/agent/approval.ts`는 비실행 계획 preview이며 business authorization에 사용하지 않는다.
 - 사용자가 수정한 `src/lib/ai/errors.ts`, `.superpowers/`, `h origin main`을 건드리거나 커밋하지 않는다.
 - 선행 의존성: Automation connection binding, ERP dashboard/provider와 CRM dashboard/contacts/mapping 계획 전체를 완료한 뒤 이 AI 계획을 시작한다. 특히 Task 4의 contact-linked memory가 CRM child-write lease를 직접 사용하므로 부분 CRM 구현 위에서 실행하지 않는다.
+- Deep Research는 별도 Stage 5이며 이 계획의 Tasks 1–9와 전체 AI release gate가 모두 끝난 뒤에만 시작한다. 이 계획은 research job, worker, crawling, duration selector를 구현하지 않고 Chat의 stable source/right-panel 확장점만 제공한다.
 - 기준 명세: `docs/superpowers/specs/2026-07-15-ai-crm-erp-context-design.md`.
 - `scripts/run-tests.mjs`는 filename 인자를 무시하므로 이 계획의 `npm.cmd test`는 모두 전체 suite다. 현재 baseline typecheck의 `src/lib/ai/errors.ts` 두 code 오류는 사용자 변경 debt로 기록하고 이 계획에서 수정하지 않는다.
 
@@ -831,7 +834,7 @@ Zod discriminated schema는 CRM plan이 export한 canonical `CustomerCreateInput
 
 `randomBytes(32).toString("base64url")` raw token을 한 번 반환하고 `timingSafeEqual`로 hash를 검증한다. approval에서 contact version을 다시 읽고 하나라도 다르면 proposal을 expired로 만든다. action repository는 CAS로 one `AiActionExecutionLease`를 먼저 저장하고 current lease ID로 every status/result write를 fence한다. active lease의 double approval은 in-progress result를 반환한다. expired `executing` lease는 `recoverExpiredActionExecution`이 reclaim한다: CRM action은 receipt가 있으면 finalize하고, 없으면 같은 operation ID/hash로 safe executor를 재개한다. ERP action은 Task 7 attempt가 absent/`prepared`면 재개할 수 있지만 `dispatching`이면 즉시 `outcome_unknown`으로 전환하고 send하지 않는다. status GET과 approval retry가 이 recovery를 실행하므로 proposal이 영구 `executing`에 고착되지 않는다.
 
-CRM executor는 proposal idempotency key를 durable `operationId`로 `executeCrmMutationOnce`에 넘긴다. 이 service는 validated normalized command의 create/update/activity/follow-up/stage mutation과 `CrmMutationReceipt { ownerId, operationId, commandHash, resultIds, resultingVersions, safeResult }`를 같은 CRM store lock/write에 commit한다. 같은 operation ID+hash retry는 mutation을 다시 호출하지 않고 receipt를 반환하며 hash가 다르면 fail closed한다. action success 저장 전에 process가 죽어도 다음 approval/status recovery가 receipt를 읽어 proposal/result/audit를 완성한다.
+CRM executor는 proposal idempotency key를 durable `operationId`로 CRM 계획이 구현한 canonical `executeCrmMutationOnce`에 넘긴다. 이 service와 canonical `CrmMutationReceipt`는 validated normalized command의 create/update/activity/follow-up/stage mutation, audit, safe result를 같은 CRM store lock/write에 commit한다. AI 계층은 별도 receipt type이나 store를 정의하지 않는다. 같은 operation ID+hash retry는 mutation을 다시 호출하지 않고 canonical receipt를 반환하며 hash가 다르면 fail closed한다. action success 저장 전에 process가 죽어도 다음 approval/status recovery가 그 receipt를 읽어 proposal/result/audit를 완성한다.
 
 audit에는 before/after bounded fields와 두 turn ID를 남긴다. shared chat pipeline은 Task 5 persisted token-free result를 `actionProposal: AiActionProposalView | null`, `actionResult: AiActionResultView | null`로 넓힌다. proposal을 처음 만든 non-stream response만 `AiChatTransportResult.transientActionApproval`을 채운다. stream은 `action_proposal` event payload를 정확히 `{ proposal: AiActionProposalView; transientActionApproval: TransientActionApproval }`로 한 번 emit한다. persisted `completeTurn.finalResult`, assistant metadata, logs, SSE `done`, turn-status와 completed replay에는 `transientActionApproval`/raw token이 없고 safe proposal view만 있다. rotation endpoint만 새 `TransientActionApproval`을 한 번 반환한다.
 
@@ -928,7 +931,7 @@ export function updateErpConnectionCapabilities(input: {
 }): Promise<ErpConnectionIdentity>;
 ```
 
-ERP foundation의 `ErpCapability`를 재정의하지 않는다. `GET /api/business/erp/connections`는 authenticated owner의 safe connection views만 반환하고 credential, owner ID, base token/header를 제거한다. capabilities route GET은 one same-owner safe view, PATCH는 `{ expectedCapabilityVersion, draftWrite, riskConfirmed }`만 받고 owner ID를 body에서 받지 않는다. connection repository/service는 capability CAS와 `capabilityVersion` 증가만 수행하며 `connectionRevision`을 바꾸지 않고 AI를 import하지 않는다. reconnect/site/company/credential 변경만 identity revision을 증가시키고 `draft_write`를 false로 reset한다. route orchestration은 disable 성공 후 action service의 해당 connection unexecuted ERP proposals를 expire한다.
+ERP foundation의 `ErpCapability`를 재정의하지 않는다. `GET /api/business/erp/connections`는 Automation/ERP 계획의 exact canonical credential·identity 위에 놓인 authenticated owner의 GET-only safe projection이다. credential, owner ID, endpoint authority, base token/header를 제거하며 POST/save/secret/company 변경 권한을 갖지 않는다. save/reconnect/delete는 Connection Management의 공통 verified-credential workflow만 수행한다. capabilities route GET은 one same-owner safe view, PATCH는 `{ expectedCapabilityVersion, draftWrite, riskConfirmed }`만 받고 owner ID를 body에서 받지 않는다. connection repository/service는 capability CAS와 `capabilityVersion` 증가만 수행하며 `connectionRevision`을 바꾸지 않고 AI를 import하지 않는다. reconnect/site/company/credential 변경만 identity revision을 증가시키고 `draft_write`를 false로 reset한다. route orchestration은 disable 성공 후 action service의 해당 connection unexecuted ERP proposals를 expire한다.
 
 `erp-draft-execution.repository.ts`는 connection repository의 같은 owner-document schema와 locked store primitive를 사용해 secret-free `ErpDraftDispatchAttempt`를 보관한다. `prepareErpDraftAttempt`는 `prepared`, `beginErpDraftDispatch`는 exact owner/connection revision/capability version/`draft_write`와 ERP plan Task 2의 `identityMutationOperationId === null`을 재검증하면서 같은 transaction에서 `dispatching`과 random dispatch fence를 저장한다. capability disable과 reconnect/delete/disconnect workflow 시작도 같은 store lock을 사용한다. active non-expired dispatching attempt가 있으면 모두 `409 DRAFT_DISPATCH_IN_FLIGHT`; stale dispatching은 current fence로 먼저 `outcome_unknown` terminal transition을 commit한다. 따라서 permission/identity mutation이 먼저면 begin dispatch가 실패하고, dispatch commit이 먼저면 mutation은 credential/identity 변경 전에 실패한다. prepared proposal/attempt는 disable/reconnect/delete할 수 있으며 이후 dispatch exact revision/capability check가 차단한다.
 

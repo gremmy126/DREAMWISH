@@ -10,6 +10,8 @@
 
 ## Global Constraints
 
+- `docs/superpowers/specs/2026-07-15-business-suite-delivery-design.md`가 delivery order, product navigation, installer/local-gateway exclusion, immediate-save semantics에서 우선하고 이 기능의 상세 계약은 Automation design이 소유한다.
+
 - 전역 sidebar/topbar, Automation tab 순서, canvas/templates/run-history/guide는 유지한다.
 - 연결 여부를 `credentialId` truthiness로 판단하지 않는다.
 - `pending-${appId}` 같은 가짜 ID를 만들거나 허용하지 않는다.

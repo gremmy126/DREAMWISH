@@ -202,7 +202,7 @@ Because the dashboard replaces the old sales surface, this change also:
 
 - The server route calls `requireOwnerContext` before accessing any connection or ERP data.
 - An ERP connection is scoped to one DREAMWISH owner; no global administrator token is shared across accounts.
-- Server-reachable ERP connections require HTTPS. Local mode accepts HTTP only for the exact `localhost` or `127.0.0.1` host and the explicitly paired port. URLs containing credentials, query strings, or fragments are rejected.
+- ERPNext is reached only through the already verified server-side Connection Management credential. The canonical endpoint requires HTTPS; URLs containing credentials, query strings, or fragments are rejected. This stage does not add a localhost, local-helper, or local-gateway mode.
 - External ERP links are created from allowlisted route identifiers, never arbitrary URLs returned by ERP documents.
 - The dashboard does not render upstream HTML.
 - Upstream messages are mapped to safe user-facing errors and never passed through verbatim.
