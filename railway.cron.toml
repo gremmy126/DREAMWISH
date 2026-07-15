@@ -3,4 +3,5 @@ builder = "RAILPACK"
 
 [deploy]
 startCommand = "npm run cron:schedulers"
-cronSchedule = "*/5 * * * *"
+cronSchedule = "0 * * * *"
+
