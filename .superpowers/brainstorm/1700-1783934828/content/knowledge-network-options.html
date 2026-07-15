@@ -1,0 +1,97 @@
+<div id="knowledge-network-options">
+  <style>
+    #knowledge-network-options .choice-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; }
+    #knowledge-network-options .design-card { cursor:pointer; border:1px solid var(--border); border-radius:16px; overflow:hidden; background:var(--bg-secondary,var(--card)); transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease; }
+    #knowledge-network-options .design-card:hover { transform:translateY(-2px); border-color:var(--accent); }
+    #knowledge-network-options .design-card.selected { border:2px solid var(--accent); box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 16%,transparent); }
+    #knowledge-network-options .preview { height:290px; display:flex; flex-direction:column; background:var(--bg-primary,var(--background)); color:var(--text-primary,var(--foreground)); }
+    #knowledge-network-options .topbar { height:34px; display:flex; align-items:center; justify-content:space-between; padding:0 10px; border-bottom:1px solid var(--border); background:var(--bg-secondary,var(--card)); font-size:10px; font-weight:600; }
+    #knowledge-network-options .graph { position:relative; flex:1; overflow:hidden; background-image:radial-gradient(color-mix(in srgb,var(--text-secondary,var(--muted-foreground)) 22%,transparent) 1px,transparent 1px); background-size:16px 16px; }
+    #knowledge-network-options .graph svg { width:100%; height:100%; color:var(--border); }
+    #knowledge-network-options .graph line,#knowledge-network-options .graph path { stroke:currentColor; stroke-width:1.5; fill:none; }
+    #knowledge-network-options .graph .edge-hot { color:color-mix(in srgb,var(--accent) 60%,var(--border)); stroke-width:2.5; }
+    #knowledge-network-options .node { position:absolute; display:grid; place-items:center; width:48px; height:48px; border-radius:50%; border:2px solid var(--border); background:var(--bg-secondary,var(--card)); font-size:8px; font-weight:700; text-align:center; box-shadow:0 4px 10px color-mix(in srgb,var(--text-primary,var(--foreground)) 12%,transparent); }
+    #knowledge-network-options .node.core { width:56px; height:56px; border-color:var(--accent); background:var(--accent); color:white; }
+    #knowledge-network-options .node.approved { border:3px double var(--accent); }
+    #knowledge-network-options .node.raw::after { content:'수집'; position:absolute; right:-5px; top:-5px; padding:2px 4px; border-radius:999px; background:var(--bg-tertiary,var(--muted)); color:var(--text-secondary,var(--muted-foreground)); font-size:6px; }
+    #knowledge-network-options .inspector { position:absolute; right:8px; top:8px; width:76px; padding:7px; border:1px solid var(--border); border-radius:8px; background:var(--bg-secondary,var(--card)); font-size:7px; }
+    #knowledge-network-options .inspector b { display:block; margin-bottom:5px; font-size:8px; }
+    #knowledge-network-options .inspect-row { height:13px; margin-bottom:5px; border-radius:4px; background:var(--bg-tertiary,var(--muted)); }
+    #knowledge-network-options .gate { display:flex; align-items:center; justify-content:center; gap:5px; padding:6px 8px; border-top:1px solid var(--border); background:var(--bg-secondary,var(--card)); color:var(--text-secondary,var(--muted-foreground)); font-size:8px; }
+    #knowledge-network-options .gate strong { color:var(--text-primary,var(--foreground)); }
+    #knowledge-network-options .arrow { color:var(--accent); font-weight:700; }
+    #knowledge-network-options .lanes { display:grid; grid-template-columns:58px 1fr 1fr 1fr; flex:1; min-height:0; }
+    #knowledge-network-options .lane { position:relative; padding:7px 5px; border-right:1px solid var(--border); }
+    #knowledge-network-options .lane:last-child { border-right:0; }
+    #knowledge-network-options .lane-title { margin-bottom:7px; font-size:7px; font-weight:700; color:var(--text-secondary,var(--muted-foreground)); text-align:center; }
+    #knowledge-network-options .lane-item { position:relative; z-index:2; margin-bottom:7px; padding:6px 4px; border:1px solid var(--border); border-radius:6px; background:var(--bg-secondary,var(--card)); font-size:7px; text-align:center; }
+    #knowledge-network-options .lane-item.hot { border-color:var(--accent); }
+    #knowledge-network-options .timeline { position:relative; flex:1; padding:18px 12px 8px; }
+    #knowledge-network-options .time-line { position:absolute; left:17px; right:17px; top:122px; height:2px; background:var(--border); }
+    #knowledge-network-options .day { position:absolute; top:128px; color:var(--text-secondary,var(--muted-foreground)); font-size:7px; }
+    #knowledge-network-options .cluster { position:absolute; display:grid; place-items:center; border:1px solid var(--border); border-radius:50%; background:color-mix(in srgb,var(--accent) 11%,var(--bg-secondary,var(--card))); font-size:7px; text-align:center; }
+    #knowledge-network-options .cluster.approved { border:3px double var(--accent); }
+    #knowledge-network-options .body { padding:14px; }
+    #knowledge-network-options .body h3 { margin:0 0 5px; font-size:15px; }
+    #knowledge-network-options .body p { margin:0 0 9px; color:var(--text-secondary,var(--muted-foreground)); font-size:12px; line-height:1.45; }
+    #knowledge-network-options .tagline { display:flex; flex-wrap:wrap; gap:5px; }
+    #knowledge-network-options .tag { padding:3px 7px; border-radius:999px; background:var(--bg-tertiary,var(--muted)); color:var(--text-secondary,var(--muted-foreground)); font-size:9px; }
+    #knowledge-network-options .recommended { background:var(--accent); color:white; }
+    @media (max-width:900px) { #knowledge-network-options .choice-grid { grid-template-columns:1fr; } }
+  </style>
+
+  <h2>지식 누적·네트워크 — 표현 방식 선택</h2>
+  <p class="subtitle">세 안 모두 “전체 자료는 비공개 그래프에 자동 누적, 승인된 기억만 AI 장기 기억에 사용” 정책을 적용합니다.</p>
+
+  <div class="choice-grid">
+    <article class="design-card" data-choice="knowledge-a-constellation" onclick="window.toggleSelect ? window.toggleSelect(this) : selectKnowledge(this)">
+      <div class="preview" aria-label="통합 별자리 지식 네트워크 시안">
+        <div class="topbar"><span>나의 지식 네트워크</span><span>검색 · 유형 · 기간</span></div>
+        <div class="graph">
+          <svg viewBox="0 0 320 215" aria-hidden="true"><line x1="132" y1="108" x2="63" y2="54"/><line class="edge-hot" x1="132" y1="108" x2="68" y2="159"/><line x1="132" y1="108" x2="166" y2="39"/><line x1="132" y1="108" x2="211" y2="91"/><line class="edge-hot" x1="132" y1="108" x2="193" y2="167"/><line x1="63" y1="54" x2="166" y2="39"/><line x1="68" y1="159" x2="193" y2="167"/><line x1="211" y1="91" x2="193" y2="167"/></svg>
+          <div class="node core" style="left:104px;top:78px">나의<br>두뇌</div>
+          <div class="node approved" style="left:34px;top:23px">고객<br>김민수</div>
+          <div class="node raw" style="left:38px;top:132px">회의<br>7/13</div>
+          <div class="node approved" style="left:140px;top:12px">A사</div>
+          <div class="node raw" style="left:185px;top:66px">Gmail</div>
+          <div class="node approved" style="left:168px;top:140px">프로젝트<br>Alpha</div>
+          <div class="inspector"><b>프로젝트 Alpha</b><div class="inspect-row"></div><div class="inspect-row"></div><div class="inspect-row"></div>관계 12 · 자료 28</div>
+        </div>
+        <div class="gate"><span>채팅·문서·CRM·회의 자동 수집</span><span class="arrow">→</span><strong>승인 기억만 AI 사용</strong></div>
+      </div>
+      <div class="body"><h3>A. 통합 별자리 <span class="tag recommended">권장</span></h3><p>사람·회사·회의·프로젝트·문서를 하나의 관계망으로 탐색합니다. 연결을 따라가며 우측에서 근거와 승인 상태를 확인합니다.</p><div class="tagline"><span class="tag">줌·이동</span><span class="tag">관계 탐색</span><span class="tag">승인 상태</span></div></div>
+    </article>
+
+    <article class="design-card" data-choice="knowledge-b-domain-lanes" onclick="window.toggleSelect ? window.toggleSelect(this) : selectKnowledge(this)">
+      <div class="preview" aria-label="도메인 레인 지식 구조 시안">
+        <div class="topbar"><span>지식 흐름</span><span>관계 강조</span></div>
+        <div class="lanes">
+          <div class="lane"><div class="lane-title">원천</div><div class="lane-item">채팅</div><div class="lane-item">Gmail</div><div class="lane-item">회의</div><div class="lane-item">파일</div></div>
+          <div class="lane"><div class="lane-title">사람·회사</div><div class="lane-item hot">김민수</div><div class="lane-item">A사</div><div class="lane-item">디자인팀</div></div>
+          <div class="lane"><div class="lane-title">업무</div><div class="lane-item hot">Alpha</div><div class="lane-item">계약 갱신</div><div class="lane-item">캠페인</div></div>
+          <div class="lane"><div class="lane-title">지식·기억</div><div class="lane-item hot">승인 기억</div><div class="lane-item">회의 요약</div><div class="lane-item">문서 근거</div></div>
+        </div>
+        <div class="gate"><span>유형별 자동 정리</span><span class="arrow">→</span><strong>승인 기억만 AI 사용</strong></div>
+      </div>
+      <div class="body"><h3>B. 도메인 레인</h3><p>자료가 사람·회사·업무·기억으로 어떻게 분류되는지 명확합니다. 복잡한 교차 관계를 자유롭게 탐색하는 맛은 약합니다.</p><div class="tagline"><span class="tag">명확한 분류</span><span class="tag">업무 흐름</span><span class="tag">낮은 탐색성</span></div></div>
+    </article>
+
+    <article class="design-card" data-choice="knowledge-c-timeline" onclick="window.toggleSelect ? window.toggleSelect(this) : selectKnowledge(this)">
+      <div class="preview" aria-label="시간축 지식 누적 시안">
+        <div class="topbar"><span>지식 성장 타임라인</span><span>오늘 · 30일 · 전체</span></div>
+        <div class="timeline">
+          <div class="time-line"></div>
+          <div class="cluster" style="left:22px;top:70px;width:55px;height:55px">고객<br>대화 6</div>
+          <div class="cluster approved" style="left:103px;top:44px;width:72px;height:72px">프로젝트<br>Alpha 18</div>
+          <div class="cluster" style="left:202px;top:80px;width:48px;height:48px">회의<br>4</div>
+          <div class="cluster approved" style="left:258px;top:34px;width:62px;height:62px">승인 기억<br>9</div>
+          <span class="day" style="left:23px">7/01</span><span class="day" style="left:108px">7/05</span><span class="day" style="left:205px">7/10</span><span class="day" style="right:12px">오늘</span>
+        </div>
+        <div class="gate"><span>시간순 자동 누적</span><span class="arrow">→</span><strong>승인 기억만 AI 사용</strong></div>
+      </div>
+      <div class="body"><h3>C. 시간축 클러스터</h3><p>지식이 언제 생기고 커졌는지 가장 잘 보입니다. 특정 인물과 문서 사이의 세밀한 관계 파악은 별도 화면이 필요합니다.</p><div class="tagline"><span class="tag">성장 추적</span><span class="tag">변화 이력</span><span class="tag">관계 상세 제한</span></div></div>
+    </article>
+  </div>
+
+  <script>function selectKnowledge(card){document.querySelectorAll('#knowledge-network-options .design-card').forEach(function(item){item.classList.toggle('selected',item===card);});}</script>
+</div>

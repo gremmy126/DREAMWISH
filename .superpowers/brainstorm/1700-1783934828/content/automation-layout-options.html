@@ -1,0 +1,135 @@
+<div id="automation-layout-options">
+  <style>
+    #automation-layout-options .choice-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; }
+    #automation-layout-options .design-card { cursor:pointer; border:1px solid var(--border); border-radius:16px; overflow:hidden; background:var(--bg-secondary,var(--card)); transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease; }
+    #automation-layout-options .design-card:hover { transform:translateY(-2px); border-color:var(--accent); }
+    #automation-layout-options .design-card.selected { border:2px solid var(--accent); box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 16%,transparent); }
+    #automation-layout-options .preview { height:278px; display:flex; flex-direction:column; background:var(--bg-primary,var(--background)); color:var(--text-primary,var(--foreground)); }
+    #automation-layout-options .topbar { height:34px; display:flex; align-items:center; justify-content:space-between; padding:0 10px; border-bottom:1px solid var(--border); background:var(--bg-secondary,var(--card)); font-size:10px; font-weight:600; }
+    #automation-layout-options .workspace { display:flex; flex:1; min-height:0; }
+    #automation-layout-options .palette { width:70px; padding:8px; border-right:1px solid var(--border); background:var(--bg-secondary,var(--card)); }
+    #automation-layout-options .app { display:flex; align-items:center; gap:5px; margin-bottom:7px; font-size:8px; color:var(--text-secondary,var(--muted-foreground)); }
+    #automation-layout-options .app-dot { width:17px; height:17px; display:grid; place-items:center; border-radius:5px; background:color-mix(in srgb,var(--accent) 14%,var(--bg-tertiary,var(--muted))); color:var(--text-primary,var(--foreground)); font-size:7px; font-weight:700; }
+    #automation-layout-options .canvas { position:relative; flex:1; overflow:hidden; background-image:radial-gradient(color-mix(in srgb,var(--text-secondary,var(--muted-foreground)) 25%,transparent) 1px,transparent 1px); background-size:14px 14px; }
+    #automation-layout-options .wire { position:absolute; height:2px; background:color-mix(in srgb,var(--accent) 55%,var(--border)); transform-origin:left center; }
+    #automation-layout-options .node { position:absolute; width:48px; height:48px; display:grid; place-items:center; border-radius:50%; border:2px solid var(--bg-secondary,var(--card)); background:var(--accent); color:white; font-size:8px; font-weight:700; box-shadow:0 5px 12px color-mix(in srgb,var(--text-primary,var(--foreground)) 16%,transparent); text-align:center; }
+    #automation-layout-options .node.secondary { background:var(--bg-secondary,var(--card)); color:var(--text-primary,var(--foreground)); border-color:var(--border); }
+    #automation-layout-options .inspector { width:62px; padding:7px; border-left:1px solid var(--border); background:var(--bg-secondary,var(--card)); }
+    #automation-layout-options .field { height:17px; margin-bottom:6px; border:1px solid var(--border); border-radius:5px; background:var(--bg-primary,var(--background)); }
+    #automation-layout-options .steps { width:92px; padding:8px; border-right:1px solid var(--border); background:var(--bg-secondary,var(--card)); }
+    #automation-layout-options .step { display:flex; gap:6px; align-items:flex-start; margin-bottom:10px; color:var(--text-secondary,var(--muted-foreground)); font-size:8px; }
+    #automation-layout-options .step b { display:grid; place-items:center; flex:0 0 18px; height:18px; border-radius:50%; background:var(--bg-tertiary,var(--muted)); color:var(--text-primary,var(--foreground)); }
+    #automation-layout-options .step.active b { background:var(--accent); color:white; }
+    #automation-layout-options .formpane { flex:1; padding:12px; }
+    #automation-layout-options .form-title { font-size:11px; font-weight:700; margin-bottom:10px; }
+    #automation-layout-options .app-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:7px; }
+    #automation-layout-options .app-tile { min-height:35px; display:grid; place-items:center; border:1px solid var(--border); border-radius:8px; background:var(--bg-secondary,var(--card)); font-size:8px; text-align:center; }
+    #automation-layout-options .chatpane { width:104px; padding:8px; border-right:1px solid var(--border); background:var(--bg-secondary,var(--card)); }
+    #automation-layout-options .bubble { padding:7px; margin-bottom:7px; border-radius:9px; background:var(--bg-tertiary,var(--muted)); font-size:8px; line-height:1.35; }
+    #automation-layout-options .bubble.ai { background:color-mix(in srgb,var(--accent) 13%,var(--bg-secondary,var(--card))); }
+    #automation-layout-options .mini-input { height:26px; border:1px solid var(--border); border-radius:8px; background:var(--bg-primary,var(--background)); }
+    #automation-layout-options .body { padding:14px; }
+    #automation-layout-options .body h3 { margin:0 0 5px; font-size:15px; }
+    #automation-layout-options .body p { margin:0 0 9px; color:var(--text-secondary,var(--muted-foreground)); font-size:12px; line-height:1.45; }
+    #automation-layout-options .tagline { display:flex; flex-wrap:wrap; gap:5px; }
+    #automation-layout-options .tag { padding:3px 7px; border-radius:999px; background:var(--bg-tertiary,var(--muted)); color:var(--text-secondary,var(--muted-foreground)); font-size:9px; }
+    #automation-layout-options .recommended { background:var(--accent); color:white; }
+    @media (max-width:900px) { #automation-layout-options .choice-grid { grid-template-columns:1fr; } }
+  </style>
+
+  <h2>Make형 자동화 빌더 — 화면 구조 선택</h2>
+  <p class="subtitle">각 안을 클릭해 선택하세요. A안을 권장합니다.</p>
+
+  <div class="choice-grid">
+    <article class="design-card" data-choice="automation-a-canvas" onclick="window.toggleSelect ? window.toggleSelect(this) : selectAutomation(this)">
+      <div class="preview" aria-label="자유형 캔버스 자동화 빌더 시안">
+        <div class="topbar"><span>고객 온보딩 자동화</span><span>테스트 실행 · 저장</span></div>
+        <div class="workspace">
+          <div class="palette">
+            <div class="app"><span class="app-dot">G</span>Google</div>
+            <div class="app"><span class="app-dot">C</span>CRM</div>
+            <div class="app"><span class="app-dot">S</span>Social</div>
+            <div class="app"><span class="app-dot">H</span>HTTP</div>
+            <div class="app"><span class="app-dot">+</span>전체 앱</div>
+          </div>
+          <div class="canvas">
+            <span class="wire" style="left:24px;top:108px;width:78px;transform:rotate(-15deg)"></span>
+            <span class="wire" style="left:112px;top:87px;width:82px;transform:rotate(21deg)"></span>
+            <span class="wire" style="left:194px;top:117px;width:63px;transform:rotate(-28deg)"></span>
+            <div class="node" style="left:12px;top:84px">CRM<br>트리거</div>
+            <div class="node secondary" style="left:96px;top:55px">필터</div>
+            <div class="node" style="left:184px;top:95px">Gmail<br>초안</div>
+            <div class="node secondary" style="left:247px;top:58px">승인</div>
+          </div>
+          <div class="inspector"><div class="field"></div><div class="field"></div><div class="field"></div><div class="field"></div></div>
+        </div>
+      </div>
+      <div class="body">
+        <h3>A. 자유형 캔버스 <span class="tag recommended">권장</span></h3>
+        <p>앱을 끌어 놓고 노드를 연결합니다. Make와 가장 유사하며 분기·필터·반복·오류 경로를 한눈에 편집합니다.</p>
+        <div class="tagline"><span class="tag">드래그 연결</span><span class="tag">우측 설정 패널</span><span class="tag">AI 자동 생성</span></div>
+      </div>
+    </article>
+
+    <article class="design-card" data-choice="automation-b-guided" onclick="window.toggleSelect ? window.toggleSelect(this) : selectAutomation(this)">
+      <div class="preview" aria-label="단계형 자동화 빌더 시안">
+        <div class="topbar"><span>새 자동화 만들기</span><span>미리보기</span></div>
+        <div class="workspace">
+          <div class="steps">
+            <div class="step active"><b>1</b><span>시작 앱과 이벤트</span></div>
+            <div class="step"><b>2</b><span>계정 연결</span></div>
+            <div class="step"><b>3</b><span>액션 설정</span></div>
+            <div class="step"><b>4</b><span>테스트·활성화</span></div>
+          </div>
+          <div class="formpane">
+            <div class="form-title">어떤 앱에서 시작할까요?</div>
+            <div class="app-grid">
+              <div class="app-tile">Gmail</div><div class="app-tile">Calendar</div><div class="app-tile">Slack</div>
+              <div class="app-tile">CRM</div><div class="app-tile">Instagram</div><div class="app-tile">Custom API</div>
+            </div>
+            <div class="field" style="margin-top:12px;height:29px"></div>
+            <div class="field" style="height:29px"></div>
+          </div>
+        </div>
+      </div>
+      <div class="body">
+        <h3>B. 단계형 설정 마법사</h3>
+        <p>처음 쓰는 사람도 실수 없이 만들기 쉽습니다. 복잡한 다중 분기 흐름은 여러 화면을 오가야 합니다.</p>
+        <div class="tagline"><span class="tag">쉬운 입문</span><span class="tag">폼 중심</span><span class="tag">복잡도 제한</span></div>
+      </div>
+    </article>
+
+    <article class="design-card" data-choice="automation-c-ai-first" onclick="window.toggleSelect ? window.toggleSelect(this) : selectAutomation(this)">
+      <div class="preview" aria-label="AI 대화형 자동화 빌더 시안">
+        <div class="topbar"><span>AI 자동화 스튜디오</span><span>검토 · 승인</span></div>
+        <div class="workspace">
+          <div class="chatpane">
+            <div class="bubble">신규 고객이 등록되면 환영 메일을 만들어줘.</div>
+            <div class="bubble ai">CRM → Gmail 흐름을 만들었습니다. 계정을 연결하고 승인해 주세요.</div>
+            <div class="mini-input"></div>
+          </div>
+          <div class="canvas">
+            <span class="wire" style="left:34px;top:112px;width:84px;transform:rotate(-9deg)"></span>
+            <span class="wire" style="left:128px;top:95px;width:84px;transform:rotate(18deg)"></span>
+            <div class="node" style="left:18px;top:88px">CRM<br>고객</div>
+            <div class="node secondary" style="left:112px;top:67px">AI<br>작성</div>
+            <div class="node" style="left:202px;top:92px">Gmail<br>초안</div>
+          </div>
+        </div>
+      </div>
+      <div class="body">
+        <h3>C. AI 우선 하이브리드</h3>
+        <p>채팅 명령으로 흐름을 만들고 캔버스에서 수정합니다. 빠르지만 생성 결과 검토와 예측 가능한 편집 규칙이 중요합니다.</p>
+        <div class="tagline"><span class="tag">채팅 생성</span><span class="tag">캔버스 수정</span><span class="tag">승인 중심</span></div>
+      </div>
+    </article>
+  </div>
+
+  <script>
+    function selectAutomation(card) {
+      document.querySelectorAll('#automation-layout-options .design-card').forEach(function (item) {
+        item.classList.toggle('selected', item === card);
+      });
+    }
+  </script>
+</div>

@@ -1,0 +1,63 @@
+<div id="timeline-constellation">
+  <style>
+    #timeline-constellation .shell { border:1px solid var(--border); border-radius:18px; overflow:hidden; background:var(--bg-primary,var(--background)); color:var(--text-primary,var(--foreground)); }
+    #timeline-constellation .toolbar { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:12px 14px; border-bottom:1px solid var(--border); background:var(--bg-secondary,var(--card)); }
+    #timeline-constellation .toolbar strong { font-size:14px; }
+    #timeline-constellation .toolbar span { color:var(--text-secondary,var(--muted-foreground)); font-size:11px; }
+    #timeline-constellation .timeline { position:relative; display:grid; grid-template-columns:repeat(4,1fr); gap:10px; padding:26px 18px 18px; border-bottom:1px solid var(--border); }
+    #timeline-constellation .timeline::before { content:''; position:absolute; left:35px; right:35px; top:57px; height:2px; background:var(--border); }
+    #timeline-constellation .time-button { position:relative; z-index:1; display:flex; flex-direction:column; align-items:center; gap:7px; padding:0; border:0; background:transparent; color:var(--text-primary,var(--foreground)); cursor:pointer; }
+    #timeline-constellation .time-orbit { display:grid; place-items:center; width:66px; height:66px; border:2px solid var(--border); border-radius:50%; background:var(--bg-secondary,var(--card)); font-size:10px; text-align:center; transition:border-color .18s ease,transform .18s ease,background .18s ease; }
+    #timeline-constellation .time-button:hover .time-orbit { transform:translateY(-2px); border-color:var(--accent); }
+    #timeline-constellation .time-button.active .time-orbit { border:3px double var(--accent); background:color-mix(in srgb,var(--accent) 12%,var(--bg-secondary,var(--card))); }
+    #timeline-constellation .time-button small { color:var(--text-secondary,var(--muted-foreground)); font-size:9px; }
+    #timeline-constellation .stage { display:grid; grid-template-columns:minmax(0,1fr) 230px; min-height:360px; }
+    #timeline-constellation .sky { position:relative; overflow:hidden; background-image:radial-gradient(color-mix(in srgb,var(--text-secondary,var(--muted-foreground)) 25%,transparent) 1px,transparent 1px); background-size:18px 18px; }
+    #timeline-constellation .sky svg { position:absolute; inset:0; width:100%; height:100%; color:var(--border); }
+    #timeline-constellation .sky line { stroke:currentColor; stroke-width:1.6; transition:all .22s ease; }
+    #timeline-constellation .sky line.hot { color:color-mix(in srgb,var(--accent) 66%,var(--border)); stroke-width:2.5; }
+    #timeline-constellation .star { position:absolute; display:grid; place-items:center; width:70px; height:70px; border:2px solid var(--border); border-radius:50%; background:var(--bg-secondary,var(--card)); color:var(--text-primary,var(--foreground)); font-size:10px; font-weight:600; text-align:center; box-shadow:0 6px 14px color-mix(in srgb,var(--text-primary,var(--foreground)) 12%,transparent); transition:transform .22s ease,border-color .22s ease; }
+    #timeline-constellation .star.core { width:82px; height:82px; border-color:var(--accent); background:var(--accent); color:white; }
+    #timeline-constellation .star.approved { border:4px double var(--accent); }
+    #timeline-constellation .star.raw::after { content:'수집됨'; position:absolute; right:-9px; top:-7px; padding:3px 6px; border-radius:999px; background:var(--bg-tertiary,var(--muted)); color:var(--text-secondary,var(--muted-foreground)); font-size:7px; font-weight:500; }
+    #timeline-constellation .detail { padding:18px; border-left:1px solid var(--border); background:var(--bg-secondary,var(--card)); }
+    #timeline-constellation .detail h3 { margin:0 0 5px; font-size:16px; }
+    #timeline-constellation .detail .meta { margin:0 0 16px; color:var(--text-secondary,var(--muted-foreground)); font-size:11px; }
+    #timeline-constellation .detail-row { display:flex; justify-content:space-between; gap:10px; padding:9px 0; border-bottom:1px solid var(--border); font-size:11px; }
+    #timeline-constellation .status { display:inline-flex; margin-top:16px; padding:5px 8px; border-radius:999px; background:color-mix(in srgb,var(--accent) 12%,var(--bg-tertiary,var(--muted))); font-size:9px; }
+    #timeline-constellation .gate { display:flex; align-items:center; justify-content:center; gap:8px; padding:12px; border-top:1px solid var(--border); background:var(--bg-secondary,var(--card)); color:var(--text-secondary,var(--muted-foreground)); font-size:11px; }
+    #timeline-constellation .gate strong { color:var(--text-primary,var(--foreground)); }
+    #timeline-constellation .arrow { color:var(--accent); font-weight:700; }
+    @media (max-width:760px) { #timeline-constellation .stage { grid-template-columns:1fr; } #timeline-constellation .detail { border-left:0; border-top:1px solid var(--border); } #timeline-constellation .timeline { grid-template-columns:repeat(2,1fr); } #timeline-constellation .timeline::before { display:none; } }
+  </style>
+
+  <h2>선택안 C + A 결합</h2>
+  <p class="subtitle">시간축의 지식 묶음을 선택하면 해당 시점의 사람·회사·회의·문서 관계가 별자리로 펼쳐집니다.</p>
+
+  <div class="shell">
+    <div class="toolbar"><strong>지식 성장 타임라인</strong><span>검색 · 유형 필터 · 전체 기간</span></div>
+    <div class="timeline" role="group" aria-label="지식 시점 선택">
+      <button class="time-button" type="button" data-time="t1" onclick="showConstellation('t1')"><span class="time-orbit">고객 대화<br>6개</span><small>7월 1일</small></button>
+      <button class="time-button" type="button" data-time="t2" onclick="showConstellation('t2')"><span class="time-orbit">프로젝트<br>18개</span><small>7월 5일</small></button>
+      <button class="time-button" type="button" data-time="t3" onclick="showConstellation('t3')"><span class="time-orbit">회의 기록<br>4개</span><small>7월 10일</small></button>
+      <button class="time-button active" type="button" data-time="t4" onclick="showConstellation('t4')"><span class="time-orbit">오늘의 지식<br>9개</span><small>오늘</small></button>
+    </div>
+    <div class="stage">
+      <div class="sky" aria-label="선택한 시점의 지식 관계망">
+        <svg viewBox="0 0 650 360" aria-hidden="true"><line class="hot" x1="313" y1="175" x2="132" y2="82"/><line x1="313" y1="175" x2="503" y2="69"/><line class="hot" x1="313" y1="175" x2="493" y2="246"/><line x1="313" y1="175" x2="167" y2="269"/><line x1="132" y1="82" x2="503" y2="69"/><line x1="167" y1="269" x2="493" y2="246"/></svg>
+        <div class="star core" id="star-core" style="left:calc(48% - 41px);top:calc(48% - 41px)">오늘의<br>업무</div>
+        <div class="star approved" id="star-a" style="left:11%;top:12%">김민수<br>고객</div>
+        <div class="star raw" id="star-b" style="right:12%;top:8%">Gmail<br>답변</div>
+        <div class="star approved" id="star-c" style="right:13%;bottom:12%">Alpha<br>프로젝트</div>
+        <div class="star raw" id="star-d" style="left:16%;bottom:8%">회의<br>기록</div>
+      </div>
+      <aside class="detail"><h3 id="detail-title">오늘의 지식</h3><p class="meta" id="detail-meta">7월 13일 · 자료 9개</p><div class="detail-row"><span>사람</span><strong id="detail-people">3</strong></div><div class="detail-row"><span>회사·프로젝트</span><strong id="detail-work">2</strong></div><div class="detail-row"><span>문서·메시지</span><strong id="detail-docs">4</strong></div><div class="detail-row"><span>관계</span><strong id="detail-links">12</strong></div><span class="status">원본은 비공개 그래프에 누적</span></aside>
+    </div>
+    <div class="gate"><span>채팅·Gmail·Slack·CRM·회의·파일 자동 수집</span><span class="arrow">→</span><strong>승인된 기억만 AI 장기 기억으로 사용</strong></div>
+  </div>
+
+  <script>
+    var constellationData={t1:{title:'고객 대화',meta:'7월 1일 · 자료 6개',people:'2',work:'1',docs:'3',links:'7',core:'고객\n대화',a:'김민수\n고객',b:'CRM\n메모',c:'Gmail\n문의',d:'후속\n일정'},t2:{title:'프로젝트 Alpha',meta:'7월 5일 · 자료 18개',people:'5',work:'3',docs:'10',links:'24',core:'Alpha\n프로젝트',a:'A사',b:'요구사항\n문서',c:'디자인\n회의',d:'담당자\n4명'},t3:{title:'회의 기록',meta:'7월 10일 · 자료 4개',people:'6',work:'2',docs:'4',links:'15',core:'회의\n7/10',a:'참석자\n6명',b:'회의록',c:'결정사항\n3개',d:'후속\n업무'},t4:{title:'오늘의 지식',meta:'7월 13일 · 자료 9개',people:'3',work:'2',docs:'4',links:'12',core:'오늘의\n업무',a:'김민수\n고객',b:'Gmail\n답변',c:'Alpha\n프로젝트',d:'회의\n기록'}};
+    function showConstellation(key){var d=constellationData[key];if(!d)return;document.querySelectorAll('#timeline-constellation .time-button').forEach(function(button){button.classList.toggle('active',button.dataset.time===key);});document.getElementById('detail-title').textContent=d.title;document.getElementById('detail-meta').textContent=d.meta;document.getElementById('detail-people').textContent=d.people;document.getElementById('detail-work').textContent=d.work;document.getElementById('detail-docs').textContent=d.docs;document.getElementById('detail-links').textContent=d.links;document.getElementById('star-core').innerText=d.core;document.getElementById('star-a').innerText=d.a;document.getElementById('star-b').innerText=d.b;document.getElementById('star-c').innerText=d.c;document.getElementById('star-d').innerText=d.d;}
+  </script>
+</div>

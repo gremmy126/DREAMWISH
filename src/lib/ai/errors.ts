@@ -88,3 +88,32 @@ export function toClientAIError(error: unknown) {
     retryable: false
   };
 }
+
+export function getAIErrorHttpMetadata(error: unknown): {
+  error: ReturnType<typeof toClientAIError>;
+  status: number;
+  retryAfterSeconds?: number;
+} {
+  const clientError = toClientAIError(error);
+  const isTextBudgetError =
+    clientError.code === "AI_TEXT_CONCURRENCY_LIMIT" ||
+    clientError.code === "AI_TEXT_DAILY_LIMIT_EXCEEDED";
+
+  if (isTextBudgetError) {
+    const retryAfterSeconds =
+      error &&
+      typeof error === "object" &&
+      "retryAfterSeconds" in error &&
+      typeof (error as { retryAfterSeconds?: unknown }).retryAfterSeconds === "number" &&
+      Number.isFinite((error as { retryAfterSeconds: number }).retryAfterSeconds) &&
+      (error as { retryAfterSeconds: number }).retryAfterSeconds > 0
+        ? Math.ceil((error as { retryAfterSeconds: number }).retryAfterSeconds)
+        : 60;
+    return { error: clientError, status: 429, retryAfterSeconds };
+  }
+
+  return {
+    error: clientError,
+    status: clientError.code === "PROVIDER_NOT_CONFIGURED" ? 503 : 500
+  };
+}
