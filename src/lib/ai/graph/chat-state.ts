@@ -22,6 +22,7 @@ export type ChatGraphState = {
   contextText: string;
   contextAvailable: boolean;
   memoryContextText: string;
+  businessContextText: string;
   answer?: string;
   citations: SourceDocument[];
   confidence?: AnswerConfidence;

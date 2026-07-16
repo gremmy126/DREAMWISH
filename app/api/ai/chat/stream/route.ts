@@ -1,4 +1,5 @@
 import { streamChatWithAI } from "@/src/lib/ai/ai.service";
+import { buildBusinessAiContext, type BusinessAiContext } from "@/src/lib/ai/business-tools";
 import { createExecutionPreview } from "@/src/lib/agent/approval";
 import { planAgentExecution } from "@/src/lib/agent/planner";
 import { apiFailure } from "@/src/lib/api/api-response";
@@ -7,6 +8,7 @@ import { requireOwnerContext } from "@/src/lib/auth/owner-context";
 import { parseProviderName } from "@/src/lib/ai/provider-options";
 import {
   appendApprovedMemoryToMessages,
+  appendBusinessContextToMessages,
   buildContextAwareChatMessages,
   buildModeChatMessages
 } from "@/src/lib/ai/prompts";
@@ -95,7 +97,10 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof ChatSessionNotFoundError) {
       return Response.json(
-        { ok: false, error: toClientAIError(error) },
+        {
+          ok: false,
+          error: { code: error.code, message: error.message, retryable: false }
+        },
         { status: error.status }
       );
     }
@@ -131,6 +136,9 @@ export async function POST(request: Request) {
             sources: []
           })
         );
+        const businessContext = await buildBusinessAiContext(owner.uid, message).catch(
+          (): BusinessAiContext => ({ detected: false, contextText: "", sources: [] })
+        );
 
         if (mode !== "ask") {
           send("status", { status: "generating" });
@@ -140,13 +148,16 @@ export async function POST(request: Request) {
           const context = buildRagContext(chunks);
           const sources = mergeSources(context.sources, memoryContext.sources);
           const confidence = calculateConfidence(chunks);
-          const messages = buildModeChatMessages({
-            mode,
-            question: message,
-            contextText: context.contextText,
-            memoryContextText: memoryContext.contextText,
-            executionPreviewText: formatExecutionPreview(executionPreview)
-          });
+          const messages = appendBusinessContextToMessages(
+            buildModeChatMessages({
+              mode,
+              question: message,
+              contextText: context.contextText,
+              memoryContextText: memoryContext.contextText,
+              executionPreviewText: formatExecutionPreview(executionPreview)
+            }),
+            businessContext.contextText
+          );
 
           send("sources", { sources, confidence });
           send("status", { status: "streaming" });
@@ -247,12 +258,15 @@ export async function POST(request: Request) {
             };
             send("status", { status: "streaming" });
             for await (const token of streamChatWithAI(
-              appendApprovedMemoryToMessages(
-                buildUnverifiedWebFallbackMessages(
-                  message,
-                  webOutcome.warning || "No usable live web sources were found."
+              appendBusinessContextToMessages(
+                appendApprovedMemoryToMessages(
+                  buildUnverifiedWebFallbackMessages(
+                    message,
+                    webOutcome.warning || "No usable live web sources were found."
+                  ),
+                  memoryContext.contextText
                 ),
-                memoryContext.contextText
+                businessContext.contextText
               ),
               providerName
             )) {
@@ -262,9 +276,12 @@ export async function POST(request: Request) {
           } else {
             send("status", { status: "streaming" });
             for await (const token of streamChatWithAI(
-              appendApprovedMemoryToMessages(
-                buildWebAnswerMessages(message, webContext),
-                memoryContext.contextText
+              appendBusinessContextToMessages(
+                appendApprovedMemoryToMessages(
+                  buildWebAnswerMessages(message, webContext),
+                  memoryContext.contextText
+                ),
+                businessContext.contextText
               ),
               providerName
             )) {
@@ -295,7 +312,8 @@ export async function POST(request: Request) {
               question: message,
               contextText: context.contextText,
               contextAvailable: context.sources.length > 0,
-              memoryContextText: memoryContext.contextText
+              memoryContextText: memoryContext.contextText,
+              businessContextText: businessContext.contextText
             }),
             providerName
           )) {
@@ -305,7 +323,7 @@ export async function POST(request: Request) {
           verification =
             context.sources.length > 0 ? verifyAnswer(answer, sources) : emptyAnswerVerification();
         }
-        sources = mergeSources(sources, memoryContext.sources);
+        sources = mergeSources(sources, [...memoryContext.sources, ...businessContext.sources]);
 
         const capture = await saveAssistantExchange(
           owner.uid,

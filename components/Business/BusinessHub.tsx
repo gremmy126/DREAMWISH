@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { SurfaceCard } from "@/components/Common/SurfaceCard";
+import { BusinessOverview } from "@/components/Business/BusinessOverview";
+import { ErpWorkspace } from "@/components/Business/ErpWorkspace";
 import { DeviceConnectionPanel } from "@/components/Business/DeviceConnectionPanel";
 import { BusinessCardImport } from "@/components/Business/BusinessCardImport";
 import { MeetingManager } from "@/components/Business/MeetingManager";
@@ -29,6 +31,7 @@ import type { RevenueCandidate } from "@/src/lib/business/revenue.types";
 
 const sections = [
   { id: "overview", label: "개요" },
+  { id: "erp", label: "ERP" },
   { id: "sales", label: "영업·매출" },
   { id: "mail", label: "메일" },
   { id: "cards", label: "명함" },
@@ -176,6 +179,7 @@ function renderSection(
   onRevenueCreated: (candidate: RevenueCandidate) => void
 ) {
   if (section === "overview") return <Overview summary={summary} connectors={connectors} />;
+  if (section === "erp") return <ErpWorkspace />;
   if (section === "sales") {
     return (
       <Sales
@@ -213,6 +217,7 @@ function Overview({ summary, connectors }: { summary: ReturnType<typeof buildBus
           </SurfaceCard>
         ))}
       </div>
+      <BusinessOverview />
       <ConnectorPanel connectors={connectors} connectorIds={["gmail", "calendar", "slack", "drive"]} title="업무 연결 상태" />
     </div>
   );

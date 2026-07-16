@@ -3,7 +3,11 @@ import { apiFailure, apiSuccess } from "@/src/lib/api/api-response";
 import { parseJsonRequestBody } from "@/src/lib/api/json-request";
 import { requireOwnerContext } from "@/src/lib/auth/owner-context";
 import { chatWithAI } from "@/src/lib/ai/ai.service";
-import { appendApprovedMemoryToMessages } from "@/src/lib/ai/prompts";
+import { buildBusinessAiContext, type BusinessAiContext } from "@/src/lib/ai/business-tools";
+import {
+  appendApprovedMemoryToMessages,
+  appendBusinessContextToMessages
+} from "@/src/lib/ai/prompts";
 import { toClientAIError } from "@/src/lib/ai/errors";
 import { runChatGraph } from "@/src/lib/ai/graph/chat-graph";
 import { emptyAnswerVerification } from "@/src/lib/ai/graph/chat-state";
@@ -99,6 +103,9 @@ export async function POST(request: Request) {
         sources: []
       })
     );
+    const businessContext = await buildBusinessAiContext(owner.uid, message).catch(
+      (): BusinessAiContext => ({ detected: false, contextText: "", sources: [] })
+    );
 
     if (isQualityCommand(message)) {
       const report = await checkDocumentQuality(message);
@@ -147,20 +154,26 @@ export async function POST(request: Request) {
       answer =
         webContext.length === 0
           ? await chatWithAI(
-              appendApprovedMemoryToMessages(
-                buildUnverifiedWebFallbackMessages(
-                  message,
-                  webOutcome.warning || "No usable live web sources were found."
+              appendBusinessContextToMessages(
+                appendApprovedMemoryToMessages(
+                  buildUnverifiedWebFallbackMessages(
+                    message,
+                    webOutcome.warning || "No usable live web sources were found."
+                  ),
+                  memoryContext.contextText
                 ),
-                memoryContext.contextText
+                businessContext.contextText
               ),
               providerName
             )
           : appendWebAnswerReferences(
               await chatWithAI(
-                appendApprovedMemoryToMessages(
-                  buildWebAnswerMessages(message, webContext),
-                  memoryContext.contextText
+                appendBusinessContextToMessages(
+                  appendApprovedMemoryToMessages(
+                    buildWebAnswerMessages(message, webContext),
+                    memoryContext.contextText
+                  ),
+                  businessContext.contextText
                 ),
                 providerName
               ),
@@ -184,7 +197,8 @@ export async function POST(request: Request) {
         userMessage: message,
         provider: providerName,
         shouldUseRag: plan.intent === "LOCAL",
-        memoryContextText: memoryContext.contextText
+        memoryContextText: memoryContext.contextText,
+        businessContextText: businessContext.contextText
       });
       if (graphResult.error) throw graphResult.error;
       answer = graphResult.answer || "";
@@ -192,7 +206,7 @@ export async function POST(request: Request) {
       confidence = graphResult.confidence || confidence;
       verification = graphResult.verification || verification;
     }
-    sources = mergeSources(sources, memoryContext.sources);
+    sources = mergeSources(sources, [...memoryContext.sources, ...businessContext.sources]);
 
     const capture = await saveAssistantExchange(
       owner.uid,
@@ -215,13 +229,17 @@ export async function POST(request: Request) {
       memoryCandidates: summarizeCandidates(capture?.candidates || [])
     }));
   } catch (error) {
+    if (error instanceof ChatSessionNotFoundError) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: { code: error.code, message: error.message, retryable: false }
+        },
+        { status: error.status }
+      );
+    }
     const clientError = toClientAIError(error);
-    const status =
-      error instanceof ChatSessionNotFoundError
-        ? error.status
-        : clientError.code === "PROVIDER_NOT_CONFIGURED"
-          ? 503
-          : 500;
+    const status = clientError.code === "PROVIDER_NOT_CONFIGURED" ? 503 : 500;
     return NextResponse.json(
       { ok: false, error: clientError },
       { status }

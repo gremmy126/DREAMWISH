@@ -22,6 +22,7 @@ import { EmptyState } from "@/components/Common/EmptyState";
 import { SectionHeader } from "@/components/Common/SectionHeader";
 import { SurfaceCard } from "@/components/Common/SurfaceCard";
 import { ConnectedContextWorkspace } from "@/components/context/ConnectedContextWorkspace";
+import { DeepResearchDock } from "@/components/Chat/DeepResearchPanel";
 import {
   MemoryCandidateCard,
   type MemoryCandidateCardData
@@ -1061,6 +1062,8 @@ export function ChatView() {
               );
             })}
           </div>
+
+          <DeepResearchDock currentQuery={input} sessionId={currentSessionId} />
 
           <input
             ref={fileInputRef}

@@ -5,19 +5,52 @@
 // scheduled maintenance work and then exits, rather than running as a
 // long-lived process.
 //
-// Keep this script side-effect free by default so the cron service can start
-// and complete successfully even before dedicated scheduled jobs are wired
-// in. Add real scheduler tasks below as they are implemented.
+// NOTE: file-based stores (DATA_DIR) are per-service on Railway. The deep
+// research maintenance below is fully effective when this script runs on the
+// same filesystem as the web service (local single-host deployments); on a
+// separate cron service it safely no-ops against an empty store. The web
+// service also performs the same recovery lazily on every research API call,
+// so cron is a defense-in-depth pass, not the only recovery path.
+
+import path from "node:path";
+import { createRequire } from "node:module";
+
+const require = createRequire(import.meta.url);
+require("sucrase/register/ts");
+
+function requireProjectModule(relativePath) {
+  const moduleLoader = require("node:module");
+  const originalResolve = moduleLoader._resolveFilename;
+  moduleLoader._resolveFilename = function resolveProjectAlias(request, parent, isMain, options) {
+    const mapped = request.startsWith("@/") ? path.join(process.cwd(), request.slice(2)) : request;
+    return originalResolve.call(this, mapped, parent, isMain, options);
+  };
+  try {
+    return require(path.join(process.cwd(), relativePath));
+  } finally {
+    moduleLoader._resolveFilename = originalResolve;
+  }
+}
+
+async function recoverStalledDeepResearchJobs() {
+  const repository = requireProjectModule("src/lib/deep-research/deep-research.repository.ts");
+  const recovered = await repository.recoverStaleResearchJobs({});
+  console.log(`[cron:schedulers] deep-research: recovered ${recovered} stalled job(s) to paused`);
+}
+
+async function cleanupExpiredDeepResearchJobs() {
+  const repository = requireProjectModule("src/lib/deep-research/deep-research.repository.ts");
+  const removed = await repository.cleanupOldResearchJobs();
+  console.log(`[cron:schedulers] deep-research: removed ${removed} expired job(s)`);
+}
 
 async function runSchedulersOnce() {
   const startedAt = new Date().toISOString();
   console.log(`[cron:schedulers] run started at ${startedAt}`);
 
-  // Scheduled maintenance tasks are registered here as they are implemented
-  // (for example: expiring stale leases, retention cleanup, recovering
-  // interrupted jobs). Each task should be independently bounded and should
-  // not throw for expected/no-op conditions.
-  const tasks = [];
+  // Each task must be independently bounded and must not throw for
+  // expected/no-op conditions.
+  const tasks = [recoverStalledDeepResearchJobs, cleanupExpiredDeepResearchJobs];
 
   const results = await Promise.allSettled(tasks.map((task) => task()));
   const failures = results.filter((result) => result.status === "rejected");

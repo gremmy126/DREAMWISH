@@ -1,8 +1,21 @@
+# deep-research service — NOT REQUIRED in the default deployment.
+#
+# Deep Research runs in-process inside the main web service (railway.toml at
+# the repo root): jobs are durable in the app data store, run in the
+# long-lived Next.js server, survive page reloads, and are recovered to a
+# resumable paused state after a server restart. The scheduler-cron service
+# (/railway.cron.toml) provides an additional recovery/retention pass.
+#
+# Do not deploy this file as a separate service unless you introduce shared
+# storage for the research job store: Railway services have isolated
+# filesystems, so a second service cannot see the web service's DATA_DIR
+# volume. This config previously duplicated the web start command, which
+# would have deployed a second web instance with a split-brain data volume.
+
 [build]
 builder = "RAILPACK"
-buildCommand = "npm ci && npm run build"
+buildCommand = "npm ci"
 
 [deploy]
-startCommand = "npm run start:railway"
-restartPolicyType = "ON_FAILURE"
-restartPolicyMaxRetries = 10
+startCommand = "npm run cron:schedulers"
+restartPolicyType = "NEVER"
