@@ -52,6 +52,17 @@ test("research memory content keeps only distilled results with sources and vide
   assert.doesNotMatch(content, /progressEvents|checkpoint/u);
 });
 
+test("legacy completed research without videos can still be saved to memory", async () => {
+  await withTempDataDir(async () => {
+    const legacyJob = fakeJob("오래된 조사", "저장되어야 합니다.");
+    delete (legacyJob as Partial<ResearchJob>).videos;
+
+    const saved = await saveResearchToMemory(legacyJob);
+
+    assert.equal(saved?.status, "created");
+  });
+});
+
 test("incomplete jobs are never saved to memory", async () => {
   await withTempDataDir(async () => {
     const job = { ...fakeJob("미완료", "x"), status: "failed" as const };

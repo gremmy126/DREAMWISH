@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  CheckCircle2,
   ChevronDown,
   ChevronUp,
   Download,
@@ -8,12 +9,14 @@ import {
   Loader2,
   Pause,
   Play,
+  ShieldCheck,
   Square,
   Telescope,
   X
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { readApiResponse } from "@/src/lib/api/api-response";
+import type { ChatSessionRecord } from "@/src/lib/chat/chat.types";
 
 type ResearchSource = {
   id: string;
@@ -81,15 +84,18 @@ const TIME_OPTIONS = [1, 3, 5, 10, 20, 30, 60] as const;
 
 export function DeepResearchDock({
   currentQuery,
-  sessionId
+  sessionId,
+  onSession
 }: {
   currentQuery: string;
   sessionId?: string;
+  onSession: (session: ChatSessionRecord) => void;
 }) {
   const [panelOpen, setPanelOpen] = useState(false);
   const [jobs, setJobs] = useState<ResearchJobView[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
+  const [memoryMutatingId, setMemoryMutatingId] = useState<string | null>(null);
 
   const [query, setQuery] = useState("");
   const [mode, setMode] = useState<(typeof MODE_OPTIONS)[number]["id"]>("standard");
@@ -108,9 +114,15 @@ export function DeepResearchDock({
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const loadJobs = useCallback(async () => {
+    if (!sessionId) {
+      setJobs([]);
+      return;
+    }
     try {
-      const search = sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : "";
-      const response = await fetch(`/api/ai/deep-research${search}`, { cache: "no-store" });
+      const response = await fetch(
+        `/api/ai/deep-research?sessionId=${encodeURIComponent(sessionId)}`,
+        { cache: "no-store" }
+      );
       const data = await readApiResponse<{ jobs: ResearchJobView[] }>(response);
       setJobs(data.jobs || []);
     } catch {
@@ -119,6 +131,7 @@ export function DeepResearchDock({
   }, [sessionId]);
 
   useEffect(() => {
+    setJobs([]);
     void loadJobs();
   }, [loadJobs]);
 
@@ -173,13 +186,17 @@ export function DeepResearchDock({
           }
         })
       });
-      const data = await readApiResponse<{ job?: { id?: string } }>(response);
+      const data = await readApiResponse<{
+        job: ResearchJobView;
+        session: ChatSessionRecord;
+      }>(response);
       setPanelOpen(false);
       setQuery("");
+      setJobs((current) => [data.job, ...current.filter((job) => job.id !== data.job.id)]);
+      onSession(data.session);
       window.dispatchEvent(
-        new CustomEvent("dreamwish:research-started", { detail: { jobId: data.job?.id } })
+        new CustomEvent("dreamwish:research-started", { detail: { jobId: data.job.id } })
       );
-      await loadJobs();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "심층 조사를 시작하지 못했습니다.");
     } finally {
@@ -198,10 +215,35 @@ export function DeepResearchDock({
     }
   }
 
+  async function approveJobMemory(jobId: string) {
+    if (memoryMutatingId) return;
+    setMemoryMutatingId(jobId);
+    setError(null);
+    try {
+      const response = await fetch(`/api/ai/deep-research/${jobId}/approve-memory`, {
+        method: "POST"
+      });
+      const data = await readApiResponse<{ job: ResearchJobView }>(response);
+      setJobs((current) =>
+        current.map((job) => (job.id === data.job.id ? data.job : job))
+      );
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "메모리에 저장하지 못했습니다.");
+    } finally {
+      setMemoryMutatingId(null);
+    }
+  }
+
   return (
     <div className="space-y-2">
       {jobs.slice(0, 3).map((job) => (
-        <ResearchJobCard key={job.id} job={job} onAction={jobAction} />
+        <ResearchJobCard
+          key={job.id}
+          job={job}
+          memoryBusy={memoryMutatingId === job.id}
+          onAction={jobAction}
+          onApproveMemory={approveJobMemory}
+        />
       ))}
 
       {error ? (
@@ -349,14 +391,21 @@ export function DeepResearchDock({
 
 function ResearchJobCard({
   job,
-  onAction
+  memoryBusy,
+  onAction,
+  onApproveMemory
 }: {
   job: ResearchJobView;
+  memoryBusy: boolean;
   onAction: (jobId: string, action: "cancel" | "pause" | "resume") => Promise<void>;
+  onApproveMemory: (jobId: string) => Promise<void>;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [showSources, setShowSources] = useState(false);
   const active = ACTIVE_STATUSES.has(job.status);
+  const memoryApproved = job.progressEvents.some(
+    (event) => event.step === "memory-approved"
+  );
   const statusLabel = STATUS_LABELS[job.status] || job.status;
   const budgetMinutes = Math.round(job.settings.maxDurationMs / 60_000);
 
@@ -394,6 +443,25 @@ function ResearchJobCard({
           >
             {statusLabel}
           </span>
+          {job.status === "completed" && job.report ? (
+            <button
+              type="button"
+              disabled={memoryBusy || memoryApproved}
+              onClick={() => void onApproveMemory(job.id)}
+              className="inline-flex items-center gap-1 rounded-lg border border-app-border bg-white px-2 py-1.5 text-[10px] font-semibold text-app-primary transition hover:bg-app-hover disabled:cursor-default disabled:text-emerald-700 disabled:opacity-100"
+              aria-label={memoryApproved ? "메모리 승인 완료" : "메모리 승인"}
+              title={memoryApproved ? "메모리 승인 완료" : "메모리 승인"}
+            >
+              {memoryBusy ? (
+                <Loader2 size={11} className="animate-spin" />
+              ) : memoryApproved ? (
+                <CheckCircle2 size={11} />
+              ) : (
+                <ShieldCheck size={11} />
+              )}
+              {memoryApproved ? "승인 완료" : "메모리 승인"}
+            </button>
+          ) : null}
           {active ? (
             <>
               <IconAction label="일시정지" onClick={() => void onAction(job.id, "pause")}>

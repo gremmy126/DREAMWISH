@@ -16,6 +16,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ConnectedContextWorkspace } from "@/components/context/ConnectedContextWorkspace";
 import { SurfaceCard } from "@/components/Common/SurfaceCard";
 import { readApiResponse } from "@/src/lib/api/api-response";
+import { parseResearchDisplayBlocks } from "@/src/lib/deep-research/research-report";
 
 type ResearchSourceView = {
   id: string;
@@ -168,7 +169,7 @@ export function ResearchWorkspace({ query, sessionId }: { query: string; session
     <>
       <div
         ref={containerRef}
-        className="hidden min-h-0 min-w-0 xl:flex xl:flex-col"
+        className="hidden h-full min-h-0 min-w-0 overflow-hidden xl:flex xl:flex-col"
         style={width ? { width, justifySelf: "end" } : undefined}
       >
         <div className="mb-2 flex items-center gap-1">
@@ -190,7 +191,7 @@ export function ResearchWorkspace({ query, sessionId }: { query: string; session
             {hasActive ? <Loader2 size={11} className="animate-spin" /> : null}
           </TabButton>
         </div>
-        <div className="min-h-0 flex-1">{panelBody}</div>
+        <div className="min-h-0 flex-1 overflow-hidden">{panelBody}</div>
       </div>
 
       <div className="xl:hidden">
@@ -219,7 +220,7 @@ export function ResearchWorkspace({ query, sessionId }: { query: string; session
                 <X size={14} />
               </button>
             </div>
-            <div className="min-h-0 flex-1 overflow-auto p-3">
+            <div className="min-h-0 flex-1 overflow-hidden p-3">
               <ResearchPanel
                 jobs={jobs}
                 selectedJob={selectedJob}
@@ -296,7 +297,7 @@ function ResearchPanel({
   }
 
   return (
-    <SurfaceCard className="flex min-h-0 flex-col overflow-hidden p-0">
+    <SurfaceCard className="flex h-full max-h-full min-h-0 flex-col overflow-hidden p-0">
       <div className="flex items-center justify-between gap-2 border-b border-app-border px-4 py-3">
         <div className="flex min-w-0 items-center gap-2">
           <History size={14} className="shrink-0 text-app-primary" />
@@ -323,7 +324,7 @@ function ResearchPanel({
         </button>
       </div>
 
-      <div className="min-h-0 flex-1 space-y-4 overflow-auto p-4 app-scrollbar">
+      <div className="min-h-0 flex-1 overflow-auto space-y-4 p-4 app-scrollbar">
         <section>
           <h3 className="text-xs font-bold text-app-muted">조사 요약</h3>
           <p className="mt-1.5 break-words text-sm font-semibold leading-5 text-app-text">{job.query}</p>
@@ -503,30 +504,85 @@ function ReportSection({
   body: string;
   onCite: (citationNumber: number) => void;
 }) {
-  const parts = body.split(/(\[\d{1,2}\])/gu);
   return (
-    <section>
-      <h3 className="text-xs font-bold text-app-muted">{title}</h3>
-      <p className="mt-1.5 whitespace-pre-wrap break-words text-xs leading-5 text-app-text">
-        {parts.map((part, index) => {
-          const match = part.match(/^\[(\d{1,2})\]$/u);
-          if (!match) return <span key={index}>{part}</span>;
-          const citationNumber = Number(match[1]);
-          return (
-            <button
-              key={index}
-              type="button"
-              onClick={() => onCite(citationNumber)}
-              aria-label={`출처 ${citationNumber} 보기`}
-              className="mx-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded bg-app-hover px-1 align-text-top text-[9px] font-bold text-app-primary hover:bg-app-primary hover:text-white"
-            >
-              {citationNumber}
-            </button>
-          );
-        })}
-      </p>
+    <section className="rounded-2xl border border-app-border bg-white p-4 shadow-sm">
+      <h3 className="flex items-center gap-2 text-xs font-bold text-app-text">
+        <span className="h-4 w-1 rounded-full bg-app-primary" aria-hidden="true" />
+        {title}
+      </h3>
+      <ResearchReportContent body={body} onCite={onCite} />
     </section>
   );
+}
+
+function ResearchReportContent({
+  body,
+  onCite
+}: {
+  body: string;
+  onCite: (citationNumber: number) => void;
+}) {
+  const blocks = parseResearchDisplayBlocks(body);
+
+  return (
+    <div className="mt-3 space-y-2.5 break-words text-xs leading-5 text-app-text">
+      {blocks.map((block, blockIndex) => {
+        if (block.type === "heading") {
+          return (
+            <h4 key={blockIndex} className="pt-1 text-xs font-bold text-app-text">
+              <CitationText text={block.text} onCite={onCite} />
+            </h4>
+          );
+        }
+        if (block.type === "list") {
+          const List = block.ordered ? "ol" : "ul";
+          return (
+            <List
+              key={blockIndex}
+              className={`space-y-1 pl-5 ${block.ordered ? "list-decimal" : "list-disc"}`}
+            >
+              {block.items.map((item, itemIndex) => (
+                <li key={itemIndex} className="pl-0.5 marker:text-app-primary">
+                  <CitationText text={item} onCite={onCite} />
+                </li>
+              ))}
+            </List>
+          );
+        }
+        return (
+          <p key={blockIndex}>
+            <CitationText text={block.text} onCite={onCite} />
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
+function CitationText({
+  text,
+  onCite
+}: {
+  text: string;
+  onCite: (citationNumber: number) => void;
+}) {
+  const parts = text.split(/(\[\d{1,2}\])/gu);
+  return parts.map((part, index) => {
+    const match = part.match(/^\[(\d{1,2})\]$/u);
+    if (!match) return <span key={index}>{part}</span>;
+    const citationNumber = Number(match[1]);
+    return (
+      <button
+        key={index}
+        type="button"
+        onClick={() => onCite(citationNumber)}
+        aria-label={`출처 ${citationNumber} 보기`}
+        className="mx-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded bg-app-hover px-1 align-text-top text-[9px] font-bold text-app-primary hover:bg-app-primary hover:text-white"
+      >
+        {citationNumber}
+      </button>
+    );
+  });
 }
 
 function TabButton({

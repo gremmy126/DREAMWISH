@@ -195,7 +195,7 @@ export function buildResearchMemoryContent(job: ResearchJob, savedAt: string): s
   if (sections?.followUp) lines.push("", "## 추가 확인이 필요한 내용", sections.followUp);
   if (!sections?.summary && job.report) lines.push("", "## 보고서", job.report.slice(0, 6000));
 
-  const citedSources = job.sources.filter((source) => source.fetched);
+  const citedSources = (job.sources || []).filter((source) => source.fetched);
   if (citedSources.length > 0) {
     lines.push(
       "",
@@ -208,11 +208,12 @@ export function buildResearchMemoryContent(job: ResearchJob, savedAt: string): s
         )
     );
   }
-  if (job.videos.length > 0) {
+  const videos = job.videos || [];
+  if (videos.length > 0) {
     lines.push(
       "",
       "## 참고 영상",
-      ...job.videos.slice(0, 8).map((video) => `- [${video.title}](${video.url})`)
+      ...videos.slice(0, 8).map((video) => `- [${video.title}](${video.url})`)
     );
   }
   return lines.join("\n");

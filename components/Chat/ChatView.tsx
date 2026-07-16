@@ -274,6 +274,12 @@ export function ChatView() {
     setLastQuery("");
   }
 
+  function handleResearchSession(session: ChatSessionRecord) {
+    setCurrentSessionId(session.id);
+    setSessions((current) => upsertOptimisticChatSession(current, session));
+    if (activeProjectId) void assignSessionToActiveProject(session.id);
+  }
+
   async function deleteSession(sessionId: string) {
     await fetch(`/api/ai/sessions/${sessionId}`, { method: "DELETE" });
     if (sessionId === currentSessionId) startNewChat();
@@ -1073,7 +1079,11 @@ export function ChatView() {
             })}
           </div>
 
-          <DeepResearchDock currentQuery={input} sessionId={currentSessionId} />
+          <DeepResearchDock
+            currentQuery={input}
+            sessionId={currentSessionId}
+            onSession={handleResearchSession}
+          />
 
           <input
             ref={fileInputRef}

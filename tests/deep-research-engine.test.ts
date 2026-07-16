@@ -23,6 +23,8 @@ import {
 } from "../src/lib/deep-research/research-runner";
 import { toResearchJobView } from "../src/lib/deep-research/deep-research.types";
 import { readMemoryDb } from "../src/lib/memory/memory-repository";
+import { attachUnlinkedResearchJobsToChatSessions } from "../src/lib/deep-research/research-chat-session";
+import { listSessions } from "../src/lib/db/repositories/chat.repository";
 
 test("research settings clamp custom budgets to hard limits", () => {
   const settings = resolveResearchSettings({
@@ -207,6 +209,27 @@ test("research runner completes end-to-end with injected search, fetch and AI", 
     assert.ok(finished!.usage.searches >= 1);
     assert.ok(finished!.usage.pagesFetched >= 1);
     assert.equal((await readMemoryDb("alice")).memories.length, 0);
+  });
+});
+
+test("unlinked research jobs become owner-scoped chat sessions", async () => {
+  await withTempDataDir(async () => {
+    const settings = resolveResearchSettings({ mode: "standard" });
+    const job = await createResearchJob({
+      ownerId: "alice",
+      query: "기존 조사 카드",
+      settings
+    });
+
+    const attached = await attachUnlinkedResearchJobsToChatSessions("alice");
+    const updated = await getResearchJob("alice", job.id);
+    const sessions = await listSessions("alice");
+
+    assert.equal(attached.length, 1);
+    assert.equal(sessions.length, 1);
+    assert.equal(sessions[0].title, "기존 조사 카드");
+    assert.equal(updated?.chatSessionId, sessions[0].id);
+    assert.equal((await listSessions("bob")).length, 0);
   });
 });
 
