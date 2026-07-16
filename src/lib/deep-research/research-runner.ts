@@ -18,7 +18,6 @@ import type {
   ResearchSource
 } from "./deep-research.types";
 import { fetchPublicPageText } from "./safe-fetch";
-import { saveResearchToMemory } from "./research-memory";
 import { parseResearchReportSections } from "./research-report";
 import { classifyResearchVideo } from "./research-videos";
 import { enrichYouTubeVideos } from "./youtube-enrich";
@@ -427,25 +426,6 @@ export async function runResearchJob(
         message: "최종 보고서가 저장되었습니다."
       });
     });
-    if (completed && completed.settings.autoSave) {
-      try {
-        const saved = await saveResearchToMemory(completed);
-        if (saved) {
-          await appendResearchProgress(ownerId, jobId, {
-            step: "memory",
-            message:
-              saved.status === "merged"
-                ? "같은 주제의 기존 메모리에 조사 결과를 병합했습니다."
-                : "조사 결과를 메모리에 저장했습니다."
-          });
-        }
-      } catch {
-        await appendResearchProgress(ownerId, jobId, {
-          step: "memory",
-          message: "메모리 저장에 실패했습니다. 보고서는 유지됩니다."
-        });
-      }
-    }
   } catch (error) {
     if (error instanceof ResearchCancelledError) {
       await mutateResearchJob(ownerId, jobId, (record) => {

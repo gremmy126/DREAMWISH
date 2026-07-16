@@ -54,7 +54,7 @@ const DEFAULTS: ResearchSettings = {
   includeGithub: false,
   resultLanguage: "ko",
   reportLength: "medium",
-  autoSave: true
+  autoSave: false
 };
 
 /**

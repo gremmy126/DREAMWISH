@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {
+  approveResearchMemory,
   buildResearchMemoryContent,
   jaccardSimilarity,
   saveResearchToMemory,
@@ -11,6 +12,11 @@ import {
 import { readMemoryDb } from "../src/lib/memory/memory-repository";
 import type { ResearchJob } from "../src/lib/deep-research/deep-research.types";
 import { resolveResearchSettings } from "../src/lib/deep-research/research-budget";
+import {
+  createResearchJob,
+  getResearchJob,
+  mutateResearchJob
+} from "../src/lib/deep-research/deep-research.repository";
 import { classifyResearchVideo } from "../src/lib/deep-research/research-videos";
 import { parseResearchReportSections } from "../src/lib/deep-research/research-report";
 
@@ -50,6 +56,57 @@ test("incomplete jobs are never saved to memory", async () => {
   await withTempDataDir(async () => {
     const job = { ...fakeJob("미완료", "x"), status: "failed" as const };
     assert.equal(await saveResearchToMemory(job), null);
+  });
+});
+
+test("approving the same completed research twice saves it only once", async () => {
+  await withTempDataDir(async () => {
+    const job = fakeJob("중복 승인 방지", "한 번만 저장한다.");
+    const first = await saveResearchToMemory(job);
+    const second = await saveResearchToMemory(job);
+
+    assert.equal(first?.status, "created");
+    assert.equal(second?.status, "existing");
+    assert.equal(second?.memoryId, first?.memoryId);
+
+    const db = await readMemoryDb("alice");
+    assert.equal(db.memories.length, 1);
+    assert.equal(db.memories[0].version, 1);
+  });
+});
+
+test("research memory approval is owner-scoped and records durable approval state", async () => {
+  await withTempDataDir(async () => {
+    const job = await createResearchJob({
+      ownerId: "alice",
+      query: "승인 저장 테스트",
+      settings: resolveResearchSettings({ mode: "standard" })
+    });
+    await mutateResearchJob("alice", job.id, (record) => {
+      record.status = "completed";
+      record.progress = 100;
+      record.report = "## 핵심 요약\n승인된 결과";
+      record.reportSections = {
+        summary: "승인된 결과",
+        findings: "",
+        conclusion: "",
+        followUp: ""
+      };
+      record.completedAt = "2026-07-16T00:00:00.000Z";
+    });
+
+    await assert.rejects(
+      approveResearchMemory("bob", job.id),
+      /조사를 찾을 수 없습니다/u
+    );
+
+    const approved = await approveResearchMemory("alice", job.id);
+    assert.equal(approved.saved.status, "created");
+    assert.ok(
+      approved.job.progressEvents.some((event) => event.step === "memory-approved")
+    );
+    assert.equal((await getResearchJob("alice", job.id))?.currentStep, "조사가 완료되었습니다.");
+    assert.equal((await readMemoryDb("alice")).memories.length, 1);
   });
 });
 

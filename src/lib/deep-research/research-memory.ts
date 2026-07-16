@@ -8,14 +8,58 @@ import {
 } from "../memory/memory-repository";
 import type { ApprovedMemory } from "../memory/memory.types";
 import type { ResearchJob } from "./deep-research.types";
+import {
+  getResearchJob,
+  mutateResearchJob,
+  ResearchJobError
+} from "./deep-research.repository";
 
 const RESEARCH_TAG = "deep-research";
 const SIMILARITY_THRESHOLD = 0.55;
 
 export type ResearchMemoryResult = {
-  status: "created" | "merged";
+  status: "created" | "merged" | "existing";
   memoryId: string;
 };
+
+export async function approveResearchMemory(ownerId: string, jobId: string) {
+  const job = await getResearchJob(ownerId, jobId);
+  if (!job) {
+    throw new ResearchJobError("RESEARCH_NOT_FOUND", "조사를 찾을 수 없습니다.", 404);
+  }
+  if (job.status !== "completed" || !job.report) {
+    throw new ResearchJobError(
+      "RESEARCH_NOT_COMPLETED",
+      "완료된 조사 보고서만 메모리에 저장할 수 있습니다.",
+      409
+    );
+  }
+
+  const saved = await saveResearchToMemory(job);
+  if (!saved) {
+    throw new ResearchJobError(
+      "RESEARCH_MEMORY_SAVE_FAILED",
+      "조사 보고서를 메모리에 저장하지 못했습니다.",
+      500
+    );
+  }
+
+  const updated = await mutateResearchJob(ownerId, jobId, (record) => {
+    if (!record.progressEvents.some((event) => event.step === "memory-approved")) {
+      record.progressEvents.push({
+        at: new Date().toISOString(),
+        step: "memory-approved",
+        message:
+          saved.status === "merged"
+            ? "사용자 승인으로 기존 메모리에 조사 결과를 병합했습니다."
+            : "사용자 승인으로 조사 결과를 메모리에 저장했습니다."
+      });
+    }
+    record.currentStep = "조사가 완료되었습니다.";
+  });
+
+  return { saved, job: updated! };
+}
 
 /**
  * Persists a completed research job into the owner's approved memory.
@@ -32,6 +76,17 @@ export async function saveResearchToMemory(job: ResearchJob): Promise<ResearchMe
   const title = `조사: ${job.query.slice(0, 60)}`;
 
   const db = await readMemoryDb(job.ownerId);
+  const alreadySaved = db.memories.find(
+    (memory) =>
+      memory.ownerId === job.ownerId &&
+      memory.status === "approved" &&
+      (memory.sourceId === job.id ||
+        (memory.history || []).some((event) => event.sourceId === job.id))
+  );
+  if (alreadySaved) {
+    return { status: "existing", memoryId: alreadySaved.id };
+  }
+
   const existing = db.memories.find(
     (memory) =>
       memory.ownerId === job.ownerId &&
@@ -96,7 +151,7 @@ export async function saveResearchToMemory(job: ResearchJob): Promise<ResearchMe
     updatedAt: now,
     approvedAt: now,
     approvedBy: job.ownerId,
-    approvalNote: "Deep Research 자동 저장",
+    approvalNote: "Deep Research 사용자 승인 저장",
     embeddingId: "",
     graphUpdatedAt: now,
     preview: (job.reportSections?.summary || content).slice(0, 180),
@@ -106,7 +161,7 @@ export async function saveResearchToMemory(job: ResearchJob): Promise<ResearchMe
         at: now,
         event: "Research saved",
         sourceId: job.id,
-        summary: "Deep Research 완료 결과를 자동 저장했습니다."
+        summary: "Deep Research 완료 결과를 사용자 승인으로 저장했습니다."
       }
     ]
   };

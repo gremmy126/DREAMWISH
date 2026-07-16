@@ -1,12 +1,14 @@
 "use client";
 
 import {
+  CheckCircle2,
   Clock3,
   ExternalLink,
   GripVertical,
   History,
   Loader2,
   PlayCircle,
+  ShieldCheck,
   Telescope,
   X
 } from "lucide-react";
@@ -115,6 +117,16 @@ export function ResearchWorkspace({ query, sessionId }: { query: string; session
   const selectedJob =
     jobs.find((job) => job.id === selectedJobId) || jobs[0] || null;
 
+  async function approveMemory(jobId: string) {
+    const response = await fetch(`/api/ai/deep-research/${jobId}/approve-memory`, {
+      method: "POST"
+    });
+    const data = await readApiResponse<{ job: ResearchJobView }>(response);
+    setJobs((current) =>
+      current.map((job) => (job.id === data.job.id ? data.job : job))
+    );
+  }
+
   function startResize(event: React.PointerEvent) {
     const startWidth = width || containerRef.current?.getBoundingClientRect().width || 420;
     dragRef.current = { startX: event.clientX, startWidth };
@@ -144,6 +156,7 @@ export function ResearchWorkspace({ query, sessionId }: { query: string; session
         jobs={jobs}
         selectedJob={selectedJob}
         onSelect={setSelectedJobId}
+        onApproveMemory={approveMemory}
         onClose={() => {
           setView("context");
           setMobileOpen(false);
@@ -211,6 +224,7 @@ export function ResearchWorkspace({ query, sessionId }: { query: string; session
                 jobs={jobs}
                 selectedJob={selectedJob}
                 onSelect={setSelectedJobId}
+                onApproveMemory={approveMemory}
                 onClose={() => setMobileOpen(false)}
               />
             </div>
@@ -225,14 +239,18 @@ function ResearchPanel({
   jobs,
   selectedJob,
   onSelect,
+  onApproveMemory,
   onClose
 }: {
   jobs: ResearchJobView[];
   selectedJob: ResearchJobView | null;
   onSelect: (id: string) => void;
+  onApproveMemory: (jobId: string) => Promise<void>;
   onClose: () => void;
 }) {
   const [highlightedSourceId, setHighlightedSourceId] = useState<string | null>(null);
+  const [memorySaving, setMemorySaving] = useState(false);
+  const [memoryError, setMemoryError] = useState<string | null>(null);
 
   if (jobs.length === 0) {
     return (
@@ -248,7 +266,25 @@ function ResearchPanel({
 
   const job = selectedJob!;
   const active = ACTIVE.has(job.status);
+  const memoryApproved = job.progressEvents.some(
+    (event) => event.step === "memory-approved"
+  );
   const durationLabel = buildDuration(job.startedAt, job.completedAt);
+
+  async function saveToMemory() {
+    if (memorySaving || memoryApproved) return;
+    setMemorySaving(true);
+    setMemoryError(null);
+    try {
+      await onApproveMemory(job.id);
+    } catch (caught) {
+      setMemoryError(
+        caught instanceof Error ? caught.message : "메모리에 저장하지 못했습니다."
+      );
+    } finally {
+      setMemorySaving(false);
+    }
+  }
 
   function jumpToCitation(citationNumber: number) {
     const sourceId = job.citedSourceIds[citationNumber - 1];
@@ -297,6 +333,33 @@ function ResearchPanel({
             {job.startedAt ? <div>시작: {formatTime(job.startedAt)}</div> : null}
             {job.completedAt ? <div>완료: {formatTime(job.completedAt)}</div> : null}
           </dl>
+          {job.status === "completed" && job.report ? (
+            <div className="mt-3">
+              {memoryApproved ? (
+                <span className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-50 px-3 py-2 text-[11px] font-semibold text-emerald-700">
+                  <CheckCircle2 size={13} />
+                  메모리에 저장됨
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  disabled={memorySaving}
+                  onClick={() => void saveToMemory()}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-app-primary px-3 py-2 text-[11px] font-semibold text-white disabled:opacity-50"
+                >
+                  {memorySaving ? (
+                    <Loader2 size={13} className="animate-spin" />
+                  ) : (
+                    <ShieldCheck size={13} />
+                  )}
+                  메모리에 승인 저장
+                </button>
+              )}
+              {memoryError ? (
+                <p className="mt-2 text-[11px] text-red-700">{memoryError}</p>
+              ) : null}
+            </div>
+          ) : null}
           {job.usedQueries.length > 0 ? (
             <div className="mt-2 flex flex-wrap gap-1">
               {job.usedQueries.slice(0, 8).map((usedQuery) => (

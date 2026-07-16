@@ -22,6 +22,7 @@ import {
   runResearchJob
 } from "../src/lib/deep-research/research-runner";
 import { toResearchJobView } from "../src/lib/deep-research/deep-research.types";
+import { readMemoryDb } from "../src/lib/memory/memory-repository";
 
 test("research settings clamp custom budgets to hard limits", () => {
   const settings = resolveResearchSettings({
@@ -44,6 +45,7 @@ test("research settings clamp custom budgets to hard limits", () => {
 test("mode presets fill budgets and duration override is respected", () => {
   const deep = resolveResearchSettings({ mode: "deep" });
   assert.equal(deep.maxDurationMs, 10 * 60_000);
+  assert.equal(deep.autoSave, false);
   const custom = resolveResearchSettings({ mode: "deep", maxDurationMs: 60_000 });
   assert.equal(custom.maxDurationMs, 60_000);
   const tooShort = resolveResearchSettings({ mode: "custom", maxDurationMs: 5 });
@@ -204,6 +206,7 @@ test("research runner completes end-to-end with injected search, fetch and AI", 
     assert.equal(finished?.progress, 100);
     assert.ok(finished!.usage.searches >= 1);
     assert.ok(finished!.usage.pagesFetched >= 1);
+    assert.equal((await readMemoryDb("alice")).memories.length, 0);
   });
 });
 

@@ -30,3 +30,16 @@ test("chat consumes memory capture results and offers immediate lifecycle action
   assert.match(source, /expectedVersion: candidate\.version/u);
   assert.match(source, /MemoryCandidateCard/u);
 });
+
+test("completed deep research requires explicit memory approval", () => {
+  const source = fs.readFileSync("components/Chat/ResearchWorkspace.tsx", "utf8");
+  assert.match(source, /\/approve-memory/u);
+  assert.match(source, /메모리에 승인 저장/u);
+  assert.match(source, /memory-approved/u);
+});
+
+test("AI chat exposes a dedicated new chat button", () => {
+  const source = fs.readFileSync("components/Chat/ChatView.tsx", "utf8");
+  assert.match(source, /새 채팅/u);
+  assert.match(source, /onClick=\{startNewChat\}/u);
+});

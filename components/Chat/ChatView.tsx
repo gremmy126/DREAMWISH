@@ -776,6 +776,16 @@ export function ChatView() {
           title={t("chat.sessions")}
         />
 
+        <button
+          type="button"
+          onClick={startNewChat}
+          disabled={isLoading}
+          className="mb-3 flex w-full items-center justify-center gap-2 rounded-app bg-app-primary px-3 py-2.5 text-xs font-semibold text-white transition hover:brightness-105 disabled:opacity-50"
+        >
+          <Plus size={14} />
+          새 채팅
+        </button>
+
         <div className="mb-3 space-y-2 rounded-app border border-app-border bg-app-bg p-3">
           <button
             type="button"
