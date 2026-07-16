@@ -83,12 +83,57 @@ export async function buildKnowledgeNetwork(
   }
 
   addRelatedEdges(edges, nodes);
+  for (const edge of edges.values()) applyEdgeStrength(edge, nodes);
 
   return {
     nodes: Array.from(nodes.values()),
     edges: Array.from(edges.values()),
     updatedAt: new Date().toISOString()
   };
+}
+
+const EDGE_TYPE_REASONS: Record<KnowledgeEdgeType, string> = {
+  works_on: "같은 프로젝트에서 함께 등장",
+  created: "생성 관계로 연결됨",
+  meeting: "같은 회의·미팅 문맥에서 등장",
+  related_to: "의미적으로 연관됨",
+  depends_on: "선행·의존 관계",
+  mentions: "같은 문서에서 함께 언급됨",
+  references: "같은 참조를 공유함"
+};
+
+/**
+ * Connection strength (0-100) is derived from real relation data: extraction
+ * confidence, how many source documents support the relation, and how much
+ * source context both endpoints share. Never a random number.
+ */
+export function applyEdgeStrength(
+  edge: KnowledgeEdge,
+  nodes: Map<string, KnowledgeEntity>
+) {
+  const from = nodes.get(edge.from);
+  const to = nodes.get(edge.to);
+  const sharedSources =
+    from && to
+      ? from.sourceIds.filter((id) => to.sourceIds.includes(id)).length
+      : 0;
+  const base = Math.round(edge.confidence * 55);
+  const supportBonus = Math.min(20, (edge.sourceIds.length - 1) * 7);
+  const sharedBonus = Math.min(25, sharedSources * 9);
+  edge.strength = Math.max(1, Math.min(100, base + supportBonus + sharedBonus));
+
+  const reasons: string[] = [EDGE_TYPE_REASONS[edge.type]];
+  if (sharedSources > 0) reasons.push(`같은 원본 ${sharedSources}개를 함께 참조`);
+  if (edge.sourceIds.length > 1) reasons.push(`근거 문서 ${edge.sourceIds.length}개에서 반복 확인`);
+  edge.reasons = reasons;
+}
+
+export function connectionStrengthLabel(strength: number): string {
+  if (strength >= 80) return "매우 강함";
+  if (strength >= 60) return "강함";
+  if (strength >= 40) return "보통";
+  if (strength >= 20) return "약함";
+  return "매우 약함";
 }
 
 async function loadSourceDocuments(

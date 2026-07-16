@@ -15,6 +15,7 @@ import {
   SlidersHorizontal,
   Sun,
   TimerReset,
+  UserRound,
   Workflow
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -48,6 +49,7 @@ type LocalSettings = {
   theme: ThemeMode;
   provider: ProviderMode;
   language: LanguageMode;
+  timezone: string;
   storagePath: string;
   localOnly: boolean;
   allowExternalAI: boolean;
@@ -70,6 +72,7 @@ const defaultSettings: LocalSettings = {
   theme: "system",
   provider: "groq",
   language: "ko",
+  timezone: "",
   storagePath: "SecondBrain",
   localOnly: false,
   allowExternalAI: true,
@@ -116,7 +119,25 @@ export function SettingsView() {
     error: string | null;
   }>({ loading: false, message: null, error: null });
   const [languageNotice, setLanguageNotice] = useState<string | null>(null);
+  const [account, setAccount] = useState<{ email: string; role: string } | null>(null);
   const { t } = useAppLanguage();
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const response = await fetch("/api/auth/session");
+        if (!response.ok) return;
+        const data = (await response.json()) as {
+          access?: { email?: string; role?: string };
+        };
+        if (data.access?.email) {
+          setAccount({ email: data.access.email, role: data.access.role || "user" });
+        }
+      } catch {
+        setAccount(null);
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     try {
@@ -210,6 +231,43 @@ export function SettingsView() {
 
       <div className="grid grid-cols-[minmax(0,1fr)_330px] gap-5">
         <div className="space-y-5">
+          <SurfaceCard className="p-6">
+            <PanelTitle
+              icon={UserRound}
+              title="계정 · 프로필"
+              description="로그인된 계정과 기본 시간대를 관리합니다. 시간대는 자동화 예약 실행에 사용됩니다."
+            />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="rounded-2xl border border-app-border bg-app-bg p-4">
+                <p className="text-[11px] font-semibold text-app-muted">로그인 계정</p>
+                <p className="mt-1 truncate text-sm font-semibold text-app-text">
+                  {account?.email || "계정 정보를 불러오는 중"}
+                </p>
+                <p className="mt-1 text-[11px] text-app-muted">
+                  권한: {account?.role === "admin" ? "관리자" : "일반 사용자"}
+                </p>
+              </div>
+              <label className="rounded-2xl border border-app-border bg-app-bg p-4">
+                <span className="text-[11px] font-semibold text-app-muted">기본 시간대</span>
+                <select
+                  value={settings.timezone}
+                  onChange={(event) =>
+                    setSettings((prev) => ({ ...prev, timezone: event.target.value }))
+                  }
+                  className="mt-1.5 h-10 w-full rounded-xl border border-app-border bg-white px-3 text-xs font-semibold text-app-text outline-none"
+                >
+                  <option value="">시스템 시간대 사용 ({systemTimezone()})</option>
+                  {COMMON_TIMEZONES.map((zone) => (
+                    <option key={zone} value={zone}>{zone}</option>
+                  ))}
+                </select>
+                <span className="mt-1.5 block text-[11px] leading-4 text-app-muted">
+                  자동화 예약, 리포트 기간 계산의 기준 시간대입니다.
+                </span>
+              </label>
+            </div>
+          </SurfaceCard>
+
           <SurfaceCard className="p-6">
             <PanelTitle
               icon={Bot}
@@ -549,6 +607,30 @@ function NumberField({
       />
     </label>
   );
+}
+
+const COMMON_TIMEZONES = [
+  "Asia/Seoul",
+  "Asia/Tokyo",
+  "Asia/Shanghai",
+  "Asia/Singapore",
+  "Australia/Sydney",
+  "Europe/London",
+  "Europe/Paris",
+  "Europe/Berlin",
+  "America/New_York",
+  "America/Chicago",
+  "America/Denver",
+  "America/Los_Angeles",
+  "UTC"
+];
+
+function systemTimezone() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  } catch {
+    return "UTC";
+  }
 }
 
 function mergeSettings(saved: Partial<LocalSettings>): LocalSettings {

@@ -15,7 +15,6 @@ import {
   Network,
   RefreshCw,
   ShieldCheck,
-  Tags,
   UserRound
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -39,8 +38,6 @@ import {
   type KnowledgeTabId
 } from "@/src/lib/knowledge/knowledge-tabs";
 import { KnowledgeWorkspace } from "@/components/Knowledge/KnowledgeWorkspace";
-import { getAutomationApp } from "@/src/lib/automation/app-registry";
-import type { VerifiedConnectionState } from "@/src/lib/integrations/verified-connection.service";
 
 export function MemoryView() {
   const [snapshot, setSnapshot] = useState<MemoryDashboardSnapshot | null>(null);
@@ -50,20 +47,12 @@ export function MemoryView() {
   const [knowledgeNotes, setKnowledgeNotes] = useState<KnowledgeNote[]>([]);
   const [knowledgeTab, setKnowledgeTab] = useState<KnowledgeTabId>("network");
   const [connectionMessage, setConnectionMessage] = useState<string | null>(null);
-  const [connections, setConnections] = useState<VerifiedConnectionState[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const { language, t } = useAppLanguage();
 
   useEffect(() => {
     void loadDashboard();
-    void loadConnections();
   }, []);
-
-  async function loadConnections() {
-    const response = await fetch("/api/integrations/status");
-    const data = await response.json().catch(() => ({})) as { connections?: VerifiedConnectionState[] };
-    if (response.ok) setConnections(data.connections || []);
-  }
 
   async function loadDashboard() {
     setLoading(true);
@@ -148,44 +137,6 @@ export function MemoryView() {
     [knowledgeNotes]
   );
 
-  async function acceptKnowledgeRecommendation(
-    recommendation: (typeof knowledgeModel.recommendations)[number]
-  ) {
-    if (recommendation.targetType !== "app" && recommendation.targetType !== "website") {
-      setConnectionMessage(t("memory.connectionPinned", { title: recommendation.title }));
-      return;
-    }
-
-    const response = await fetch("/api/local/connections/accept", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        targetType: recommendation.targetType,
-        externalTargetId: recommendation.targetId,
-        targetPath: recommendation.targetId,
-        approved: true
-      })
-    });
-    const data = (await response.json()) as { message?: string; applied?: boolean; connectionRequired?: boolean; connectorId?: string };
-    setConnectionMessage(data.message || t("memory.connectionAccepted"));
-    if (data.connectionRequired && data.connectorId) {
-      window.dispatchEvent(new CustomEvent("dreamwish:navigate", { detail: { view: "integrations", connectorId: data.connectorId } }));
-    }
-    if (data.applied) await loadConnections();
-  }
-
-  async function disconnectKnowledgeRecommendation(connectorId: string, state: VerifiedConnectionState) {
-    const app = getAutomationApp(connectorId);
-    const target = app?.oauthTarget;
-    const response = state.authMode === "oauth" && target
-      ? await fetch(`/api/integrations/${encodeURIComponent(target.provider)}/disconnect?service=${encodeURIComponent(target.service)}`, { method: "POST" })
-      : await fetch(`/api/integrations/credentials/${encodeURIComponent(connectorId)}`, { method: "DELETE" });
-    if (response.ok) {
-      setConnectionMessage(`${app?.label || connectorId} 연결을 해제했습니다.`);
-      await loadConnections();
-    }
-  }
-
   if (loading && !snapshot) {
     return (
       <SurfaceCard className="min-h-[520px] p-6">
@@ -265,9 +216,9 @@ export function MemoryView() {
         ) : null}
         {knowledgeTab === "network" ? (
           <div className="grid grid-cols-3 gap-3">
-            <KnowledgeMiniMetric icon={Network} label="Network nodes" value={snapshot.knowledgeNetwork.nodes.length} />
-            <KnowledgeMiniMetric icon={Link2} label="Edges" value={snapshot.knowledgeNetwork.edges.length} />
-            <KnowledgeMiniMetric icon={Tags} label="Tags" value={knowledgeModel.tags.length} />
+            <KnowledgeMiniMetric icon={Network} label="지식 노드" value={snapshot.knowledgeNetwork.nodes.length} />
+            <KnowledgeMiniMetric icon={Link2} label="연결" value={snapshot.knowledgeNetwork.edges.length} />
+            <KnowledgeMiniMetric icon={FileText} label="문서" value={knowledgeModel.documents.length} />
           </div>
         ) : null}
         {knowledgeTab === "documents" ? (
@@ -276,48 +227,14 @@ export function MemoryView() {
               <div key={note.id} className="rounded-2xl border border-app-border bg-app-bg p-3">
                 <p className="truncate text-sm font-semibold text-app-text">{note.title}</p>
                 <p className="mt-1 line-clamp-2 text-xs leading-5 text-app-muted">{note.body}</p>
+                <p className="mt-2 text-[10px] text-app-muted">
+                  수정 {new Date(note.updatedAt || note.createdAt).toLocaleDateString("ko-KR")}
+                </p>
               </div>
             ))}
             {knowledgeModel.documents.length === 0 ? (
               <p className="text-sm text-app-muted">{t("memory.noDocuments")}</p>
             ) : null}
-          </div>
-        ) : null}
-        {knowledgeTab === "tags" ? (
-          <div className="flex flex-wrap gap-2">
-            {knowledgeModel.tags.map((tag) => (
-              <span key={tag.tag} className="rounded-2xl border border-app-border bg-app-bg px-3 py-2 text-xs font-semibold text-app-text">
-                #{tag.tag} <span className="text-app-muted">{tag.count}</span>
-              </span>
-            ))}
-            {knowledgeModel.tags.length === 0 ? (
-              <p className="text-sm text-app-muted">{t("memory.noTags")}</p>
-            ) : null}
-          </div>
-        ) : null}
-        {knowledgeTab === "recommendations" ? (
-          <div className="grid grid-cols-2 gap-3">
-            {knowledgeModel.recommendations.slice(0, 6).map((recommendation) => (
-              <div key={recommendation.id} className="rounded-2xl border border-app-border bg-app-bg p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="truncate text-sm font-semibold text-app-text">{recommendation.title}</p>
-                  <span className="text-[11px] font-semibold text-app-primary">{Math.round(recommendation.strength * 100)}%</span>
-                </div>
-                <p className="mt-1 text-xs capitalize text-app-muted">{recommendation.targetType}</p>
-                <p className="mt-2 line-clamp-2 text-xs leading-5 text-slate-600">{recommendation.reason}</p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const verified = connections.find((item) => item.connectorId === recommendation.targetId && item.status === "connected");
-                    if (verified) void disconnectKnowledgeRecommendation(recommendation.targetId, verified);
-                    else void acceptKnowledgeRecommendation(recommendation);
-                  }}
-                  className={`mt-3 rounded-xl px-3 py-1.5 text-[11px] font-semibold ${connections.some((item) => item.connectorId === recommendation.targetId && item.status === "connected") ? "border border-red-200 bg-white text-red-600" : "bg-app-primary text-white"}`}
-                >
-                  {connections.some((item) => item.connectorId === recommendation.targetId && item.status === "connected") ? "연결 해제" : "연결하기"}
-                </button>
-              </div>
-            ))}
           </div>
         ) : null}
       </SurfaceCard>

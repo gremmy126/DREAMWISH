@@ -39,7 +39,11 @@ export async function deleteScenario(ownerId: string, scenarioId: string) {
   return deleted;
 }
 
-export async function updateScenarioStatus(ownerId: string, scenarioId: string, status: ScenarioStatus) {
+export async function updateScenarioStatus(
+  ownerId: string,
+  scenarioId: string,
+  status: ScenarioStatus
+): Promise<AutomationScenario | null> {
   let updated: AutomationScenario | null = null;
   await mutateDocument(ownerId, (document) => {
     const scenario = document.scenarios.find((item) => item.id === scenarioId);
@@ -51,7 +55,11 @@ export async function updateScenarioStatus(ownerId: string, scenarioId: string, 
   return updated;
 }
 
-export async function recordScenarioRun(ownerId: string, scenarioId: string, success: boolean) {
+export async function recordScenarioRun(
+  ownerId: string,
+  scenarioId: string,
+  success: boolean
+): Promise<AutomationScenario | null> {
   let updated: AutomationScenario | null = null;
   await mutateDocument(ownerId, (document) => {
     const scenario = document.scenarios.find((item) => item.id === scenarioId);

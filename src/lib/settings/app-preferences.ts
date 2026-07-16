@@ -96,6 +96,35 @@ export function emitLanguagePreferenceChange(language: LanguagePreference) {
   );
 }
 
+/** Empty string means "follow the system/browser timezone". */
+export function readStoredTimezonePreference(storage: Storage): string {
+  try {
+    const raw = storage.getItem(APP_SETTINGS_STORAGE_KEY);
+    const parsed = raw ? (JSON.parse(raw) as { timezone?: string }) : null;
+    return typeof parsed?.timezone === "string" ? parsed.timezone : "";
+  } catch {
+    return "";
+  }
+}
+
+export function resolveEffectiveTimezone(stored: string): string {
+  if (stored && isValidTimezone(stored)) return stored;
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Seoul";
+  } catch {
+    return "Asia/Seoul";
+  }
+}
+
+export function isValidTimezone(value: string): boolean {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function detectSystemLanguagePreference(): LanguagePreference {
   const rawLanguage =
     typeof navigator === "undefined"

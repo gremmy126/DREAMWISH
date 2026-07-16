@@ -113,9 +113,13 @@ test("AI chat streams answers and renders submitted-query connected context", ()
   const source = fs.readFileSync("components/Chat/ChatView.tsx", "utf8");
   assert.match(source, /\/api\/ai\/providers/u);
   assert.match(source, /\/api\/ai\/chat\/stream/u);
-  assert.match(source, /ConnectedContextWorkspace/u);
+  // The right column is now a switchable workspace (context | research
+  // report); ConnectedContextWorkspace renders inside ResearchWorkspace.
+  const workspace = fs.readFileSync("components/Chat/ResearchWorkspace.tsx", "utf8");
+  assert.match(workspace, /ConnectedContextWorkspace/u);
+  assert.match(workspace, /<ConnectedContextWorkspace query=\{query\} \/>/u);
   assert.match(source, /const contextQuery = lastQuery\.trim\(\)/u);
-  assert.match(source, /<ConnectedContextWorkspace query=\{contextQuery\} \/>/u);
+  assert.match(source, /<ResearchWorkspace query=\{contextQuery\} sessionId=\{currentSessionId\} \/>/u);
   assert.match(source, /setLastQuery\(lastUserMessage\?\.content \|\| ""\)/u);
   assert.match(source, /setLastQuery\(contextualQuery\)/u);
   assert.doesNotMatch(source, /const contextQuery = input\.trim\(\)/u);

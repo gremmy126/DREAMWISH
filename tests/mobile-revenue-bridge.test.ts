@@ -89,7 +89,9 @@ test("mobile companion references enforce platform rules and Open Banking is dis
   const androidManifest = await read("mobile-companion/android/AndroidManifest.xml");
   const iosInfo = await read("mobile-companion/ios/Info.plist");
   const route = await read("app/api/business/revenue/route.ts");
-  const businessHub = await read("components/Business/BusinessHub.tsx");
+  // Revenue-candidate review moved from the Business overview to the ERP
+  // workspace so the Business page stays operations-focused.
+  const businessHub = await read("components/Business/ErpWorkspace.tsx");
   const devicePanel = await read("components/Business/DeviceConnectionPanel.tsx");
 
   assert.match(android, /NotificationListenerService/u);

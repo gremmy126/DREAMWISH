@@ -1,7 +1,7 @@
 import { externalConnectionTargets } from "../connections/external-actions";
 import type { KnowledgeNote } from "./knowledge.repository";
 
-export type KnowledgeTabId = "network" | "documents" | "tags" | "recommendations";
+export type KnowledgeTabId = "network" | "documents";
 
 export const KNOWLEDGE_MEMORY_TABS: Array<{
   id: KnowledgeTabId;
@@ -10,23 +10,13 @@ export const KNOWLEDGE_MEMORY_TABS: Array<{
 }> = [
   {
     id: "network",
-    label: "Knowledge Network",
+    label: "Knowledge",
     description: "Entity and relationship map from approved memory and notes."
   },
   {
     id: "documents",
     label: "Documents",
     description: "Knowledge notes and uploaded source documents."
-  },
-  {
-    id: "tags",
-    label: "Tags",
-    description: "Tag clusters that connect documents, people, projects, and memory."
-  },
-  {
-    id: "recommendations",
-    label: "Connection Recommendations",
-    description: "Suggested document, app, and website connections."
   }
 ];
 

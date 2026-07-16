@@ -220,11 +220,13 @@ export function IntegrationCenter({ selectedConnectorId }: { selectedConnectorId
       <section className="grid gap-4 rounded-[24px] border border-app-border bg-app-bg/70 p-4 lg:grid-cols-[310px_minmax(0,1fr)]">
         <div className="rounded-[20px] border border-app-border bg-white p-3 shadow-soft">
           <div className="mb-3 flex items-center justify-between px-1">
-            <div><h2 className="text-sm font-bold text-app-text">앱 계정 연결</h2><p className="mt-1 text-[11px] text-app-muted">앱별 OAuth 또는 정확한 키 항목</p></div>
+            <div><h2 className="text-sm font-bold text-app-text">앱 계정 연결</h2><p className="mt-1 text-[11px] text-app-muted">앱별 OAuth 또는 정확한 키 항목. 핵심 커넥터는 위 카드에서 관리합니다.</p></div>
             <span className="rounded-full bg-app-hover px-2 py-1 text-[10px] font-bold text-app-primary">{connectedCount}/{AUTOMATION_APPS.length}</span>
           </div>
           <div className="grid max-h-[560px] grid-cols-1 gap-1 overflow-y-auto pr-1 sm:grid-cols-2 lg:grid-cols-1">
-            {AUTOMATION_APPS.map((app) => {
+            {AUTOMATION_APPS.filter(
+              (app) => !items.some((item) => item.connector.id === app.id)
+            ).map((app) => {
               const connection = connections.find((item) => item.connectorId === app.id);
               return (
                 <button key={app.id} type="button" onClick={() => setSelectedAppId(app.id)} className={`flex min-w-0 items-center gap-3 rounded-xl px-3 py-2.5 text-left transition ${selectedAppId === app.id ? "bg-app-hover ring-1 ring-app-primary/20" : "hover:bg-app-bg"}`}>

@@ -46,8 +46,9 @@ import { ActionPicker } from "@/components/Automation/ActionPicker";
 import { AutomationTabs, type AutomationTab } from "@/components/Automation/AutomationTabs";
 import { AutomationGuide, ConnectionManager, RunHistory, TemplateGallery } from "@/components/Automation/AutomationSecondaryViews";
 import { getAutomationApp } from "@/src/lib/automation/app-registry";
+import { readStoredTimezonePreference } from "@/src/lib/settings/app-preferences";
 
-type CanvasData = { scenarioNode: ScenarioNode; order: number };
+type CanvasData = { scenarioNode: ScenarioNode; order: number; oauthConnected?: boolean };
 type CanvasNode = Node<CanvasData, "scenarioModule">;
 
 const nodeTypes = { scenarioModule: ScenarioModuleNode };
@@ -65,6 +66,9 @@ export function AutomationView() {
   const [edges, setEdges] = useState<Edge[]>([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [credentials, setCredentials] = useState<PublicAutomationCredential[]>([]);
+  const [oauthConnections, setOauthConnections] = useState<
+    Array<{ connectorId: string; status: string; accountLabel?: string | null }>
+  >([]);
   const [search, setSearch] = useState("");
   const [prompt, setPrompt] = useState("");
   const [busy, setBusy] = useState(false);
@@ -72,13 +76,34 @@ export function AutomationView() {
   const [activeTab, setActiveTab] = useState<AutomationTab>("scenario");
   const selectedNode = nodes.find((node) => node.id === selectedNodeId) || null;
 
-  useEffect(() => { void loadWorkspace(); }, []);
+  useEffect(() => {
+    void loadWorkspace();
+    // Integrations and Automation share one connection-state source: reload
+    // the OAuth status whenever the user returns from the Integrations page
+    // so a fresh connection immediately clears any "연결 필요" badge.
+    const refresh = () => void loadOauthConnections();
+    window.addEventListener("focus", refresh);
+    return () => window.removeEventListener("focus", refresh);
+  }, []);
+
+  async function loadOauthConnections() {
+    try {
+      const response = await fetch("/api/integrations/status", { cache: "no-store" });
+      const data = (await response.json().catch(() => ({}))) as {
+        connections?: Array<{ connectorId: string; status: string; accountLabel?: string | null }>;
+      };
+      if (response.ok) setOauthConnections(data.connections || []);
+    } catch {
+      setOauthConnections([]);
+    }
+  }
 
   async function loadWorkspace(preferredId?: string) {
     const [scenarioResponse, credentialResponse] = await Promise.all([
       fetch("/api/automation/scenarios"),
       fetch("/api/automation/credentials")
     ]);
+    await loadOauthConnections();
     const scenarioData = (await scenarioResponse.json().catch(() => ({}))) as { scenarios?: AutomationScenario[] };
     const credentialData = (await credentialResponse.json().catch(() => ({}))) as { credentials?: PublicAutomationCredential[] };
     const nextScenarios = scenarioData.scenarios || [];
@@ -87,6 +112,28 @@ export function AutomationView() {
     const next = nextScenarios.find((scenario) => scenario.id === preferredId) || nextScenarios[0] || null;
     selectScenario(next);
   }
+
+  const connectedOauthApps = useMemo(
+    () =>
+      new Map(
+        oauthConnections
+          .filter((connection) => connection.status === "connected")
+          .map((connection) => [connection.connectorId, connection.accountLabel || null])
+      ),
+    [oauthConnections]
+  );
+
+  useEffect(() => {
+    setNodes((current) =>
+      current.map((node) => ({
+        ...node,
+        data: {
+          ...node.data,
+          oauthConnected: connectedOauthApps.has(node.data.scenarioNode.appId)
+        }
+      }))
+    );
+  }, [connectedOauthApps]);
 
   function selectScenario(scenario: AutomationScenario | null) {
     setActive(scenario);
@@ -245,7 +292,8 @@ export function AutomationView() {
           </div>
           <ScenarioInspector
             scenario={active} selectedNode={selectedNode?.data.scenarioNode || null}
-            credentials={credentials} onNodeChange={updateSelectedNode} onDeleteNode={deleteSelectedNode}
+            credentials={credentials} connectedOauthApps={connectedOauthApps}
+            onNodeChange={updateSelectedNode} onDeleteNode={deleteSelectedNode}
             onOpenConnections={() => setActiveTab("connections")}
           />
         </div>
@@ -292,10 +340,12 @@ function ModuleCatalog({ search, onSearch, onAdd }: { search: string; onSearch: 
   return <aside className="min-w-0 overflow-hidden bg-white"><div className="border-b border-slate-100 p-3"><h2 className="text-xs font-bold text-slate-900">기본 모듈</h2><label className="mt-3 flex h-9 min-w-0 items-center gap-2 rounded-xl border border-slate-200 px-3"><Search size={14} className="shrink-0 text-slate-400" /><input value={search} onChange={(event) => onSearch(event.target.value)} placeholder="모듈 검색" className="min-w-0 flex-1 text-xs outline-none" /></label></div><div className="max-h-[510px] overflow-y-auto p-2 app-scrollbar">{["app", "ai", "tool"].map((category) => <div key={category} className="mb-3"><p className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">{category === "app" ? "앱" : category === "ai" ? "AI" : "도구"}</p>{modules.filter((item) => item.category === category).map((item) => <button type="button" key={item.id} onClick={() => onAdd(item)} className="group flex w-full min-w-0 items-center gap-2.5 rounded-xl px-2 py-2 text-left hover:bg-violet-50"><AutomationAppLogo appId={item.id} size={28} color={item.color} /><span className="min-w-0 flex-1 truncate text-xs font-semibold text-slate-700 group-hover:text-violet-700">{item.label}</span><Plus size={13} className="shrink-0 text-slate-300 group-hover:text-violet-500" /></button>)}</div>)}</div></aside>;
 }
 
-function ScenarioInspector({ scenario, selectedNode, credentials, onNodeChange, onDeleteNode, onOpenConnections }: { scenario: AutomationScenario | null; selectedNode: ScenarioNode | null; credentials: PublicAutomationCredential[]; onNodeChange: (patch: Partial<ScenarioNode>) => void; onDeleteNode: () => void; onOpenConnections: () => void }) {
+function ScenarioInspector({ scenario, selectedNode, credentials, connectedOauthApps, onNodeChange, onDeleteNode, onOpenConnections }: { scenario: AutomationScenario | null; selectedNode: ScenarioNode | null; credentials: PublicAutomationCredential[]; connectedOauthApps: Map<string, string | null>; onNodeChange: (patch: Partial<ScenarioNode>) => void; onDeleteNode: () => void; onOpenConnections: () => void }) {
   const matchingCredentials = credentials.filter((item) => !selectedNode || item.appId === selectedNode.appId);
   const selectedModule = selectedNode ? AUTOMATION_MODULES.find((item) => item.id === selectedNode.appId) || AUTOMATION_MODULES[0]! : null;
   const app = selectedNode ? getAutomationApp(selectedNode.appId) : null;
+  const oauthConnected = selectedNode ? connectedOauthApps.has(selectedNode.appId) : false;
+  const oauthAccountLabel = selectedNode ? connectedOauthApps.get(selectedNode.appId) || null : null;
   function openConnectionSetup() {
     if (app?.supportedAuthModes.length === 1 && app.supportedAuthModes[0] === "oauth") {
       window.dispatchEvent(new CustomEvent("dreamwish:navigate", { detail: { view: "integrations", connectorId: app.id } }));
@@ -303,7 +353,7 @@ function ScenarioInspector({ scenario, selectedNode, credentials, onNodeChange, 
     }
     onOpenConnections();
   }
-  return <aside className="min-w-0 overflow-hidden bg-white p-4"><div className="flex items-center justify-between"><h2 className="truncate text-sm font-bold text-slate-950">{selectedNode ? "모듈 설정" : "시나리오 정보"}</h2><MoreVertical size={16} className="shrink-0 text-slate-400" /></div>{selectedNode && selectedModule ? <div className="mt-5 space-y-4"><div className="flex min-w-0 items-center gap-3"><AutomationAppLogo appId={selectedModule.id} size={40} color={selectedModule.color} /><div className="min-w-0"><p className="truncate text-sm font-bold text-slate-900">{selectedNode.label}</p><p className="truncate text-xs text-slate-400">{selectedNode.operation}</p></div></div><InspectorField label="모듈 이름" value={selectedNode.label} onChange={(label) => onNodeChange({ label })} /><ActionPicker appId={selectedNode.appId} value={selectedNode.operation} onChange={(operation) => onNodeChange({ operation })} />{selectedNode.requiresCredential ? <div><label className="text-[11px] font-bold text-slate-500">검증된 계정 / API 키</label><select value={selectedNode.credentialId || ""} onChange={(event) => onNodeChange({ credentialId: event.target.value || null })} className="mt-2 h-10 w-full min-w-0 truncate rounded-xl border border-slate-200 px-3 text-xs outline-none"><option value="">연결 필요</option>{matchingCredentials.filter((item) => item.verificationStatus === "verified").map((item) => <option key={item.id} value={item.id}>{item.accountLabel || item.label} · {item.masked}</option>)}</select><div className="mt-3 rounded-xl bg-slate-50 p-3"><p className="text-[11px] leading-5 text-slate-600">앱별 정확한 키 항목 또는 OAuth를 연결 관리에서 인증하세요.</p><button type="button" onClick={openConnectionSetup} className="mt-2 flex h-9 w-full items-center justify-center rounded-lg bg-violet-600 text-[11px] font-bold text-white">연결 관리에서 인증</button></div></div> : <p className="rounded-xl bg-emerald-50 p-3 text-[11px] leading-5 text-emerald-700">이 모듈은 별도 API 키 없이 DREAMWISH 내부에서 실행됩니다.</p>}<button type="button" onClick={onDeleteNode} className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-red-100 text-xs font-bold text-red-600 hover:bg-red-50"><Trash2 size={14} />모듈 삭제</button></div> : <ScenarioSummary scenario={scenario} credentials={credentials} />}</aside>;
+  return <aside className="min-w-0 overflow-hidden bg-white p-4"><div className="flex items-center justify-between"><h2 className="truncate text-sm font-bold text-slate-950">{selectedNode ? "모듈 설정" : "시나리오 정보"}</h2><MoreVertical size={16} className="shrink-0 text-slate-400" /></div>{selectedNode && selectedModule ? <div className="mt-5 space-y-4"><div className="flex min-w-0 items-center gap-3"><AutomationAppLogo appId={selectedModule.id} size={40} color={selectedModule.color} /><div className="min-w-0"><p className="truncate text-sm font-bold text-slate-900">{selectedNode.label}</p><p className="truncate text-xs text-slate-400">{selectedNode.operation}</p></div></div><InspectorField label="모듈 이름" value={selectedNode.label} onChange={(label) => onNodeChange({ label })} /><ActionPicker appId={selectedNode.appId} value={selectedNode.operation} onChange={(operation) => onNodeChange({ operation })} />{selectedNode.appId === "schedule" ? <ScheduleEditor config={selectedNode.config} onChange={(config) => onNodeChange({ config })} /> : null}{selectedNode.requiresCredential ? <div><label className="text-[11px] font-bold text-slate-500">검증된 계정 / API 키</label><select value={selectedNode.credentialId || ""} onChange={(event) => onNodeChange({ credentialId: event.target.value || null })} className="mt-2 h-10 w-full min-w-0 truncate rounded-xl border border-slate-200 px-3 text-xs outline-none"><option value="">{oauthConnected ? "OAuth 연결 사용 (기본)" : "연결 필요"}</option>{oauthConnected ? <option value={`oauth:${selectedNode.appId}`}>OAuth 연결됨{oauthAccountLabel ? ` · ${oauthAccountLabel}` : ""}</option> : null}{matchingCredentials.filter((item) => item.verificationStatus === "verified").map((item) => <option key={item.id} value={item.id}>{item.accountLabel || item.label} · {item.masked}</option>)}</select>{oauthConnected ? <p className="mt-2 rounded-xl bg-emerald-50 p-3 text-[11px] leading-5 text-emerald-700">Integrations에서 OAuth로 연결된 계정{oauthAccountLabel ? ` (${oauthAccountLabel})` : ""}이 이 모듈에서 바로 사용됩니다.</p> : <div className="mt-3 rounded-xl bg-slate-50 p-3"><p className="text-[11px] leading-5 text-slate-600">앱별 정확한 키 항목 또는 OAuth를 연결 관리에서 인증하세요.</p><button type="button" onClick={openConnectionSetup} className="mt-2 flex h-9 w-full items-center justify-center rounded-lg bg-violet-600 text-[11px] font-bold text-white">연결 관리에서 인증</button></div>}</div> : <p className="rounded-xl bg-emerald-50 p-3 text-[11px] leading-5 text-emerald-700">이 모듈은 별도 API 키 없이 DREAMWISH 내부에서 실행됩니다.</p>}<button type="button" onClick={onDeleteNode} className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-red-100 text-xs font-bold text-red-600 hover:bg-red-50"><Trash2 size={14} />모듈 삭제</button></div> : <ScenarioSummary scenario={scenario} credentials={credentials} />}</aside>;
 }
 
 function ScenarioSummary({ scenario, credentials }: { scenario: AutomationScenario | null; credentials: PublicAutomationCredential[] }) {
@@ -314,10 +364,62 @@ function ScenarioSummary({ scenario, credentials }: { scenario: AutomationScenar
 
 function ScenarioModuleNode({ data, selected }: NodeProps<CanvasNode>) {
   const item = AUTOMATION_MODULES.find((module) => module.id === data.scenarioNode.appId) || AUTOMATION_MODULES[0]!;
-  return <div className={`relative w-[154px] rounded-2xl border bg-white px-3 py-3 shadow-lg shadow-slate-200/50 transition ${selected ? "border-violet-500 ring-4 ring-violet-100" : "border-slate-200"}`}><Handle type="target" position={Position.Left} className="!h-2.5 !w-2.5 !border-2 !border-white !bg-violet-500" /><span className="absolute -left-2.5 -top-2.5 flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold text-white shadow" style={{ backgroundColor: item.color }}>{data.order + 1}</span><div className="flex items-center gap-2"><AutomationAppLogo appId={item.id} size={40} color={item.color} /><div className="min-w-0 flex-1"><p className="truncate text-xs font-bold text-slate-900" title={data.scenarioNode.label}>{data.scenarioNode.label}</p><p className="mt-1 line-clamp-2 break-words text-[10px] leading-4 text-slate-500">{data.scenarioNode.operation}</p></div></div>{data.scenarioNode.requiresCredential && !data.scenarioNode.credentialId ? <span className="mt-2 block truncate rounded-md bg-amber-50 px-2 py-1 text-[9px] font-bold text-amber-700">연결 필요</span> : null}<Handle type="source" position={Position.Right} className="!h-2.5 !w-2.5 !border-2 !border-white !bg-violet-500" /></div>;
+  return <div className={`relative w-[154px] rounded-2xl border bg-white px-3 py-3 shadow-lg shadow-slate-200/50 transition ${selected ? "border-violet-500 ring-4 ring-violet-100" : "border-slate-200"}`}><Handle type="target" position={Position.Left} className="!h-2.5 !w-2.5 !border-2 !border-white !bg-violet-500" /><span className="absolute -left-2.5 -top-2.5 flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold text-white shadow" style={{ backgroundColor: item.color }}>{data.order + 1}</span><div className="flex items-center gap-2"><AutomationAppLogo appId={item.id} size={40} color={item.color} /><div className="min-w-0 flex-1"><p className="truncate text-xs font-bold text-slate-900" title={data.scenarioNode.label}>{data.scenarioNode.label}</p><p className="mt-1 line-clamp-2 break-words text-[10px] leading-4 text-slate-500">{data.scenarioNode.operation}</p></div></div>{data.scenarioNode.requiresCredential && !data.scenarioNode.credentialId && !data.oauthConnected ? <span className="mt-2 block truncate rounded-md bg-amber-50 px-2 py-1 text-[9px] font-bold text-amber-700">연결 필요</span> : null}{data.scenarioNode.requiresCredential && !data.scenarioNode.credentialId && data.oauthConnected ? <span className="mt-2 block truncate rounded-md bg-emerald-50 px-2 py-1 text-[9px] font-bold text-emerald-700">OAuth 연결됨</span> : null}<Handle type="source" position={Position.Right} className="!h-2.5 !w-2.5 !border-2 !border-white !bg-violet-500" /></div>;
 }
 
 function InspectorField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) { return <label className="block min-w-0"><span className="text-[11px] font-bold text-slate-500">{label}</span><input value={value} onChange={(event) => onChange(event.target.value)} className="mt-2 h-10 w-full min-w-0 rounded-xl border border-slate-200 px-3 text-xs outline-none focus:border-violet-400" /></label>; }
+
+function ScheduleEditor({ config, onChange }: { config: Record<string, string | number | boolean>; onChange: (config: Record<string, string | number | boolean>) => void }) {
+  const kind = String(config.scheduleKind || "daily");
+  const time = /^\d{2}:\d{2}$/u.test(String(config.scheduleTime)) ? String(config.scheduleTime) : "09:00";
+  const weekday = Number.isFinite(Number(config.scheduleWeekday)) ? Number(config.scheduleWeekday) : 1;
+  const intervalMinutes = Number.isFinite(Number(config.scheduleIntervalMinutes)) ? Number(config.scheduleIntervalMinutes) : 60;
+  const onceAt = typeof config.scheduleOnceAt === "string" ? config.scheduleOnceAt : "";
+  const timezone = String(config.scheduleTimezone || readStoredTimezonePreference(window.localStorage));
+  const patch = (next: Record<string, string | number | boolean>) =>
+    onChange({ ...config, scheduleKind: kind, scheduleTime: time, scheduleWeekday: weekday, scheduleIntervalMinutes: intervalMinutes, scheduleOnceAt: onceAt, scheduleTimezone: timezone, ...next });
+  const select = "mt-1 h-9 w-full min-w-0 rounded-xl border border-slate-200 px-2.5 text-xs outline-none";
+  return (
+    <div className="rounded-xl border border-slate-200 p-3">
+      <p className="text-[11px] font-bold text-slate-500">시간 설정 (예약 실행)</p>
+      <label className="mt-2 block text-[10px] font-semibold text-slate-500">반복 주기
+        <select value={kind} onChange={(event) => patch({ scheduleKind: event.target.value })} className={select}>
+          <option value="daily">매일</option>
+          <option value="weekdays">평일만</option>
+          <option value="weekly">매주 특정 요일</option>
+          <option value="interval">일정 간격</option>
+          <option value="once">특정 날짜와 시간 (1회)</option>
+        </select>
+      </label>
+      {kind === "weekly" ? (
+        <label className="mt-2 block text-[10px] font-semibold text-slate-500">요일
+          <select value={weekday} onChange={(event) => patch({ scheduleWeekday: Number(event.target.value) })} className={select}>
+            {["일", "월", "화", "수", "목", "금", "토"].map((label, index) => <option key={label} value={index}>{label}요일</option>)}
+          </select>
+        </label>
+      ) : null}
+      {kind === "interval" ? (
+        <label className="mt-2 block text-[10px] font-semibold text-slate-500">간격(분)
+          <input value={intervalMinutes} inputMode="numeric" onChange={(event) => patch({ scheduleIntervalMinutes: Number(event.target.value) || 60 })} className={select} />
+        </label>
+      ) : null}
+      {kind === "once" ? (
+        <label className="mt-2 block text-[10px] font-semibold text-slate-500">실행 시각
+          <input type="datetime-local" value={onceAt.slice(0, 16)} onChange={(event) => patch({ scheduleOnceAt: event.target.value ? new Date(event.target.value).toISOString() : "" })} className={select} />
+        </label>
+      ) : null}
+      {kind !== "interval" && kind !== "once" ? (
+        <label className="mt-2 block text-[10px] font-semibold text-slate-500">시간
+          <input type="time" value={time} onChange={(event) => patch({ scheduleTime: event.target.value })} className={select} />
+        </label>
+      ) : null}
+      <label className="mt-2 block text-[10px] font-semibold text-slate-500">시간대 (IANA)
+        <input value={timezone} placeholder="예: Asia/Seoul (비우면 시스템)" onChange={(event) => patch({ scheduleTimezone: event.target.value })} className={select} />
+      </label>
+      <p className="mt-2 text-[10px] leading-4 text-slate-500">저장하면 다음 실행 시각이 계산되고 5분 주기 스케줄러가 해당 시각에 자동으로 실행합니다. 외부 전송 단계는 승인 후에만 실제 발송됩니다.</p>
+    </div>
+  );
+}
 function SummaryRow({ label, value }: { label: string; value: string }) { return <div className="flex min-w-0 items-center justify-between gap-3"><dt className="shrink-0 text-slate-500">{label}</dt><dd className="min-w-0 truncate font-bold text-slate-800">{value}</dd></div>; }
 function EmptyCanvas({ onCreate }: { onCreate: () => void }) { return <div className="absolute inset-0 flex items-center justify-center"><div className="max-w-xs text-center"><div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-100 text-violet-600"><Bot size={25} /></div><h2 className="mt-4 text-base font-bold text-slate-900">첫 시나리오를 만들어보세요</h2><p className="mt-2 break-keep text-xs leading-6 text-slate-500">AI에게 원하는 자동화를 말하거나 왼쪽 모듈을 연결해 시작할 수 있습니다.</p><button type="button" onClick={onCreate} className="mt-4 rounded-xl bg-violet-600 px-4 py-2.5 text-xs font-bold text-white">AI로 초안 만들기</button></div></div>; }
 function TemplateCard({ title, chain, onUse }: { title: string; prompt: string; chain: string[]; onUse: () => void }) { return <article className="min-w-0 rounded-2xl border border-slate-200 p-3"><div className="flex items-center gap-1.5">{chain.map((id, index) => { const item = AUTOMATION_MODULES.find((module) => module.id === id) || AUTOMATION_MODULES[0]!; return <span key={`${id}-${index}`} className="flex items-center gap-1.5"><AutomationAppLogo appId={item.id} size={28} color={item.color} />{index < chain.length - 1 ? <span className="text-slate-300">→</span> : null}</span>; })}</div><p className="mt-3 truncate text-xs font-bold text-slate-900" title={title}>{title}</p><button type="button" onClick={onUse} className="mt-3 h-8 w-full rounded-lg border border-violet-100 text-[11px] font-bold text-violet-600 hover:bg-violet-50">사용하기</button></article>; }

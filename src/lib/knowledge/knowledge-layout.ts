@@ -13,6 +13,8 @@ export type KnowledgeGraphLike = {
     type: string;
     confidence: number;
     sourceIds: readonly string[];
+    strength?: number;
+    reasons?: string[];
   }>;
 };
 
@@ -34,6 +36,8 @@ export type KnowledgeLayoutEdge = {
   target: string;
   type: string;
   confidence: number;
+  strength: number;
+  reasons: string[];
 };
 
 export function buildInitialKnowledgeLayout(graph: KnowledgeGraphLike, width = 920, height = 520) {
@@ -72,7 +76,9 @@ export function buildInitialKnowledgeLayout(graph: KnowledgeGraphLike, width = 9
       source: edge.from,
       target: edge.to,
       type: edge.type,
-      confidence: edge.confidence
+      confidence: edge.confidence,
+      strength: edge.strength ?? Math.round(edge.confidence * 55),
+      reasons: edge.reasons ?? []
     })) satisfies KnowledgeLayoutEdge[]
   };
 }

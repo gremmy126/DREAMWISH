@@ -140,6 +140,135 @@ export async function addCrmActivity(ownerId: string, input: Omit<CrmActivity, "
   });
 }
 
+export async function createCrmDeal(input: {
+  ownerId: string;
+  customerId: string;
+  title: string;
+  value?: number;
+  probability?: number;
+  stage?: CrmDeal["stage"];
+  expectedCloseAt?: string | null;
+}) {
+  return accessDb(input.ownerId, (db) => {
+    const customer = db.customers.find(
+      (item) => item.ownerId === input.ownerId && item.id === input.customerId && !item.deletedAt
+    );
+    if (!customer) return null;
+    const now = new Date().toISOString();
+    const deal: CrmDeal = {
+      ownerId: input.ownerId,
+      id: randomUUID(),
+      customerId: input.customerId,
+      title: input.title.trim().slice(0, 200) || "새 딜",
+      stage: input.stage || "discovery",
+      value: safeAmount(input.value),
+      probability: Math.max(0, Math.min(100, Math.round(input.probability ?? 30))),
+      expectedCloseAt: input.expectedCloseAt || null,
+      createdAt: now,
+      updatedAt: now
+    };
+    db.deals.unshift(deal);
+    audit(db, input.ownerId, "deal.created", deal.id, now);
+    return deal;
+  });
+}
+
+export async function updateCrmDeal(
+  ownerId: string,
+  dealId: string,
+  patch: Partial<Pick<CrmDeal, "title" | "stage" | "value" | "probability" | "expectedCloseAt">>
+) {
+  return accessDb(ownerId, (db) => {
+    const deal = db.deals.find((item) => item.ownerId === ownerId && item.id === dealId);
+    if (!deal) return null;
+    if (typeof patch.title === "string" && patch.title.trim()) deal.title = patch.title.trim().slice(0, 200);
+    if (patch.stage) deal.stage = patch.stage;
+    if (typeof patch.value === "number") deal.value = safeAmount(patch.value);
+    if (typeof patch.probability === "number") {
+      deal.probability = Math.max(0, Math.min(100, Math.round(patch.probability)));
+    }
+    if (patch.expectedCloseAt !== undefined) deal.expectedCloseAt = patch.expectedCloseAt;
+    if (patch.stage === "won") deal.probability = 100;
+    if (patch.stage === "lost") deal.probability = 0;
+    deal.updatedAt = new Date().toISOString();
+    audit(db, ownerId, "deal.updated", dealId, deal.updatedAt);
+    return deal;
+  });
+}
+
+export async function deleteCrmDeal(ownerId: string, dealId: string) {
+  return accessDb(ownerId, (db) => {
+    const index = db.deals.findIndex((item) => item.ownerId === ownerId && item.id === dealId);
+    if (index < 0) return false;
+    db.deals.splice(index, 1);
+    audit(db, ownerId, "deal.deleted", dealId, new Date().toISOString());
+    return true;
+  });
+}
+
+export async function createCrmTask(input: {
+  ownerId: string;
+  customerId: string;
+  title: string;
+  dueAt?: string | null;
+  priority?: CrmTask["priority"];
+}) {
+  return accessDb(input.ownerId, (db) => {
+    const customer = db.customers.find(
+      (item) => item.ownerId === input.ownerId && item.id === input.customerId && !item.deletedAt
+    );
+    if (!customer) return null;
+    const now = new Date().toISOString();
+    const task: CrmTask = {
+      ownerId: input.ownerId,
+      id: randomUUID(),
+      customerId: input.customerId,
+      title: input.title.trim().slice(0, 200) || "새 업무",
+      dueAt: input.dueAt || null,
+      priority: input.priority || "medium",
+      completedAt: null,
+      createdAt: now,
+      updatedAt: now
+    };
+    db.tasks.unshift(task);
+    audit(db, input.ownerId, "task.created", task.id, now);
+    return task;
+  });
+}
+
+export async function updateCrmTask(
+  ownerId: string,
+  taskId: string,
+  patch: { completed?: boolean; title?: string; dueAt?: string | null; priority?: CrmTask["priority"] }
+) {
+  return accessDb(ownerId, (db) => {
+    const task = db.tasks.find((item) => item.ownerId === ownerId && item.id === taskId);
+    if (!task) return null;
+    const now = new Date().toISOString();
+    if (typeof patch.completed === "boolean") task.completedAt = patch.completed ? now : null;
+    if (typeof patch.title === "string" && patch.title.trim()) task.title = patch.title.trim().slice(0, 200);
+    if (patch.dueAt !== undefined) task.dueAt = patch.dueAt;
+    if (patch.priority) task.priority = patch.priority;
+    task.updatedAt = now;
+    audit(db, ownerId, "task.updated", taskId, now);
+    return task;
+  });
+}
+
+export async function deleteCrmTask(ownerId: string, taskId: string) {
+  return accessDb(ownerId, (db) => {
+    const index = db.tasks.findIndex((item) => item.ownerId === ownerId && item.id === taskId);
+    if (index < 0) return false;
+    db.tasks.splice(index, 1);
+    audit(db, ownerId, "task.deleted", taskId, new Date().toISOString());
+    return true;
+  });
+}
+
+function safeAmount(value: number | undefined) {
+  return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0;
+}
+
 export async function upsertCustomerMemory(memory: CustomerMemory) {
   return accessDb(memory.ownerId, (db) => {
     const index = db.customer_memory.findIndex((item) => item.ownerId === memory.ownerId && item.customerId === memory.customerId);

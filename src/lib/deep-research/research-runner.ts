@@ -18,6 +18,10 @@ import type {
   ResearchSource
 } from "./deep-research.types";
 import { fetchPublicPageText } from "./safe-fetch";
+import { saveResearchToMemory } from "./research-memory";
+import { parseResearchReportSections } from "./research-report";
+import { classifyResearchVideo } from "./research-videos";
+import { enrichYouTubeVideos } from "./youtube-enrich";
 
 export class ResearchCancelledError extends Error {
   constructor() {
@@ -211,16 +215,39 @@ export async function runResearchJob(
       const results = await Promise.allSettled(
         batch.map(async (query) => ({ query, results: await search(query, 6) }))
       );
+      const foundVideos: ReturnType<typeof classifyResearchVideo>[] = [];
       for (const outcome of results) {
         if (outcome.status !== "fulfilled") continue;
         usedQueries.push(outcome.value.query);
         for (const result of outcome.value.results) {
           if (!result.url) continue;
+          const video = classifyResearchVideo(
+            result.url,
+            result.title || "",
+            result.snippet || "",
+            outcome.value.query
+          );
+          if (video) {
+            foundVideos.push(video);
+            continue;
+          }
           const canonical = canonicalizeUrl(result.url);
           if (sources.some((source) => canonicalizeUrl(source.url) === canonical)) continue;
           if (sources.length >= settings.maxSources) break;
           sources.push(webSource(result.url, result.title, result.snippet, outcome.value.query, settings, now()));
         }
+      }
+      if (foundVideos.length > 0) {
+        const enriched = await enrichYouTubeVideos(
+          foundVideos.filter((video): video is NonNullable<typeof video> => Boolean(video))
+        ).catch(() => foundVideos.filter((video): video is NonNullable<typeof video> => Boolean(video)));
+        await mutateResearchJob(ownerId, jobId, (record) => {
+          for (const video of enriched) {
+            if (record.videos.some((existing) => existing.url === video.url)) continue;
+            if (record.videos.length >= 8) break;
+            record.videos.push(video);
+          }
+        });
       }
       await mutateResearchJob(ownerId, jobId, (record) => {
         record.usage.searches = usedQueries.length;
@@ -384,9 +411,12 @@ export async function runResearchJob(
     const finalState = (await graph.invoke(initialState, {
       recursionLimit: 40
     })) as ResearchState;
-    await mutateResearchJob(ownerId, jobId, (record) => {
+    const completed = await mutateResearchJob(ownerId, jobId, (record) => {
       record.status = "completed";
       record.report = finalState.report || null;
+      record.reportSections = finalState.report
+        ? parseResearchReportSections(finalState.report)
+        : null;
       record.sources = finalState.sources;
       record.progress = 100;
       record.currentStep = "조사가 완료되었습니다.";
@@ -397,6 +427,25 @@ export async function runResearchJob(
         message: "최종 보고서가 저장되었습니다."
       });
     });
+    if (completed && completed.settings.autoSave) {
+      try {
+        const saved = await saveResearchToMemory(completed);
+        if (saved) {
+          await appendResearchProgress(ownerId, jobId, {
+            step: "memory",
+            message:
+              saved.status === "merged"
+                ? "같은 주제의 기존 메모리에 조사 결과를 병합했습니다."
+                : "조사 결과를 메모리에 저장했습니다."
+          });
+        }
+      } catch {
+        await appendResearchProgress(ownerId, jobId, {
+          step: "memory",
+          message: "메모리 저장에 실패했습니다. 보고서는 유지됩니다."
+        });
+      }
+    }
   } catch (error) {
     if (error instanceof ResearchCancelledError) {
       await mutateResearchJob(ownerId, jobId, (record) => {

@@ -21,8 +21,8 @@ import { useEffect, useRef, useState } from "react";
 import { EmptyState } from "@/components/Common/EmptyState";
 import { SectionHeader } from "@/components/Common/SectionHeader";
 import { SurfaceCard } from "@/components/Common/SurfaceCard";
-import { ConnectedContextWorkspace } from "@/components/context/ConnectedContextWorkspace";
 import { DeepResearchDock } from "@/components/Chat/DeepResearchPanel";
+import { ResearchWorkspace } from "@/components/Chat/ResearchWorkspace";
 import {
   MemoryCandidateCard,
   type MemoryCandidateCardData
@@ -1175,7 +1175,7 @@ export function ChatView() {
         </div>
       </SurfaceCard>
 
-      <ConnectedContextWorkspace query={contextQuery} />
+      <ResearchWorkspace query={contextQuery} sessionId={currentSessionId} />
 
       {projectModalOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 px-4">

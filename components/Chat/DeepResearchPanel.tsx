@@ -173,9 +173,12 @@ export function DeepResearchDock({
           }
         })
       });
-      await readApiResponse(response);
+      const data = await readApiResponse<{ job?: { id?: string } }>(response);
       setPanelOpen(false);
       setQuery("");
+      window.dispatchEvent(
+        new CustomEvent("dreamwish:research-started", { detail: { jobId: data.job?.id } })
+      );
       await loadJobs();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "심층 조사를 시작하지 못했습니다.");

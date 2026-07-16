@@ -15,7 +15,7 @@ import type {
   MemoryCaptureJob,
   MemoryCandidate,
   MemoryChangePreview
-} from "@/src/lib/memory/memory.types";
+} from "./memory.types";
 
 export type MemoryDb = {
   candidates: MemoryCandidate[];

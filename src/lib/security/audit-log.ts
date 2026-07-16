@@ -1,4 +1,4 @@
-import { readJsonStore, writeJsonStore } from "@/src/lib/local-db/json-store";
+import { readJsonStore, writeJsonStore } from "../local-db/json-store";
 
 export type AuditLogEntry = {
   id: string;

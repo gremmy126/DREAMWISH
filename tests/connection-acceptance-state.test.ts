@@ -4,6 +4,9 @@ import fs from "node:fs";
 test("connection acceptance requires verified auth and navigates to the exact connector", () => {
   const route = fs.readFileSync("app/api/local/connections/accept/route.ts", "utf8");
   const chat = fs.readFileSync("components/context/SuggestedConnectionsPanel.tsx", "utf8");
+  // The memory page intentionally no longer hosts connection recommendation
+  // actions; connection accept/disconnect lives in the chat context panel
+  // and the Integrations workspace only.
   const memory = fs.readFileSync("components/Memory/MemoryView.tsx", "utf8");
   const shell = fs.readFileSync("components/layout/AppShell.tsx", "utf8");
   assert.match(route, /getVerifiedConnectionStates/u);
@@ -11,7 +14,7 @@ test("connection acceptance requires verified auth and navigates to the exact co
   assert.match(route, /status !== "connected"/u);
   assert.match(chat, /connectorId/u);
   assert.match(chat, /연결 해제/u);
-  assert.match(memory, /연결 해제/u);
+  assert.doesNotMatch(memory, /recommendations/u);
   assert.match(shell, /pendingConnectorId/u);
 });
 

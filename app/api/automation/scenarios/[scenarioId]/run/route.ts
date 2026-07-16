@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { requireOwnerContext } from "@/src/lib/auth/owner-context";
 import { validateScenario } from "@/src/lib/automation/scenario-designer";
-import { getScenario, recordScenarioRun } from "@/src/lib/automation/scenario.repository";
+import { executeScenarioSteps, resolveScenarioNextRun } from "@/src/lib/automation/scenario-scheduler";
+import { recordAutomationRun } from "@/src/lib/automation/run.repository";
+import { getScenario, recordScenarioRun, saveScenario } from "@/src/lib/automation/scenario.repository";
+import { getVerifiedConnectionStates } from "@/src/lib/integrations/verified-connection.service";
 
 type Context = { params: Promise<{ scenarioId: string }> };
 
@@ -14,17 +17,38 @@ export async function POST(request: Request, context: Context) {
   if (!validation.valid) {
     return NextResponse.json({ error: "시나리오 설정을 확인하세요.", issues: validation.issues }, { status: 422 });
   }
+
+  const connectedApps = new Set<string>();
+  try {
+    const connections = await getVerifiedConnectionStates(owner.uid);
+    for (const connection of connections) {
+      if (connection.status === "connected") connectedApps.add(connection.connectorId);
+    }
+  } catch {
+    // Connection lookup failure degrades to credential-only checks.
+  }
+
   const startedAt = new Date().toISOString();
-  const steps = scenario.nodes.map((node, index) => ({
-    nodeId: node.id,
-    label: node.label,
-    operation: node.operation,
-    order: index + 1,
-    status: "success" as const
-  }));
-  const updated = await recordScenarioRun(owner.uid, scenarioId, true);
-  return NextResponse.json({
-    run: { id: crypto.randomUUID(), status: "success", startedAt, finishedAt: new Date().toISOString(), steps },
-    scenario: updated
+  const result = executeScenarioSteps(scenario, { connectedApps });
+  const finishedAt = new Date().toISOString();
+
+  const run = await recordAutomationRun({
+    ownerId: owner.uid,
+    scenarioId: scenario.id,
+    scenarioName: scenario.name,
+    trigger: "manual",
+    status: result.status,
+    steps: result.steps,
+    error: null,
+    startedAt,
+    finishedAt
   });
+
+  const updated = await recordScenarioRun(owner.uid, scenarioId, result.status !== "failed");
+  if (updated) {
+    updated.nextRunAt = resolveScenarioNextRun(updated);
+    await saveScenario(owner.uid, updated);
+  }
+
+  return NextResponse.json({ run, scenario: updated });
 }

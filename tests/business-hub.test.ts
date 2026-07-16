@@ -70,7 +70,7 @@ test("Business Hub keeps business-only panels after CRM becomes a separate works
   const source = await read("components/Business/BusinessHub.tsx");
   for (const section of [
     "overview",
-    "sales",
+    "erp",
     "mail",
     "cards",
     "meetings",
@@ -78,6 +78,10 @@ test("Business Hub keeps business-only panels after CRM becomes a separate works
   ]) {
     assert.match(source, new RegExp(`id: "${section}"`, "u"));
   }
+  // The sales/revenue workspace was removed: Business is operations-focused
+  // and revenue figures never render on the Business overview.
+  assert.doesNotMatch(source, /id: "sales"/u);
+  assert.doesNotMatch(source, /확정 매출|예상 매출|가중 파이프라인/u);
   assert.doesNotMatch(source, /id: "customers"/u);
   assert.doesNotMatch(source, /id: "companies"/u);
   assert.doesNotMatch(source, /id: "tasks"/u);

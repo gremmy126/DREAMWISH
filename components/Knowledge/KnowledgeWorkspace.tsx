@@ -135,7 +135,8 @@ export function KnowledgeWorkspace({
                     const target = linkNode(edge.target, layoutNodes);
                     if (!source || !target || !visibleIds.has(source.id) || !visibleIds.has(target.id)) return null;
                     const active = selectedId === source.id || selectedId === target.id;
-                    return <line key={edge.id} x1={source.x} y1={source.y} x2={target.x} y2={target.y} stroke={active ? "#6d5df6" : "#b9bfd0"} strokeOpacity={active ? 0.85 : Math.max(0.15, edge.confidence * 0.48)} strokeWidth={active ? 2 : Math.max(0.7, edge.confidence * 1.5)} />;
+                    const strengthRatio = Math.max(0.01, Math.min(1, edge.strength / 100));
+                    return <line key={edge.id} x1={source.x} y1={source.y} x2={target.x} y2={target.y} stroke={active ? "#6d5df6" : "#b9bfd0"} strokeOpacity={active ? 0.85 : Math.max(0.15, strengthRatio * 0.6)} strokeWidth={active ? Math.max(2, strengthRatio * 4) : Math.max(0.7, strengthRatio * 3.2)} />;
                   } catch {
                     return null;
                   }
@@ -148,7 +149,7 @@ export function KnowledgeWorkspace({
                     <circle r={node.radius} fill={active ? nodeColor(node.type) : "white"} stroke={nodeColor(node.type)} strokeWidth={active ? 2.5 : 1.5} />
                     <circle r={Math.max(3, node.radius * 0.22)} fill={active ? "white" : nodeColor(node.type)} opacity="0.95" />
                     <text y={node.radius + 16} textAnchor="middle" fontSize="10" fontWeight={active ? 700 : 600} fill="#334155">{shortLabel(node.label)}</text>
-                    <title>{node.label} · {nodeTypeLabel(node.type)} · 연결 {node.degree}개</title>
+                    <title>{`${node.label}\n유형: ${nodeTypeLabel(node.type)}\n연결: ${node.degree}개\n근거 자료: ${node.sourceIds.length}개\n신뢰도: ${Math.round(node.confidence * 100)}%`}</title>
                   </g>;
                 })}
               </g>
@@ -164,7 +165,7 @@ export function KnowledgeWorkspace({
 
         <aside className="min-w-0 border-t border-slate-200 p-4 xl:border-l xl:border-t-0">
           <h3 className="text-xs font-bold text-slate-900">선택한 지식</h3>
-          {selected ? <div className="mt-4 min-w-0"><div className="flex min-w-0 items-center gap-3"><span className="h-3 w-3 shrink-0 rounded-full" style={{ background: nodeColor(selected.type) }} /><div className="min-w-0"><p className="break-words text-sm font-bold leading-5 text-slate-950">{selected.label}</p><p className="mt-1 text-[10px] font-semibold text-violet-600">{nodeTypeLabel(selected.type)}</p></div></div><dl className="mt-5 space-y-3 text-xs"><Detail label="연결된 노드" value={`${selected.degree}개`} /><Detail label="근거 자료" value={`${selected.sourceIds.length}개`} /><Detail label="신뢰도" value={`${Math.round(selected.confidence * 100)}%`} /></dl><div className="mt-5 border-t border-slate-100 pt-4"><p className="text-[11px] font-bold text-slate-500">직접 연결</p><div className="mt-2 space-y-2">{connectedEdges.slice(0, 7).map((edge) => { const otherId = edge.from === selected.id ? edge.to : edge.from; const other = graph.nodes.find((node) => node.id === otherId); return <button type="button" key={edge.id} onClick={() => setSelectedId(otherId)} className="flex w-full min-w-0 items-center gap-2 rounded-xl bg-slate-50 px-2.5 py-2 text-left"><span className="h-2 w-2 shrink-0 rounded-full" style={{ background: nodeColor(other?.type || "document") }} /><span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-slate-700">{other?.label || otherId}</span></button>; })}{connectedEdges.length === 0 ? <p className="text-[11px] leading-5 text-slate-400">아직 직접 연결된 지식이 없습니다.</p> : null}</div></div></div> : <p className="mt-4 text-xs leading-5 text-slate-400">노드를 선택하면 출처와 관계가 표시됩니다.</p>}
+          {selected ? <div className="mt-4 min-w-0"><div className="flex min-w-0 items-center gap-3"><span className="h-3 w-3 shrink-0 rounded-full" style={{ background: nodeColor(selected.type) }} /><div className="min-w-0"><p className="break-words text-sm font-bold leading-5 text-slate-950">{selected.label}</p><p className="mt-1 text-[10px] font-semibold text-violet-600">{nodeTypeLabel(selected.type)}</p></div></div><dl className="mt-5 space-y-3 text-xs"><Detail label="연결된 노드" value={`${selected.degree}개`} /><Detail label="근거 자료" value={`${selected.sourceIds.length}개`} /><Detail label="신뢰도" value={`${Math.round(selected.confidence * 100)}%`} /></dl><div className="mt-5 border-t border-slate-100 pt-4"><p className="text-[11px] font-bold text-slate-500">직접 연결</p><div className="mt-2 space-y-2">{connectedEdges.slice(0, 7).map((edge) => { const otherId = edge.from === selected.id ? edge.to : edge.from; const other = graph.nodes.find((node) => node.id === otherId); const strength = edge.strength ?? Math.round(edge.confidence * 55); return <button type="button" key={edge.id} onClick={() => setSelectedId(otherId)} className="w-full min-w-0 rounded-xl bg-slate-50 px-2.5 py-2 text-left" title={(edge.reasons || []).join(" · ")}><span className="flex min-w-0 items-center gap-2"><span className="h-2 w-2 shrink-0 rounded-full" style={{ background: nodeColor(other?.type || "document") }} /><span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-slate-700">{other?.label || "(이름 없는 지식)"}</span><span className="shrink-0 text-[9px] font-bold text-violet-600">{strengthLabel(strength)} {strength}</span></span>{edge.reasons && edge.reasons.length > 0 ? <span className="mt-1 block truncate pl-4 text-[9px] text-slate-400">{edge.reasons[0]}</span> : null}</button>; })}{connectedEdges.length === 0 ? <p className="text-[11px] leading-5 text-slate-400">아직 직접 연결된 지식이 없습니다.</p> : null}</div></div></div> : <p className="mt-4 text-xs leading-5 text-slate-400">노드를 선택하면 출처와 관계가 표시됩니다.</p>}
         </aside>
       </div>
 
@@ -188,5 +189,12 @@ function linkNode(value: string | number | SimulationNode | null | undefined, no
 }
 function nodeColor(type: string) { return colors[type] || "#64748b"; }
 function nodeTypeLabel(type: string) { return ({ project: "프로젝트", memory: "기억", person: "사람", company: "회사", document: "문서", tag: "태그", event: "이벤트", schedule: "일정", idea: "아이디어" } as Record<string, string>)[type] || type; }
-function shortLabel(label: string) { return label.length > 16 ? `${label.slice(0, 15)}…` : label; }
+function shortLabel(label: string) { return label.length > 30 ? `${label.slice(0, 29)}…` : label; }
+function strengthLabel(strength: number) {
+  if (strength >= 80) return "매우 강함";
+  if (strength >= 60) return "강함";
+  if (strength >= 40) return "보통";
+  if (strength >= 20) return "약함";
+  return "매우 약함";
+}
 function formatMonth(key: string) { const [year, month] = key.split("-"); return `${year}.${month}`; }

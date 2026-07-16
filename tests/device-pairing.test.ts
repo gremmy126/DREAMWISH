@@ -81,7 +81,9 @@ test("only device-secret endpoints bypass browser session middleware", () => {
 });
 
 test("business and CRM expose real paired-device contact workflows", async () => {
-  const business = await fs.readFile(path.join(process.cwd(), "components/Business/BusinessHub.tsx"), "utf8");
+  // The device panel moved with the revenue-candidate review into the ERP
+  // workspace when the Business page became operations-focused.
+  const business = await fs.readFile(path.join(process.cwd(), "components/Business/ErpWorkspace.tsx"), "utf8");
   const devicePanel = await fs.readFile(path.join(process.cwd(), "components/Business/DeviceConnectionPanel.tsx"), "utf8");
   const contactImport = await fs.readFile(path.join(process.cwd(), "components/CRM/PhoneContactImport.tsx"), "utf8");
   assert.match(business, /DeviceConnectionPanel/u);

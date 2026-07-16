@@ -44,13 +44,25 @@ async function cleanupExpiredDeepResearchJobs() {
   console.log(`[cron:schedulers] deep-research: removed ${removed} expired job(s)`);
 }
 
+async function runDueAutomationScenarios() {
+  const scheduler = requireProjectModule("src/lib/automation/scenario-scheduler.ts");
+  const summary = await scheduler.runDueScenarios();
+  console.log(
+    `[cron:schedulers] automation: checked ${summary.checked}, executed ${summary.executed}, failures ${summary.failures}`
+  );
+}
+
 async function runSchedulersOnce() {
   const startedAt = new Date().toISOString();
   console.log(`[cron:schedulers] run started at ${startedAt}`);
 
   // Each task must be independently bounded and must not throw for
   // expected/no-op conditions.
-  const tasks = [recoverStalledDeepResearchJobs, cleanupExpiredDeepResearchJobs];
+  const tasks = [
+    recoverStalledDeepResearchJobs,
+    cleanupExpiredDeepResearchJobs,
+    runDueAutomationScenarios
+  ];
 
   const results = await Promise.allSettled(tasks.map((task) => task()));
   const failures = results.filter((result) => result.status === "rejected");

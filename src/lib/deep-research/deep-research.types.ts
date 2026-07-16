@@ -72,6 +72,25 @@ export type ResearchProgressEvent = {
   message: string;
 };
 
+export type ResearchVideo = {
+  id: string;
+  url: string;
+  title: string;
+  channel: string | null;
+  description: string;
+  thumbnailUrl: string | null;
+  publishedAt: string | null;
+  durationLabel: string | null;
+  relatedQuery: string;
+};
+
+export type ResearchReportSections = {
+  summary: string;
+  findings: string;
+  conclusion: string;
+  followUp: string;
+};
+
 export type ResearchCheckpoint = {
   stage: "plan" | "search" | "read" | "analyze" | "write" | "done";
   subQuestions: string[];
@@ -100,7 +119,9 @@ export type ResearchJob = {
   progressEvents: ResearchProgressEvent[];
   checkpoint: ResearchCheckpoint | null;
   report: string | null;
+  reportSections: ResearchReportSections | null;
   sources: ResearchSource[];
+  videos: ResearchVideo[];
   error: string | null;
   usage: ResearchUsage;
   cancelRequested: boolean;
@@ -114,13 +135,20 @@ export type ResearchJob = {
 
 export type ResearchJobView = Omit<ResearchJob, "checkpoint"> & {
   resumable: boolean;
+  usedQueries: string[];
+  /** Source ids in citation order: [n] in the report refers to entry n-1. */
+  citedSourceIds: string[];
 };
 
 export function toResearchJobView(job: ResearchJob): ResearchJobView {
   const { checkpoint, ...visible } = job;
   return {
     ...visible,
-    resumable: job.status === "paused" && checkpoint !== null
+    videos: job.videos || [],
+    reportSections: job.reportSections || null,
+    resumable: job.status === "paused" && checkpoint !== null,
+    usedQueries: checkpoint?.usedQueries || [],
+    citedSourceIds: (checkpoint?.evidence || []).map((item) => item.sourceId)
   };
 }
 

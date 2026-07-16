@@ -163,7 +163,7 @@ export function KnowledgeView() {
               ))}
             </div>
             <div className="flex gap-6 text-sm font-semibold">
-              {[t("knowledgePage.graph"), t("knowledgePage.knowledgeNetwork"), t("knowledgePage.documents"), t("knowledgePage.tags"), t("knowledgePage.recommendations")].map((tab, index) => <span key={tab} className={index === 0 ? "text-app-primary" : "text-app-muted"}>{tab}</span>)}
+              {[t("knowledgePage.graph"), t("knowledgePage.knowledgeNetwork"), t("knowledgePage.documents")].map((tab, index) => <span key={tab} className={index === 0 ? "text-app-primary" : "text-app-muted"}>{tab}</span>)}
             </div>
           </div>
           <div className="relative h-[520px] bg-[radial-gradient(circle,#e8eaf2_1px,transparent_1px)] [background-size:18px_18px]">
@@ -173,27 +173,6 @@ export function KnowledgeView() {
                   <article key={note.id} className="rounded-2xl border border-app-border bg-white p-4 shadow-soft">
                     <p className="truncate text-sm font-semibold text-app-text">{note.title}</p>
                     <p className="mt-2 line-clamp-3 text-xs leading-5 text-app-muted">{note.body}</p>
-                  </article>
-                ))}
-              </div>
-            ) : activeTab === "tags" ? (
-              <div className="flex h-full flex-wrap content-start gap-2 overflow-auto p-5 app-scrollbar">
-                {tabModel.tags.map((tag) => (
-                  <span key={tag.tag} className="rounded-2xl border border-app-border bg-white px-3 py-2 text-xs font-semibold text-app-text shadow-soft">
-                    #{tag.tag} <span className="text-app-muted">{tag.count}</span>
-                  </span>
-                ))}
-              </div>
-            ) : activeTab === "recommendations" ? (
-              <div className="grid h-full grid-cols-2 gap-3 overflow-auto p-5 app-scrollbar">
-                {tabModel.recommendations.map((item) => (
-                  <article key={item.id} className="rounded-2xl border border-app-border bg-white p-4 shadow-soft">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="truncate text-sm font-semibold text-app-text">{item.title}</p>
-                      <span className="text-[11px] font-semibold text-app-primary">{Math.round(item.strength * 100)}%</span>
-                    </div>
-                    <p className="mt-1 text-xs capitalize text-app-muted">{item.targetType}</p>
-                    <p className="mt-2 line-clamp-3 text-xs leading-5 text-slate-600">{item.reason}</p>
                   </article>
                 ))}
               </div>

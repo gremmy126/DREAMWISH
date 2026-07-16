@@ -3,13 +3,16 @@
 import { Package, Plus } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { SurfaceCard } from "@/components/Common/SurfaceCard";
+import { DeviceConnectionPanel } from "@/components/Business/DeviceConnectionPanel";
 import { readApiResponse } from "@/src/lib/api/api-response";
+import type { RevenueCandidate } from "@/src/lib/business/revenue.types";
 
 type ErpTab =
   | "products"
   | "orders"
   | "invoices"
   | "payments"
+  | "candidates"
   | "expenses"
   | "inventory"
   | "vendors"
@@ -20,6 +23,7 @@ const TABS: Array<{ id: ErpTab; label: string }> = [
   { id: "orders", label: "주문" },
   { id: "invoices", label: "청구서" },
   { id: "payments", label: "결제" },
+  { id: "candidates", label: "매출 후보" },
   { id: "expenses", label: "지출" },
   { id: "inventory", label: "재고" },
   { id: "vendors", label: "공급업체" },
@@ -39,15 +43,59 @@ export function ErpWorkspace() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`/api/erp/${activeTab}`, { cache: "no-store" });
-      const data = await readApiResponse<{ items: AnyRecord[] }>(response);
-      setItems(data.items || []);
+      if (activeTab === "candidates") {
+        const response = await fetch("/api/business/revenue", { cache: "no-store" });
+        const data = await readApiResponse<{ candidates?: AnyRecord[] }>(response);
+        setItems(data.candidates || []);
+      } else {
+        const response = await fetch(`/api/erp/${activeTab}`, { cache: "no-store" });
+        const data = await readApiResponse<{ items: AnyRecord[] }>(response);
+        setItems(data.items || []);
+      }
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "ERP 데이터를 불러오지 못했습니다.");
     } finally {
       setLoading(false);
     }
   }, []);
+
+  async function transitionCandidate(id: string, status: "confirmed" | "rejected") {
+    setError(null);
+    try {
+      const response = await fetch("/api/business/revenue", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, status })
+      });
+      await readApiResponse(response);
+      setNotice(status === "confirmed" ? "매출이 확정되었습니다." : "후보에서 제외했습니다.");
+      await load(tab);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "요청이 실패했습니다.");
+    }
+  }
+
+  async function importManualCandidate(rawText: string) {
+    setError(null);
+    try {
+      const response = await fetch("/api/business/revenue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          platform: "web",
+          captureMethod: "manual",
+          sourceApp: "erp-workspace",
+          eventId: `manual_${Date.now()}`,
+          rawText
+        })
+      });
+      await readApiResponse(response);
+      setNotice("임시 매출 후보가 추가되었습니다.");
+      await load(tab);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "요청이 실패했습니다.");
+    }
+  }
 
   useEffect(() => {
     void load(tab);
@@ -142,9 +190,23 @@ export function ErpWorkspace() {
       {tab === "invoices" ? (
         <InvoiceForm onSubmit={(body) => post("invoices", body, "청구서가 발행되었습니다.")} />
       ) : null}
+      {tab === "candidates" ? (
+        <>
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-800">
+            은행 알림에서 수집한 금액은 확인 전까지 임시 매출이며, 확정 전에는 어디에도 합산되지 않습니다.
+          </div>
+          <DeviceConnectionPanel />
+          <ManualCandidateForm onSubmit={(text) => void importManualCandidate(text)} />
+        </>
+      ) : null}
 
       {loading ? (
         <div className="h-40 animate-pulse rounded-2xl border border-app-border bg-white" aria-hidden />
+      ) : tab === "candidates" ? (
+        <CandidateList
+          candidates={items as unknown as RevenueCandidate[]}
+          onTransition={(id, status) => void transitionCandidate(id, status)}
+        />
       ) : (
         <EntityTable
           tab={tab}
@@ -651,6 +713,97 @@ function Table({ headers, rows }: { headers: string[]; rows: Array<Array<React.R
             ))}
           </tbody>
         </table>
+      </div>
+    </SurfaceCard>
+  );
+}
+
+function CandidateList({
+  candidates,
+  onTransition
+}: {
+  candidates: RevenueCandidate[];
+  onTransition: (id: string, status: "confirmed" | "rejected") => void;
+}) {
+  if (candidates.length === 0) {
+    return (
+      <SurfaceCard className="p-10 text-center">
+        <Package size={26} className="mx-auto text-app-primary" />
+        <p className="mt-3 text-sm text-app-muted">수집된 매출 후보가 없습니다.</p>
+      </SurfaceCard>
+    );
+  }
+  return (
+    <SurfaceCard className="p-5">
+      <div className="space-y-3">
+        {candidates.map((candidate) => (
+          <div
+            key={candidate.id}
+            className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-app-border bg-app-bg p-4"
+          >
+            <div>
+              <p className="text-sm font-semibold text-app-text">
+                {candidate.amount === null ? "금액 확인 필요" : currency(candidate.amount)}
+              </p>
+              <p className="mt-1 text-xs text-app-muted">
+                {candidate.platform} · {candidate.captureMethod} · 신뢰도 {Math.round(candidate.confidence * 100)}%
+              </p>
+            </div>
+            {candidate.status === "provisional" ? (
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => onTransition(candidate.id, "confirmed")}
+                  className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white"
+                >
+                  매출 확정
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onTransition(candidate.id, "rejected")}
+                  className="rounded-xl border border-app-border bg-white px-3 py-2 text-xs font-semibold text-app-muted"
+                >
+                  개인/오류 제외
+                </button>
+              </div>
+            ) : (
+              <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-app-muted">
+                {candidate.status === "confirmed" ? "확정됨" : "제외됨"}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+    </SurfaceCard>
+  );
+}
+
+function ManualCandidateForm({ onSubmit }: { onSubmit: (text: string) => void }) {
+  const [text, setText] = useState("");
+  return (
+    <SurfaceCard className="p-5">
+      <label className="text-sm font-semibold text-app-text" htmlFor="manual-revenue-text">
+        알림 문구 직접 가져오기
+      </label>
+      <div className="mt-3 flex flex-col gap-3 sm:flex-row">
+        <textarea
+          id="manual-revenue-text"
+          value={text}
+          onChange={(event) => setText(event.target.value)}
+          placeholder="예: 입금 50,000원 홍길동"
+          className="min-h-20 flex-1 rounded-2xl border border-app-border bg-white px-3 py-2 text-sm outline-none focus:border-app-primary"
+        />
+        <button
+          type="button"
+          disabled={!text.trim()}
+          onClick={() => {
+            onSubmit(text);
+            setText("");
+          }}
+          className="rounded-2xl bg-app-primary px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+        >
+          임시 매출 추가
+        </button>
       </div>
     </SurfaceCard>
   );

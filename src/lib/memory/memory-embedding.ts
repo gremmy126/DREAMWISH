@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import type { ApprovedMemory, EmbeddingRecord } from "@/src/lib/memory/memory.types";
+import type { ApprovedMemory, EmbeddingRecord } from "./memory.types";
 
 export function createEmbeddingRecord(memory: ApprovedMemory): EmbeddingRecord {
   const chunks = chunkText(memory.content);

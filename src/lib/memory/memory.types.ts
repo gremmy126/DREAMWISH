@@ -158,6 +158,10 @@ export type KnowledgeEdge = {
   type: KnowledgeEdgeType;
   confidence: number;
   sourceIds: string[];
+  /** Relation strength 0-100 computed from real shared-context signals. */
+  strength?: number;
+  /** Human-readable reasons behind the connection strength. */
+  reasons?: string[];
 };
 
 export type KnowledgeGraph = {

@@ -1,10 +1,12 @@
 "use client";
 
-import { BookOpen, CheckCircle2, KeyRound, Loader2, PlayCircle, Search, ShieldCheck } from "lucide-react";
-import { useMemo, useState } from "react";
+import { BookOpen, CheckCircle2, ChevronDown, ChevronUp, KeyRound, Loader2, PlayCircle, Search, ShieldCheck } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { AutomationAppLogo } from "@/components/Automation/AutomationAppLogo";
 import { AUTOMATION_APPS, getAutomationApp } from "@/src/lib/automation/app-registry";
 import type { PublicAutomationCredential } from "@/src/lib/automation/credential.repository";
+import type { AutomationRun } from "@/src/lib/automation/run.repository";
+import type { RunApprovalPreview } from "@/src/lib/automation/run-approval";
 import type { AutomationScenario } from "@/src/lib/automation/scenario-designer";
 
 const gallery = [
@@ -19,8 +21,120 @@ export function TemplateGallery({ onUse }: { onUse: (prompt: string) => void }) 
 }
 
 export function RunHistory({ scenarios, onOpen }: { scenarios: AutomationScenario[]; onOpen: (scenario: AutomationScenario) => void }) {
-  const rows = scenarios.filter((scenario) => scenario.runs > 0 || scenario.lastRunAt);
-  return <section className="overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-sm"><div className="border-b border-slate-200 p-5"><h2 className="text-base font-bold text-slate-950">실행 내역</h2><p className="mt-1 text-xs text-slate-500">실제로 실행된 시나리오 통계만 표시합니다.</p></div>{rows.length ? <div className="overflow-x-auto"><table className="min-w-full text-left text-xs"><thead className="bg-slate-50 text-slate-500"><tr>{["시나리오", "상태", "마지막 실행", "실행 횟수", "성공률", "열기"].map((label) => <th key={label} className="px-4 py-3 font-bold">{label}</th>)}</tr></thead><tbody>{rows.map((scenario) => <tr key={scenario.id} className="border-t border-slate-100"><td className="max-w-xs truncate px-4 py-3 font-bold text-slate-900">{scenario.name}</td><td className="px-4 py-3 text-slate-600">{scenario.status}</td><td className="px-4 py-3 text-slate-600">{scenario.lastRunAt ? new Date(scenario.lastRunAt).toLocaleString("ko-KR") : "-"}</td><td className="px-4 py-3 text-slate-600">{scenario.runs}</td><td className="px-4 py-3 text-slate-600">{scenario.runs ? Math.round(scenario.successfulRuns / scenario.runs * 100) : 0}%</td><td className="px-4 py-3"><button type="button" onClick={() => onOpen(scenario)} className="inline-flex items-center gap-1 font-bold text-violet-600"><PlayCircle size={13} />시나리오</button></td></tr>)}</tbody></table></div> : <p className="py-16 text-center text-sm text-slate-500">아직 실행된 시나리오가 없습니다.</p>}</section>;
+  const [runs, setRuns] = useState<AutomationRun[]>([]);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [preview, setPreview] = useState<RunApprovalPreview | null>(null);
+  const [busyRunId, setBusyRunId] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  async function loadRuns() {
+    try {
+      const response = await fetch("/api/automation/runs", { cache: "no-store" });
+      const data = (await response.json().catch(() => ({}))) as { runs?: AutomationRun[] };
+      if (response.ok) setRuns(data.runs || []);
+    } catch {
+      setRuns([]);
+    }
+  }
+
+  useEffect(() => { void loadRuns(); }, []);
+
+  async function openApprovalPreview(runId: string) {
+    setBusyRunId(runId);
+    setNotice(null);
+    try {
+      const response = await fetch(`/api/automation/runs/${runId}/approve`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({})
+      });
+      const data = (await response.json().catch(() => ({}))) as { preview?: RunApprovalPreview; error?: string };
+      if (!response.ok || !data.preview) throw new Error(data.error || "미리보기를 불러오지 못했습니다.");
+      setPreview(data.preview);
+    } catch (caught) {
+      setNotice(caught instanceof Error ? caught.message : "미리보기를 불러오지 못했습니다.");
+    } finally {
+      setBusyRunId(null);
+    }
+  }
+
+  async function confirmApproval(runId: string) {
+    setBusyRunId(runId);
+    setNotice(null);
+    try {
+      const response = await fetch(`/api/automation/runs/${runId}/approve`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ confirm: true })
+      });
+      const data = (await response.json().catch(() => ({}))) as { run?: AutomationRun; error?: string };
+      if (!response.ok || !data.run) throw new Error(data.error || "승인 실행에 실패했습니다.");
+      setPreview(null);
+      setNotice("승인된 외부 작업을 실행했습니다. 각 단계의 결과를 확인하세요.");
+      setExpandedId(runId);
+      await loadRuns();
+    } catch (caught) {
+      setNotice(caught instanceof Error ? caught.message : "승인 실행에 실패했습니다.");
+    } finally {
+      setBusyRunId(null);
+    }
+  }
+
+  const scenarioRows = scenarios.filter((scenario) => scenario.runs > 0 || scenario.lastRunAt);
+
+  return <div className="space-y-4">
+    {notice ? <p className="rounded-2xl border border-app-border bg-white px-4 py-3 text-xs text-slate-700">{notice}</p> : null}
+
+    <section className="overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-sm">
+      <div className="border-b border-slate-200 p-5"><h2 className="text-base font-bold text-slate-950">실행 로그</h2><p className="mt-1 text-xs text-slate-500">예약·수동 실행의 단계별 결과입니다. 외부 발송 대기 단계는 승인 후에만 실제로 전송됩니다.</p></div>
+      {runs.length ? <div className="divide-y divide-slate-100">{runs.map((run) => {
+        const pendingApproval = run.steps.some((step) => step.status === "approval_required");
+        const expanded = expandedId === run.id;
+        return <div key={run.id} className="px-5 py-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${run.status === "success" ? "bg-emerald-100 text-emerald-700" : run.status === "partial" ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700"}`}>{run.status === "success" ? "성공" : run.status === "partial" ? "부분 완료" : "실패"}</span>
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">{run.trigger === "schedule" ? "예약" : "수동"}</span>
+            <p className="min-w-0 flex-1 truncate text-xs font-bold text-slate-900">{run.scenarioName}</p>
+            <span className="text-[10px] text-slate-500">{new Date(run.startedAt).toLocaleString("ko-KR")}</span>
+            {pendingApproval ? <button type="button" disabled={busyRunId === run.id} onClick={() => void openApprovalPreview(run.id)} className="inline-flex items-center gap-1 rounded-lg bg-violet-600 px-2.5 py-1.5 text-[10px] font-bold text-white disabled:opacity-50">{busyRunId === run.id ? <Loader2 size={11} className="animate-spin" /> : <ShieldCheck size={11} />}승인 후 실행</button> : null}
+            <button type="button" aria-label={expanded ? "접기" : "자세히"} onClick={() => setExpandedId(expanded ? null : run.id)} className="rounded-lg border border-slate-200 p-1 text-slate-500">{expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}</button>
+          </div>
+          {expanded ? <ul className="mt-2 space-y-1">
+            {run.steps.map((step) => <li key={step.nodeId} className="flex items-center gap-2 rounded-lg bg-slate-50 px-2.5 py-1.5 text-[11px]">
+              <span className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold ${step.status === "success" ? "bg-emerald-100 text-emerald-700" : step.status === "approval_required" ? "bg-amber-100 text-amber-700" : step.status === "skipped" ? "bg-slate-200 text-slate-600" : "bg-red-100 text-red-700"}`}>{stepStatusLabel(step.status)}</span>
+              <span className="shrink-0 font-bold text-slate-800">{step.order}. {step.label}</span>
+              <span className="min-w-0 flex-1 truncate text-slate-500">{step.detail}</span>
+            </li>)}
+            {run.error ? <li className="rounded-lg bg-red-50 px-2.5 py-1.5 text-[11px] text-red-700">{run.error}</li> : null}
+          </ul> : null}
+        </div>;
+      })}</div> : <p className="py-12 text-center text-sm text-slate-500">아직 실행된 자동화가 없습니다.</p>}
+    </section>
+
+    {preview ? <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 px-4" role="dialog" aria-label="승인 미리보기">
+      <div className="max-h-[80vh] w-full max-w-[520px] overflow-y-auto rounded-[22px] border border-slate-200 bg-white p-5 shadow-xl">
+        <h3 className="text-sm font-bold text-slate-950">외부 발송 승인 미리보기</h3>
+        <p className="mt-1 text-xs text-slate-500">{preview.scenarioName} · 아래 내용이 승인 즉시 실제로 전송됩니다.</p>
+        <ul className="mt-4 space-y-2">
+          {preview.actions.map((action) => <li key={action.nodeId} className={`rounded-xl border px-3 py-2.5 text-xs ${action.missing.length > 0 ? "border-red-200 bg-red-50" : action.kind === "unsupported" ? "border-slate-200 bg-slate-50" : "border-emerald-200 bg-emerald-50"}`}>
+            <p className="font-bold text-slate-800">{action.label} ({action.app})</p>
+            <p className="mt-1 break-words leading-4 text-slate-600">{action.preview}</p>
+            {action.missing.length > 0 ? <p className="mt-1 font-semibold text-red-600">누락: {action.missing.join(", ")}</p> : null}
+          </li>)}
+          {preview.actions.length === 0 ? <li className="py-4 text-center text-xs text-slate-500">승인 대기 중인 외부 작업이 없습니다.</li> : null}
+        </ul>
+        <div className="mt-5 flex justify-end gap-2">
+          <button type="button" onClick={() => setPreview(null)} className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-600">취소</button>
+          <button type="button" disabled={busyRunId !== null || preview.actions.length === 0} onClick={() => void confirmApproval(preview.runId)} className="rounded-xl bg-violet-600 px-4 py-2 text-xs font-bold text-white disabled:opacity-50">승인하고 실행</button>
+        </div>
+      </div>
+    </div> : null}
+
+    <section className="overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-sm"><div className="border-b border-slate-200 p-5"><h2 className="text-base font-bold text-slate-950">시나리오 통계</h2><p className="mt-1 text-xs text-slate-500">실제로 실행된 시나리오 통계만 표시합니다.</p></div>{scenarioRows.length ? <div className="overflow-x-auto"><table className="min-w-full text-left text-xs"><thead className="bg-slate-50 text-slate-500"><tr>{["시나리오", "상태", "마지막 실행", "실행 횟수", "성공률", "열기"].map((label) => <th key={label} className="px-4 py-3 font-bold">{label}</th>)}</tr></thead><tbody>{scenarioRows.map((scenario) => <tr key={scenario.id} className="border-t border-slate-100"><td className="max-w-xs truncate px-4 py-3 font-bold text-slate-900">{scenario.name}</td><td className="px-4 py-3 text-slate-600">{scenario.status}</td><td className="px-4 py-3 text-slate-600">{scenario.lastRunAt ? new Date(scenario.lastRunAt).toLocaleString("ko-KR") : "-"}</td><td className="px-4 py-3 text-slate-600">{scenario.runs}</td><td className="px-4 py-3 text-slate-600">{scenario.runs ? Math.round(scenario.successfulRuns / scenario.runs * 100) : 0}%</td><td className="px-4 py-3"><button type="button" onClick={() => onOpen(scenario)} className="inline-flex items-center gap-1 font-bold text-violet-600"><PlayCircle size={13} />시나리오</button></td></tr>)}</tbody></table></div> : <p className="py-16 text-center text-sm text-slate-500">아직 실행된 시나리오가 없습니다.</p>}</section>
+  </div>;
+}
+
+function stepStatusLabel(status: string) {
+  if (status === "success") return "성공";
+  if (status === "approval_required") return "승인 대기";
+  if (status === "skipped") return "건너뜀";
+  return "실패";
 }
 
 export function ConnectionManager({ credentials, onSave }: { credentials: PublicAutomationCredential[]; onSave: (input: { appId: string; label: string; values: Record<string, string> }) => Promise<void> }) {

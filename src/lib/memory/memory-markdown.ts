@@ -1,8 +1,8 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { createHash } from "node:crypto";
-import { getDataDirectory } from "@/src/lib/local-db/json-store";
-import type { ApprovedMemory } from "@/src/lib/memory/memory.types";
+import { getDataDirectory } from "../local-db/json-store";
+import type { ApprovedMemory } from "./memory.types";
 
 export async function writeApprovedMemoryMarkdown(memory: Omit<ApprovedMemory, "markdownPath">) {
   const ownerDirectory = createHash("sha256").update(memory.ownerId).digest("hex");

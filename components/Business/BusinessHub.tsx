@@ -1,20 +1,10 @@
 "use client";
 
-import {
-  BarChart3,
-  BriefcaseBusiness,
-  Building2,
-  ContactRound,
-  HandCoins,
-  Mail,
-  ReceiptText,
-  UsersRound
-} from "lucide-react";
+import { BriefcaseBusiness, Building2, UsersRound } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { SurfaceCard } from "@/components/Common/SurfaceCard";
-import { BusinessOverview } from "@/components/Business/BusinessOverview";
+import { BusinessOperations } from "@/components/Business/BusinessOperations";
 import { ErpWorkspace } from "@/components/Business/ErpWorkspace";
-import { DeviceConnectionPanel } from "@/components/Business/DeviceConnectionPanel";
 import { BusinessCardImport } from "@/components/Business/BusinessCardImport";
 import { MeetingManager } from "@/components/Business/MeetingManager";
 import { MessageWorkspace } from "@/components/Business/MessageWorkspace";
@@ -27,12 +17,10 @@ import type {
   Customer
 } from "@/src/lib/crm/crm.types";
 import type { OAuthConnectionState } from "@/src/lib/oauth/oauth.types";
-import type { RevenueCandidate } from "@/src/lib/business/revenue.types";
 
 const sections = [
   { id: "overview", label: "개요" },
   { id: "erp", label: "ERP" },
-  { id: "sales", label: "영업·매출" },
   { id: "mail", label: "메일" },
   { id: "cards", label: "명함" },
   { id: "meetings", label: "회의" },
@@ -45,7 +33,6 @@ type BusinessData = {
   activities: CrmActivity[];
   tasks: CrmTask[];
   deals: CrmDeal[];
-  revenueCandidates: RevenueCandidate[];
 };
 type ConnectorState = {
   connectorId: string;
@@ -60,9 +47,10 @@ const emptyData: BusinessData = {
   customers: [],
   activities: [],
   tasks: [],
-  deals: [],
-  revenueCandidates: []
+  deals: []
 };
+
+const SECTION_STORAGE_KEY = "dreamwish.business.section";
 
 export function BusinessHub() {
   const [section, setSection] = useState<BusinessSection>("overview");
@@ -72,26 +60,27 @@ export function BusinessHub() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const saved = window.localStorage.getItem(SECTION_STORAGE_KEY);
+    if (saved && sections.some((item) => item.id === saved)) {
+      setSection(saved as BusinessSection);
+    }
     async function load() {
       setLoading(true);
       setError(null);
       try {
-        const [crmResponse, integrationsResponse, revenueResponse] = await Promise.all([
+        const [crmResponse, integrationsResponse] = await Promise.all([
           fetch("/api/crm/customers"),
-          fetch("/api/integrations/status"),
-          fetch("/api/business/revenue")
+          fetch("/api/integrations/status")
         ]);
-        const [crm, integrations, revenue] = await Promise.all([
+        const [crm, integrations] = await Promise.all([
           readApiResponse<Partial<BusinessData>>(crmResponse),
-          readApiResponse<{ items?: ConnectorState[] }>(integrationsResponse),
-          readApiResponse<{ candidates?: RevenueCandidate[] }>(revenueResponse)
+          readApiResponse<{ items?: ConnectorState[] }>(integrationsResponse)
         ]);
         setData({
           customers: crm.customers || [],
           activities: crm.activities || [],
           tasks: crm.tasks || [],
-          deals: crm.deals || [],
-          revenueCandidates: revenue.candidates || []
+          deals: crm.deals || []
         });
         setConnectors(integrations.items || []);
       } catch (caught) {
@@ -103,30 +92,14 @@ export function BusinessHub() {
     void load();
   }, []);
 
-  const summary = useMemo(() => buildBusinessSummary({ ...data }), [data]);
+  const summary = useMemo(
+    () => buildBusinessSummary({ ...data, revenueCandidates: [] }),
+    [data]
+  );
 
   function selectSection(next: BusinessSection) {
     setSection(next);
-  }
-
-  function upsertRevenueCandidate(candidate: RevenueCandidate) {
-    setData((current) => ({
-      ...current,
-      revenueCandidates: [
-        candidate,
-        ...current.revenueCandidates.filter((item) => item.id !== candidate.id)
-      ]
-    }));
-  }
-
-  async function transitionRevenue(id: string, status: "confirmed" | "rejected") {
-    const response = await fetch("/api/business/revenue", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, status })
-    });
-    const result = await readApiResponse<{ candidate: RevenueCandidate }>(response);
-    upsertRevenueCandidate(result.candidate);
+    window.localStorage.setItem(SECTION_STORAGE_KEY, next);
   }
 
   return (
@@ -135,7 +108,7 @@ export function BusinessHub() {
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-app-primary">Business OS</p>
           <h1 className="mt-2 text-2xl font-semibold text-app-text">비즈니스 허브</h1>
-          <p className="mt-2 text-sm text-app-muted">고객, 매출, 메일, 회의와 업무를 한곳에서 관리합니다.</p>
+          <p className="mt-2 text-sm text-app-muted">사업 목표, 프로젝트, 운영 일정과 전략을 한곳에서 관리합니다.</p>
         </div>
         <p className="rounded-2xl border border-app-border bg-white px-3 py-2 text-xs text-app-muted">
           외부 전송·초대·수정은 미리보기 후 사용자 승인으로만 실행됩니다.
@@ -148,6 +121,7 @@ export function BusinessHub() {
             key={item.id}
             type="button"
             onClick={() => selectSection(item.id)}
+            aria-current={section === item.id ? "page" : undefined}
             className={`rounded-2xl px-4 py-2 text-xs font-semibold transition ${
               section === item.id
                 ? "bg-app-primary text-white shadow-soft"
@@ -163,9 +137,7 @@ export function BusinessHub() {
         <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
       ) : null}
       {loading ? <p className="py-12 text-center text-sm text-app-muted">불러오는 중...</p> : null}
-      {!loading
-        ? renderSection(section, data, summary, connectors, transitionRevenue, upsertRevenueCandidate)
-        : null}
+      {!loading ? renderSection(section, data, summary, connectors) : null}
     </div>
   );
 }
@@ -174,155 +146,42 @@ function renderSection(
   section: BusinessSection,
   data: BusinessData,
   summary: ReturnType<typeof buildBusinessSummary>,
-  connectors: ConnectorState[],
-  onRevenueTransition: (id: string, status: "confirmed" | "rejected") => Promise<void>,
-  onRevenueCreated: (candidate: RevenueCandidate) => void
+  connectors: ConnectorState[]
 ) {
-  if (section === "overview") return <Overview summary={summary} connectors={connectors} />;
-  if (section === "erp") return <ErpWorkspace />;
-  if (section === "sales") {
+  if (section === "overview") {
     return (
-      <Sales
-        deals={data.deals}
-        summary={summary}
-        candidates={data.revenueCandidates}
-        onTransition={onRevenueTransition}
-        onCreated={onRevenueCreated}
-      />
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <Metric icon={UsersRound} label="고객" value={`${summary.customerCount}명`} />
+          <Metric icon={Building2} label="회사" value={`${summary.companyCount}개`} />
+          <Metric icon={BriefcaseBusiness} label="진행 거래" value={`${summary.activeDealCount}건`} />
+        </div>
+        <BusinessOperations tasks={data.tasks} activities={data.activities} />
+        <ConnectorPanel connectors={connectors} connectorIds={["gmail", "calendar", "slack", "drive"]} title="업무 연결 상태" />
+      </div>
     );
   }
+  if (section === "erp") return <ErpWorkspace />;
   if (section === "mail") return <MessageWorkspace />;
   if (section === "cards") return <BusinessCardImport />;
   if (section === "meetings") return <MeetingManager />;
   return <Reports summary={summary} />;
 }
 
-function Overview({ summary, connectors }: { summary: ReturnType<typeof buildBusinessSummary>; connectors: ConnectorState[] }) {
-  const metrics = [
-    ["확정 매출", currency(summary.confirmedRevenue), HandCoins],
-    ["예상 매출", currency(summary.expectedRevenue), ReceiptText],
-    ["가중 파이프라인", currency(summary.weightedPipeline), BarChart3],
-    ["고객", `${summary.customerCount}명`, UsersRound],
-    ["회사", `${summary.companyCount}개`, Building2],
-    ["진행 거래", `${summary.activeDealCount}건`, BriefcaseBusiness]
-  ] as const;
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {metrics.map(([label, value, Icon]) => (
-          <SurfaceCard key={label} className="p-5">
-            <Icon size={18} className="text-app-primary" />
-            <p className="mt-4 text-xs font-semibold text-app-muted">{label}</p>
-            <p className="mt-1 text-xl font-semibold text-app-text">{value}</p>
-          </SurfaceCard>
-        ))}
-      </div>
-      <BusinessOverview />
-      <ConnectorPanel connectors={connectors} connectorIds={["gmail", "calendar", "slack", "drive"]} title="업무 연결 상태" />
-    </div>
-  );
-}
-
-function Companies({ customers }: { customers: Customer[] }) {
-  const companies = Array.from(
-    customers.reduce((map, customer) => {
-      const name = customer.companyName.trim() || "회사 미지정";
-      const current = map.get(name) || { name, contacts: 0, expectedValue: 0 };
-      current.contacts += 1;
-      current.expectedValue += customer.expectedValue;
-      map.set(name, current);
-      return map;
-    }, new Map<string, { name: string; contacts: number; expectedValue: number }>()).values()
-  );
-  return <SimpleTable headers={["회사", "연락처", "예상 가치"]} rows={companies.map((item) => [item.name, `${item.contacts}명`, currency(item.expectedValue)])} />;
-}
-
-function Sales({
-  deals,
-  summary,
-  candidates,
-  onTransition,
-  onCreated
+function Metric({
+  icon: Icon,
+  label,
+  value
 }: {
-  deals: CrmDeal[];
-  summary: ReturnType<typeof buildBusinessSummary>;
-  candidates: RevenueCandidate[];
-  onTransition: (id: string, status: "confirmed" | "rejected") => Promise<void>;
-  onCreated: (candidate: RevenueCandidate) => void;
+  icon: typeof UsersRound;
+  label: string;
+  value: string;
 }) {
   return (
-    <div className="space-y-4">
-      <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-800">
-        은행 알림에서 수집한 금액은 확인 전까지 임시 매출이며, 확정 매출에 자동 합산되지 않습니다.
-      </div>
-      <DeviceConnectionPanel />
-      <ManualRevenueImport onCreated={onCreated} />
-      <SurfaceCard className="p-5">
-        <h2 className="text-sm font-semibold text-app-text">모바일 매출 후보</h2>
-        <div className="mt-4 space-y-3">
-          {candidates.map((candidate) => (
-            <div key={candidate.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-app-border bg-app-bg p-4">
-              <div>
-                <p className="text-sm font-semibold text-app-text">{candidate.amount === null ? "금액 확인 필요" : currency(candidate.amount)}</p>
-                <p className="mt-1 text-xs text-app-muted">{candidate.platform} · {candidate.captureMethod} · 신뢰도 {Math.round(candidate.confidence * 100)}%</p>
-              </div>
-              {candidate.status === "provisional" ? (
-                <div className="flex gap-2">
-                  <button type="button" onClick={() => void onTransition(candidate.id, "confirmed")} className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white">매출 확정</button>
-                  <button type="button" onClick={() => void onTransition(candidate.id, "rejected")} className="rounded-xl border border-app-border bg-white px-3 py-2 text-xs font-semibold text-app-muted">개인/오류 제외</button>
-                </div>
-              ) : (
-                <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-app-muted">{candidate.status === "confirmed" ? "확정됨" : "제외됨"}</span>
-              )}
-            </div>
-          ))}
-          {candidates.length === 0 ? <p className="py-4 text-center text-sm text-app-muted">수집된 매출 후보가 없습니다.</p> : null}
-        </div>
-      </SurfaceCard>
-      <SimpleTable
-        headers={["거래", "단계", "금액", "확률"]}
-        rows={deals.map((deal) => [deal.title, deal.stage, currency(deal.value), `${deal.probability}%`])}
-        empty="등록된 거래가 없습니다. 고객 화면에서 예상 가치를 관리할 수 있습니다."
-      />
-      <p className="text-right text-sm font-semibold text-app-text">확정 {currency(summary.confirmedRevenue)} · 가중 예상 {currency(summary.weightedPipeline)}</p>
-    </div>
-  );
-}
-
-function ManualRevenueImport({ onCreated }: { onCreated: (candidate: RevenueCandidate) => void }) {
-  const [text, setText] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  async function submit() {
-    if (!text.trim()) return;
-    setBusy(true);
-    try {
-      const response = await fetch("/api/business/revenue", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          platform: "web",
-          captureMethod: "manual",
-          sourceApp: "business-hub",
-          eventId: `manual_${Date.now()}`,
-          rawText: text
-        })
-      });
-      const result = await readApiResponse<{ candidate: RevenueCandidate }>(response);
-      onCreated(result.candidate);
-      setText("");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
     <SurfaceCard className="p-5">
-      <label className="text-sm font-semibold text-app-text" htmlFor="manual-revenue-text">알림 문구 직접 가져오기</label>
-      <div className="mt-3 flex flex-col gap-3 sm:flex-row">
-        <textarea id="manual-revenue-text" value={text} onChange={(event) => setText(event.target.value)} placeholder="예: 입금 50,000원 홍길동" className="min-h-20 flex-1 rounded-2xl border border-app-border bg-white px-3 py-2 text-sm outline-none focus:border-app-primary" />
-        <button type="button" disabled={busy || !text.trim()} onClick={() => void submit()} className="rounded-2xl bg-app-primary px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy ? "분석 중" : "임시 매출 추가"}</button>
-      </div>
+      <Icon size={18} className="text-app-primary" />
+      <p className="mt-4 text-xs font-semibold text-app-muted">{label}</p>
+      <p className="mt-1 text-xl font-semibold text-app-text">{value}</p>
     </SurfaceCard>
   );
 }
@@ -364,42 +223,34 @@ function ConnectorPanel({ connectors, connectorIds, title }: { connectors: Conne
   );
 }
 
-function Activities({ activities }: { activities: CrmActivity[] }) {
-  return <SimpleTable headers={["회의", "내용", "기록 시각"]} rows={activities.map((item) => [item.title, item.body || "-", dateTime(item.createdAt)])} empty="기록된 회의가 없습니다." />;
-}
-
-function Tasks({ tasks }: { tasks: CrmTask[] }) {
-  return <SimpleTable headers={["업무", "우선순위", "마감", "상태"]} rows={tasks.map((item) => [item.title, item.priority, item.dueAt ? dateTime(item.dueAt) : "미정", item.completedAt ? "완료" : "진행"])} empty="등록된 업무가 없습니다." />;
-}
-
 function Reports({ summary }: { summary: ReturnType<typeof buildBusinessSummary> }) {
-  return <SimpleTable headers={["지표", "값"]} rows={[
-    ["확정 매출", currency(summary.confirmedRevenue)],
-    ["예상 매출", currency(summary.expectedRevenue)],
+  const rows: Array<[string, string]> = [
     ["후속 연락 필요 고객", `${summary.followUpCustomerCount}명`],
     ["미완료 업무", `${summary.openTaskCount}건`],
-    ["오늘 회의", `${summary.todayMeetingCount}건`]
-  ]} />;
-}
-
-function EmptyPanel({ icon: Icon, title, body }: { icon: typeof Mail; title: string; body: string }) {
-  return <SurfaceCard className="p-8 text-center"><Icon size={28} className="mx-auto text-app-primary" /><h2 className="mt-4 text-base font-semibold text-app-text">{title}</h2><p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-app-muted">{body}</p></SurfaceCard>;
-}
-
-function SimpleTable({ headers, rows, empty = "표시할 데이터가 없습니다." }: { headers: string[]; rows: string[][]; empty?: string }) {
+    ["오늘 회의", `${summary.todayMeetingCount}건`],
+    ["전체 고객", `${summary.customerCount}명`],
+    ["회사", `${summary.companyCount}개`]
+  ];
   return (
     <SurfaceCard className="overflow-hidden">
-      {rows.length === 0 ? <p className="p-8 text-center text-sm text-app-muted">{empty}</p> : (
-        <div className="overflow-x-auto"><table className="min-w-full text-left text-sm"><thead className="bg-app-bg text-xs text-app-muted"><tr>{headers.map((header) => <th key={header} className="px-4 py-3 font-semibold">{header}</th>)}</tr></thead><tbody>{rows.map((row, index) => <tr key={`${row[0]}-${index}`} className="border-t border-app-border">{row.map((cell, cellIndex) => <td key={`${cell}-${cellIndex}`} className="px-4 py-3 text-app-text">{cell}</td>)}</tr>)}</tbody></table></div>
-      )}
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-left text-sm">
+          <thead className="bg-app-bg text-xs text-app-muted">
+            <tr>
+              <th className="px-4 py-3 font-semibold">지표</th>
+              <th className="px-4 py-3 font-semibold">값</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(([label, value]) => (
+              <tr key={label} className="border-t border-app-border">
+                <td className="px-4 py-3 text-app-text">{label}</td>
+                <td className="px-4 py-3 text-app-text">{value}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </SurfaceCard>
   );
-}
-
-function currency(value: number) {
-  return new Intl.NumberFormat("ko-KR", { style: "currency", currency: "KRW", maximumFractionDigits: 0 }).format(value);
-}
-
-function dateTime(value: string) {
-  return new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 }

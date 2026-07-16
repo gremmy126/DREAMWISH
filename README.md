@@ -52,6 +52,9 @@ npm run build
 | web | `/railway.toml` | Next.js 앱 (`npm run start:railway`, `0.0.0.0:$PORT`). Deep Research 작업도 이 프로세스 안에서 실행됩니다. |
 | scheduler-cron | `/railway.cron.toml` | 5분마다 1회 실행 후 종료. 중단된 조사 복구(일시정지 전환)와 30일 지난 완료 작업 정리. |
 
+- 선택 환경변수 `YOUTUBE_API_KEY`: Railway Variables에 넣으면 Deep Research 참고 영상에
+  채널명·게시일·영상 길이가 자동으로 채워집니다(YouTube Data API v3). 없으면 검색 기반
+  기본 정보만 표시하며 조사 자체는 영향받지 않습니다.
 - 파일 기반 저장소(`DATA_DIR`)를 쓰므로 web 서비스에 볼륨을 마운트하고 `DATA_DIR`을 볼륨
   경로로 지정하세요. Railway 서비스 간 파일시스템은 격리되어 있어 별도 research worker
   서비스는 기본 구성에서 필요하지 않습니다(`services/deep-research/railway.toml` 참고).
