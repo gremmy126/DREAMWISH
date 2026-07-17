@@ -552,6 +552,7 @@
 - Modify: `src/lib/business/revenue-parser.ts`
 - Modify: `src/lib/business/revenue.repository.ts`
 - Modify: `src/lib/business/business-overview.ts`
+- Modify: `src/lib/billing/billing-event.repository.ts`
 - Modify: `app/api/business/revenue/route.ts`
 - Modify: `app/api/business/messages/sync/route.ts`
 - Modify: `app/api/devices/[deviceId]/sync/route.ts`
@@ -579,11 +580,29 @@
 
   Feed Gmail messages into `gmail-revenue-import.service.ts` only after normal Gmail OAuth/scope validation. The user explicitly selects trusted financial senders in the revenue-source policy; matching high-confidence transaction alerts create `captureMethod: "gmail"` provisional candidates and never auto-confirm. Hash Gmail message IDs for idempotency and do not forward message bodies to AI.
 
+- [ ] **Step 5A: Consume verified live PortOne confirmed-payment events**
+
+  Read unconsumed append-only `payment_confirmed` billing events, create confirmed revenue with the provider payment ID as the idempotency key, and atomically record the consumed event ID. Reject any event whose environment is not `live`, even though Billing should never emit Sandbox events. Store provider, amount, currency, paid time, and safe order label only.
+
+  ```ts
+  export async function importConfirmedBillingEvent(event: BillingEvent) {
+    if (event.type !== "payment_confirmed" || event.environment !== "live") return null;
+    return createConfirmedRevenueFromBilling({
+      ownerId: event.ownerId,
+      eventId: event.providerPaymentId,
+      amount: event.amount,
+      currency: event.currency,
+      occurredAt: event.occurredAt,
+      source: event.provider
+    });
+  }
+  ```
+
 - [ ] **Step 6: Verify KPI invariants and commit**
 
   Run: `npm.cmd test && npm.cmd run typecheck`
 
-  Commit: `git add src/lib/business app/api/business/revenue app/api/business/messages/sync/route.ts app/api/devices tests/mobile-revenue-bridge.test.ts && git commit -m "feat: persist reviewed mobile revenue signals"`
+  Commit: `git add src/lib/business src/lib/billing/billing-event.repository.ts app/api/business/revenue app/api/business/messages/sync/route.ts app/api/devices tests/mobile-revenue-bridge.test.ts && git commit -m "feat: persist reviewed revenue signals"`
 
 ---
 
@@ -621,6 +640,103 @@
   Run: `npm.cmd test && npm.cmd run lint && npm.cmd run typecheck`
 
   Commit: `git add components/Business app/api/business/overview tests/mobile-revenue-ui.test.ts && git commit -m "feat: add mobile revenue review experience"`
+
+---
+
+## Task 12A: Deliver deduplicated revenue review notifications to paired phones
+
+**Files:**
+
+- Create: `src/lib/devices/push-token.repository.ts`
+- Create: `src/lib/notifications/firebase-cloud-messaging.adapter.ts`
+- Create: `src/lib/business/revenue-notification.service.ts`
+- Create: `app/api/devices/push-token/route.ts`
+- Create: `tests/mobile-revenue-notifications.test.ts`
+- Modify: `src/lib/automation/queue/notification-worker.ts`
+- Modify: `src/lib/automation/queue/notification-outbox.ts`
+- Modify: `src/lib/automation/runtime/schema.ts`
+- Modify: `D:\DREAMWISH-Companion\package.json`
+- Modify: `D:\DREAMWISH-Companion\src\services\device-api.ts`
+- Create: `D:\DREAMWISH-Companion\src\services\push-notifications.ts`
+- Modify: `D:\DREAMWISH-Companion\src\screens\ConnectionStatusScreen.tsx`
+
+- [ ] **Step 1: Write failing device-token and Outbox tests**
+
+  ```ts
+  test("a paired device can register only its own push token", async () => {
+    await registerPushToken({ ownerId: "owner-1", deviceId: "device-1", token: "token-1", platform: "android" });
+    await assert.rejects(
+      () => registerPushToken({ ownerId: "owner-2", deviceId: "device-1", token: "token-2", platform: "android" }),
+      /device owner/u
+    );
+  });
+
+  test("one provisional revenue event queues one deduplicated mobile push", async () => {
+    await enqueueRevenueReviewNotification(candidate);
+    await enqueueRevenueReviewNotification(candidate);
+    const rows = await listNotificationOutbox(candidate.ownerId);
+    assert.equal(rows.filter((row) => row.channel === "mobile_push").length, 1);
+    assert.doesNotMatch(JSON.stringify(rows), /rawNotificationText|accountNumber/u);
+  });
+  ```
+
+- [ ] **Step 2: Confirm RED**
+
+  Run: `npm.cmd test`
+
+  Expected: FAIL on the new push-token and revenue-notification assertions because the repository and FCM Adapter do not exist.
+
+- [ ] **Step 3: Persist owner/device-bound push tokens**
+
+  Add `device_push_tokens` with `device_id`, `owner_id`, `platform`, encrypted token, token digest, status, timestamps, and a unique active token digest. Registration requires the same signed device envelope used by sync; account cookies alone cannot register a token for an arbitrary device. Revocation or device disconnect disables every associated token.
+
+  ```ts
+  export type PushTokenRegistration = {
+    ownerId: string;
+    deviceId: string;
+    platform: "android" | "ios";
+    token: string;
+  };
+  ```
+
+- [ ] **Step 4: Implement the FCM notification Adapter and revenue event producer**
+
+  Send through Firebase Cloud Messaging HTTP v1 using the existing server-only Firebase project/client-email/private-key configuration. Obtain short-lived Google OAuth credentials server-side, never expose them, and send only candidate ID, safe title, amount, direction, captured time, and an app deep link. Permanent invalid-token responses disable the token; retryable responses return to the existing leased Outbox.
+
+  ```ts
+  export const firebaseMobilePushAdapter: NotificationChannelAdapter = {
+    supports(channel) { return channel === "mobile" || channel === "mobile_push"; },
+    async send(envelope) {
+      const tokens = await listActivePushTokens(envelope.ownerId);
+      const receipts = await sendFcmDataMessages(tokens, buildSafeRevenueMessage(envelope));
+      return { providerReceiptId: receipts.batchId };
+    }
+  };
+  ```
+
+- [ ] **Step 5: Register tokens and handle notifications in the Companion**
+
+  In `D:\DREAMWISH-Companion`, run `npm.cmd install @react-native-firebase/app @react-native-firebase/messaging`. Initialize the packages from build-time public Firebase project/app identifiers; keep service-account keys server-only. After pairing, request notification permission, obtain the FCM token, register it with a signed device request, refresh it on token rotation, and route `dreamwish://business/revenue/{candidateId}` to the pending-revenue screen. Android and iPhone copy must explain OS notification permission and allow immediate disable.
+
+- [ ] **Step 6: Verify web and mobile builds**
+
+  Run in `D:\gremmy`: `npm.cmd test && npm.cmd run lint && npm.cmd run typecheck`
+
+  Expected: all web tests pass and duplicate revenue candidates create one safe Push Outbox item.
+
+  Run in `D:\DREAMWISH-Companion`: `npm.cmd test && npx.cmd tsc --noEmit && android\gradlew.bat testDebugUnitTest && android\gradlew.bat assembleDebug`
+
+  Expected: JS/Kotlin tests pass and the Android debug APK builds. iOS source is reviewed on Windows; APNs entitlement and TestFlight delivery remain a macOS/external credential check.
+
+- [ ] **Step 7: Commit web and Companion changes separately**
+
+  In `D:\gremmy`:
+
+  `git add src/lib/devices src/lib/notifications src/lib/business/revenue-notification.service.ts src/lib/automation/queue app/api/devices/push-token/route.ts tests/mobile-revenue-notifications.test.ts && git commit -m "feat: notify paired devices of revenue reviews"`
+
+  In `D:\DREAMWISH-Companion`:
+
+  `git add package.json package-lock.json src && git commit -m "feat: receive revenue review notifications"`
 
 ---
 
