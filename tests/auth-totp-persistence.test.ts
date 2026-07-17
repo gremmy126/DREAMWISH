@@ -450,6 +450,26 @@ test("authentication security schema is idempotent and enforces append-only Post
   assert.match(ADMIN_SCHEMA_SQL, /auth security schema initialized separately/u);
 });
 
+test("authenticator cryptography configuration documents every server-only key", () => {
+  const exampleEnv = fs.readFileSync(".env.example", "utf8");
+  for (const key of [
+    "AUTH_TOTP_ENCRYPTION_KEY",
+    "AUTH_MFA_CHALLENGE_SECRET",
+    "DEVICE_PAIRING_HASH_SECRET",
+    "REVENUE_DATA_ENCRYPTION_KEY",
+    "AUTH_SECURITY_HASH_KEY"
+  ]) {
+    assert.match(
+      exampleEnv,
+      new RegExp(
+        `# Authenticator, device pairing, and revenue cryptography - Server Only[\\s\\S]*${key}=""`,
+        "u"
+      )
+    );
+    assert.doesNotMatch(exampleEnv, new RegExp(`NEXT_PUBLIC_${key}`, "u"));
+  }
+});
+
 async function enrollAndConfirm(accountId: string, email: string) {
   const enrollment = await beginTotpEnrollment({
     account: { id: accountId, email },
