@@ -1,8 +1,11 @@
 import { AUTOMATION_APPS } from "./app-registry";
+import { isActionExecutable, listActionDefinitions } from "./registry/action-registry";
+import type { ActionValue } from "./registry/action.types";
 import { AUTOMATION_TOOLS } from "./tool-registry";
 
 export type ScenarioStatus = "draft" | "active" | "paused" | "error";
 export type ScenarioNodeKind = "trigger" | "action" | "tool";
+export type ScenarioConfig = Record<string, ActionValue>;
 
 export type AutomationModule = {
   id: string;
@@ -18,12 +21,14 @@ export type ScenarioNode = {
   id: string;
   appId: string;
   label: string;
+  actionId?: string | null;
+  actionVersion?: number | null;
   operation: string;
   kind: ScenarioNodeKind;
   position: { x: number; y: number };
   requiresCredential: boolean;
   credentialId: string | null;
-  config: Record<string, string | number | boolean>;
+  config: ScenarioConfig;
 };
 
 export type ScenarioEdge = {
@@ -97,11 +102,14 @@ export function buildScenarioFromPrompt(prompt: string, ownerId = "preview-owner
   const now = new Date().toISOString();
   const nodes = moduleIds.map((appId, index) => {
     const item = getModule(appId);
+    const definition = selectInitialAction(appId, normalized);
     return {
       id: `node-${index + 1}-${crypto.randomUUID().slice(0, 8)}`,
       appId,
       label: item.label,
-      operation: inferOperation(appId, normalized),
+      actionId: definition?.id || null,
+      actionVersion: definition?.version || null,
+      operation: definition?.name || inferOperation(appId, normalized),
       kind: index === 0 ? "trigger" : item.defaultKind === "trigger" ? "action" : item.defaultKind,
       position: { x: 90 + index * 230, y: index % 2 === 0 ? 180 : 340 },
       requiresCredential: item.requiresCredential,
@@ -153,17 +161,35 @@ export function validateScenario(scenario: AutomationScenario) {
 
 export function createScenarioNode(appId: string, index: number): ScenarioNode {
   const item = getModule(appId);
+  const definition = selectInitialAction(appId, "");
   return {
     id: `node-${crypto.randomUUID()}`,
     appId,
     label: item.label,
-    operation: item.defaultKind === "trigger" ? "이벤트 감지" : "작업 실행",
-    kind: item.defaultKind,
+    actionId: definition?.id || null,
+    actionVersion: definition?.version || null,
+    operation: definition?.name || (item.defaultKind === "trigger" ? "이벤트 감지" : "작업 실행"),
+    kind: definition?.kind === "trigger" ? "trigger" : definition?.kind === "tool" ? "tool" : item.defaultKind,
     position: { x: 140 + (index % 3) * 250, y: 140 + Math.floor(index / 3) * 200 },
     requiresCredential: item.requiresCredential,
     credentialId: null,
-    config: {}
+    config: structuredClone(definition?.defaultValues || {})
   };
+}
+
+function selectInitialAction(appId: string, prompt: string) {
+  const definitions = listActionDefinitions(appId).filter((definition) =>
+    isActionExecutable(definition.appId, definition.id, definition.version)
+  );
+  if (definitions.length === 0) return null;
+  const lowered = prompt.toLowerCase();
+  if (appId === "gmail" && /보내|발송|send/u.test(lowered)) {
+    return definitions.find((item) => item.id === "send-email") || definitions[0]!;
+  }
+  if (appId === "slack" && /보내|발송|send/u.test(lowered)) {
+    return definitions.find((item) => item.id === "send-message") || definitions[0]!;
+  }
+  return definitions[0]!;
 }
 
 function defineModule(id: string, label: string, category: AutomationModule["category"], color: string, glyph: string, defaultKind: ScenarioNodeKind, requiresCredential: boolean): AutomationModule {
@@ -206,7 +232,7 @@ function inferOperation(appId: string, prompt: string) {
   return "작업 실행";
 }
 
-function inferConfig(appId: string, prompt: string): Record<string, string | number | boolean> {
+function inferConfig(appId: string, prompt: string): Record<string, ActionValue> {
   if (appId === "schedule") return { schedule: prompt.match(/(매일|매주).{0,20}/u)?.[0] || "매일 09:00" };
   return {};
 }

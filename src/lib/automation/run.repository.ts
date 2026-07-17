@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { readJsonStore, withJsonStoreLock, writeJsonStore } from "../local-db/json-store";
+import type { ScenarioConfig } from "./scenario-designer";
 
 export type AutomationRunStep = {
   nodeId: string;
@@ -9,7 +10,7 @@ export type AutomationRunStep = {
   status: "success" | "approval_required" | "failed" | "skipped";
   detail: string;
   /** Config with {{...}} mappings already resolved at execution time. */
-  resolvedConfig?: Record<string, string | number | boolean>;
+  resolvedConfig?: ScenarioConfig;
 };
 
 export type AutomationRun = {

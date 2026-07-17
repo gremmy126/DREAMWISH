@@ -1,14 +1,15 @@
 import { NextResponse } from "next/server";
 import { requireOwnerContext } from "@/src/lib/auth/owner-context";
 import { validateScenario } from "@/src/lib/automation/scenario-designer";
-import { executeScenarioSteps, resolveScenarioNextRun } from "@/src/lib/automation/scenario-scheduler";
-import { recordAutomationRun } from "@/src/lib/automation/run.repository";
-import { getScenario, recordScenarioRun, saveScenario } from "@/src/lib/automation/scenario.repository";
-import { getVerifiedConnectionStates } from "@/src/lib/integrations/verified-connection.service";
+import { getScenario } from "@/src/lib/automation/scenario.repository";
+import { validateWorkflowForActivation } from "@/src/lib/automation/runtime/workflow-validator";
+import { enqueueScenarioExecution } from "@/src/lib/automation/runtime/execution-enqueue.service";
+import { assertSameOriginMutation } from "@/src/lib/security/csrf";
 
 type Context = { params: Promise<{ scenarioId: string }> };
 
 export async function POST(request: Request, context: Context) {
+  assertSameOriginMutation(request);
   const owner = await requireOwnerContext(request);
   const { scenarioId } = await context.params;
   const scenario = await getScenario(owner.uid, scenarioId);
@@ -18,38 +19,15 @@ export async function POST(request: Request, context: Context) {
     return NextResponse.json({ error: "시나리오 설정을 확인하세요.", issues: validation.issues }, { status: 422 });
   }
 
-  const connectedApps = new Set<string>();
-  try {
-    const connections = await getVerifiedConnectionStates(owner.uid);
-    for (const connection of connections) {
-      if (connection.status === "connected") connectedApps.add(connection.connectorId);
-    }
-  } catch {
-    // Connection lookup failure degrades to credential-only checks.
-  }
-
-  const startedAt = new Date().toISOString();
-  const result = executeScenarioSteps(scenario, { connectedApps });
-  const finishedAt = new Date().toISOString();
-
-  const run = await recordAutomationRun({
+  const runtimeValidation = await validateWorkflowForActivation(owner.uid, scenario);
+  if (!runtimeValidation.valid) return NextResponse.json({ error: "실행 전 검증에 실패했습니다.", issues: runtimeValidation.issues }, { status: 422 });
+  const queued = await enqueueScenarioExecution({
     ownerId: owner.uid,
-    scenarioId: scenario.id,
-    scenarioName: scenario.name,
-    trigger: "manual",
-    status: result.status,
-    steps: result.steps,
-    waiting: result.waiting || null,
-    error: null,
-    startedAt,
-    finishedAt
+    actorId: owner.uid,
+    scenario,
+    executionMode: "manual",
+    triggerType: "manual_legacy_route",
+    priority: 25
   });
-
-  const updated = await recordScenarioRun(owner.uid, scenarioId, result.status !== "failed");
-  if (updated) {
-    updated.nextRunAt = resolveScenarioNextRun(updated);
-    await saveScenario(owner.uid, updated);
-  }
-
-  return NextResponse.json({ run, scenario: updated });
+  return NextResponse.json({ ok: true, execution: queued.execution, jobId: queued.job.id, deprecatedRoute: true }, { status: 202 });
 }

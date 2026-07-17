@@ -4,6 +4,8 @@ export type OAuthProviderId =
   | "github"
   | "notion"
   | "discord"
+  | "microsoft"
+  | "dropbox"
   | "firebase";
 
 export type ConnectableOAuthProviderId = Exclude<OAuthProviderId, "firebase">;
@@ -15,7 +17,11 @@ export type OAuthServiceId =
   | "slack"
   | "github"
   | "notion"
-  | "discord";
+  | "discord"
+  | "outlook"
+  | "microsoft-teams"
+  | "onedrive"
+  | "dropbox";
 
 export type OAuthTokenScope = string;
 

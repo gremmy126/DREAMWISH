@@ -1,0 +1,12 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
+type AuditEvent = Record<string, unknown> & { id?: string; created_at?: string; action_id?: string; risk_level?: string; approval_result?: string; execution_result?: string; approved_input_hash?: string; actual_input_hash?: string };
+
+export function AuditLogView() {
+  const [events, setEvents] = useState<AuditEvent[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => { void (async () => { try { const response = await fetch("/api/automation/audit", { cache: "no-store" }); const data = await response.json().catch(() => ({})) as { events?: AuditEvent[]; error?: string }; if (!response.ok) throw new Error(data.error || "감사 로그를 불러오지 못했습니다."); setEvents(data.events || []); } catch (caught) { setError(caught instanceof Error ? caught.message : "감사 로그를 불러오지 못했습니다."); } })(); }, []);
+  return <section className="rounded-[22px] border border-slate-200 bg-white p-5 shadow-sm"><h2 className="text-base font-bold">Append Only 감사 로그</h2><p className="mt-1 text-xs text-slate-500">승인자, 위험 등급, 입력 해시, 승인 결과와 실행 결과의 변경 불가능한 이력입니다.</p>{error ? <p className="mt-4 rounded-xl bg-red-50 p-3 text-xs text-red-700">{error}</p> : null}<div className="mt-5 overflow-x-auto"><table className="min-w-full text-left text-[10px]"><thead className="bg-slate-50 text-slate-500"><tr>{["시각", "Action", "위험", "승인 결과", "실행 결과", "승인 해시", "실행 해시"].map((label) => <th key={label} className="px-3 py-2 font-bold">{label}</th>)}</tr></thead><tbody>{events.map((event, index) => <tr key={event.id || index} className="border-t border-slate-100"><td className="whitespace-nowrap px-3 py-2">{event.created_at ? new Date(event.created_at).toLocaleString("ko-KR") : "-"}</td><td className="px-3 py-2 font-bold">{event.action_id || "-"}</td><td className="px-3 py-2">{event.risk_level || "-"}</td><td className="px-3 py-2">{event.approval_result || "-"}</td><td className="px-3 py-2">{event.execution_result || "-"}</td><td className="max-w-32 truncate px-3 py-2 font-mono" title={String(event.approved_input_hash || "")}>{event.approved_input_hash || "-"}</td><td className="max-w-32 truncate px-3 py-2 font-mono" title={String(event.actual_input_hash || "")}>{event.actual_input_hash || "-"}</td></tr>)}</tbody></table>{events.length === 0 && !error ? <p className="py-12 text-center text-xs text-slate-400">감사 이벤트가 없습니다.</p> : null}</div></section>;
+}

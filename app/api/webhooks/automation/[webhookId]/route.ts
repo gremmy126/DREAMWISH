@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { recordAutomationRun } from "@/src/lib/automation/run.repository";
 import { getScenario } from "@/src/lib/automation/scenario.repository";
 import {
   findAutomationWebhookById,
@@ -8,8 +7,8 @@ import {
   verifySlackSignature,
   verifyWebhookSecret
 } from "@/src/lib/automation/webhook.repository";
-import { executeScenarioGraph } from "@/src/lib/automation/workflow-engine";
-import { getVerifiedConnectionStates } from "@/src/lib/integrations/verified-connection.service";
+import { enqueueScenarioExecution } from "@/src/lib/automation/runtime/execution-enqueue.service";
+import { randomUUID } from "node:crypto";
 
 const MAX_BODY_BYTES = 256 * 1024;
 const RATE_LIMIT_PER_MINUTE = 60;
@@ -95,30 +94,16 @@ export async function POST(request: Request, context: Context) {
     );
   }
 
-  const connectedApps = new Set<string>();
-  try {
-    for (const connection of await getVerifiedConnectionStates(webhook.ownerId)) {
-      if (connection.status === "connected") connectedApps.add(connection.connectorId);
-    }
-  } catch {
-    // Reduced detail only.
-  }
-
-  const startedAt = new Date().toISOString();
-  const result = executeScenarioGraph(scenario, { triggerData: payload, connectedApps });
-  const run = await recordAutomationRun({
+  const queued = await enqueueScenarioExecution({
     ownerId: webhook.ownerId,
-    scenarioId: scenario.id,
-    scenarioName: scenario.name,
-    trigger: "webhook",
-    status: result.status,
-    steps: result.steps,
+    actorId: `webhook:${webhookId}`,
+    scenario,
+    executionMode: "live",
+    triggerType: "webhook",
+    triggerEventId: externalEventId || randomUUID(),
     triggerData: payload,
-    waiting: result.waiting ? { ...result.waiting, context: result.context } : null,
-    error: null,
-    startedAt,
-    finishedAt: new Date().toISOString()
+    priority: 30
   });
 
-  return NextResponse.json({ accepted: true, executionId: run.id }, { status: 202 });
+  return NextResponse.json({ accepted: true, executionId: queued.execution.id, jobId: queued.job.id }, { status: 202 });
 }

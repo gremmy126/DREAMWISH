@@ -11,9 +11,14 @@ type OAuthTokenDb = {
   tokens: OAuthTokenRecord[];
 };
 
+type LegacyOAuthTokenRecord = Omit<OAuthTokenRecord, "provider"> & {
+  provider: Exclude<OAuthTokenRecord["provider"], "microsoft" | "dropbox">;
+};
+
 const EMPTY_DB: OAuthTokenDb = { tokens: [] };
 
 export async function saveOAuthToken(input: OAuthTokenSaveInput) {
+  assertLegacyOAuthStorageAllowed();
   const db = await readDb();
   const now = new Date().toISOString();
   const service = input.service || defaultServiceForProvider(input.provider);
@@ -64,8 +69,14 @@ export async function saveOAuthToken(input: OAuthTokenSaveInput) {
   return record;
 }
 
-export async function listOAuthTokens(ownerId: string) {
-  return (await readDb()).tokens.filter((token) => token.ownerId === ownerId);
+export async function listOAuthTokens(ownerId: string): Promise<LegacyOAuthTokenRecord[]> {
+  assertLegacyOAuthStorageAllowed();
+  // This JSON repository is retained only for the legacy connector routes. New
+  // Microsoft and Dropbox connections are persisted in integration_connections.
+  return (await readDb()).tokens.filter(
+    (token): token is LegacyOAuthTokenRecord =>
+      token.ownerId === ownerId && token.provider !== "microsoft" && token.provider !== "dropbox"
+  );
 }
 
 export async function revokeOAuthToken(
@@ -73,6 +84,7 @@ export async function revokeOAuthToken(
   provider: ConnectableOAuthProviderId,
   service?: OAuthServiceId | null
 ) {
+  assertLegacyOAuthStorageAllowed();
   const db = await readDb();
   const token = db.tokens.find(
     (item) =>
@@ -112,8 +124,18 @@ function normalizeTokenRecord(token: OAuthTokenRecord): OAuthTokenRecord {
   };
 }
 
-function defaultServiceForProvider(provider: OAuthTokenRecord["provider"]) {
+function defaultServiceForProvider(provider: OAuthTokenRecord["provider"]): OAuthServiceId | null {
   if (provider === "firebase") return null;
   if (provider === "google") return "drive";
+  if (provider === "microsoft") return "onedrive";
+  if (provider === "dropbox") return "dropbox";
   return provider;
+}
+
+function assertLegacyOAuthStorageAllowed() {
+  if (process.env.NODE_ENV === "production") {
+    throw Object.assign(new Error("Legacy JSON OAuth storage is disabled in production. Use integration_connections."), {
+      code: "LEGACY_OAUTH_STORAGE_DISABLED"
+    });
+  }
 }

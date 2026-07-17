@@ -3,6 +3,8 @@ import { getActiveAccessToken } from "../oauth/token.service";
 import { recordAutomationRun } from "./run.repository";
 import { executeScenarioGraph } from "./workflow-engine";
 import type { AutomationScenario, ScenarioNode } from "./scenario-designer";
+import { hasPostgresStorage } from "../db/postgres";
+import { enqueueScenarioExecution } from "./runtime/execution-enqueue.service";
 
 /**
  * Scheduled Gmail polling trigger: each scheduler pass checks for new mail
@@ -118,6 +120,22 @@ export async function pollGmailForScenario(
           receivedAt: internalDate ? new Date(internalDate).toISOString() : null
         }
       };
+      if (hasPostgresStorage()) {
+        await enqueueScenarioExecution({
+          ownerId: scenario.ownerId,
+          actorId: "gmail-poll-worker",
+          scenario,
+          executionMode: "live",
+          triggerType: "gmail_watch",
+          triggerEventId: message.id,
+          triggerData,
+          priority: 20
+        });
+        newMessages += 1;
+        processed.push(messageId);
+        if (internalDate > maxInternalDate) maxInternalDate = internalDate;
+        continue;
+      }
       const startedAt = new Date().toISOString();
       const result = executeScenarioGraph(scenario, { triggerData });
       await recordAutomationRun({

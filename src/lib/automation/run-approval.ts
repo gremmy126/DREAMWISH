@@ -10,7 +10,7 @@ import {
 } from "../business/outbound-send.service";
 import { getAutomationRun, updateAutomationRun, type AutomationRun } from "./run.repository";
 import { getScenario } from "./scenario.repository";
-import type { ScenarioNode } from "./scenario-designer";
+import type { ScenarioConfig, ScenarioNode } from "./scenario-designer";
 
 export type PlannedExternalAction = {
   nodeId: string;
@@ -180,7 +180,7 @@ function planExternalAction(
   nodeId: string,
   label: string,
   node: ScenarioNode | null,
-  resolvedConfig?: Record<string, string | number | boolean>
+  resolvedConfig?: ScenarioConfig
 ): PlannedExternalAction {
   const config = resolvedConfig || node?.config || {};
   const app = node?.appId || "unknown";

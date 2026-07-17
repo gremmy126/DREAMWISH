@@ -26,7 +26,7 @@ const BILLING_API_PATHS = new Set([
   "/api/billing/portal"
 ]);
 
-const OAUTH_CALLBACK_PATTERN = /^\/api\/(?:oauth|integrations)\/[^/]+\/callback$/u;
+const OAUTH_CALLBACK_PATTERN = /^\/api\/(?:oauth\/[^/]+\/callback|integrations\/[^/]+\/(?:oauth\/)?callback)$/u;
 const DEVICE_SECRET_PATTERN = /^\/api\/devices\/(?:pair|[^/]+\/sync)$/u;
 // Custom automation webhooks authenticate with their own per-webhook secret,
 // not a session cookie: external services must be able to call them.

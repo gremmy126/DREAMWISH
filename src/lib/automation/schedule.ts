@@ -1,4 +1,5 @@
 import { isValidTimezone } from "../settings/app-preferences";
+import type { ScenarioConfig } from "./scenario-designer";
 
 export type ScenarioScheduleKind = "daily" | "weekly" | "weekdays" | "interval" | "once";
 
@@ -27,7 +28,7 @@ const DEFAULT_SCHEDULE: ScenarioSchedule = {
 
 /** Reads the structured schedule out of a schedule node's config map. */
 export function parseScheduleConfig(
-  config: Record<string, string | number | boolean> | undefined
+  config: ScenarioConfig | undefined
 ): ScenarioSchedule | null {
   if (!config) return null;
   const kind = String(config.scheduleKind || "");

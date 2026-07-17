@@ -11,6 +11,8 @@ import { computeNextRunAt, parseScheduleConfig } from "./schedule";
 import { getScenario, listScenarios, saveScenario } from "./scenario.repository";
 import { executeScenarioGraph, type WorkflowContext } from "./workflow-engine";
 import type { AutomationScenario } from "./scenario-designer";
+import { hasPostgresStorage } from "../db/postgres";
+import { enqueueScenarioExecution } from "./runtime/execution-enqueue.service";
 
 /** Refreshes a scenario's nextRunAt from its schedule trigger node. */
 export function resolveScenarioNextRun(
@@ -122,6 +124,25 @@ export async function runDueScenarios(now: Date = new Date()): Promise<DueScenar
             });
             summary.executed += poll.newMessages;
           }
+          continue;
+        }
+        if (hasPostgresStorage()) {
+          await enqueueScenarioExecution({
+            ownerId,
+            actorId: "automation-scheduler",
+            scenario,
+            executionMode: "live",
+            triggerType: "schedule",
+            triggerEventId: scenario.nextRunAt,
+            triggerData: { scheduledAt: scenario.nextRunAt || startedAt },
+            priority: 10
+          });
+          await saveScenario(ownerId, {
+            ...claimed,
+            runs: claimed.runs + 1,
+            lastRunAt: startedAt
+          });
+          summary.executed += 1;
           continue;
         }
         const result = executeScenarioSteps(scenario);

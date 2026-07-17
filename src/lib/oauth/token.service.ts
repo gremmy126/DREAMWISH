@@ -13,6 +13,12 @@ import {
   listOAuthTokens,
   saveOAuthToken
 } from "../repositories/oauth-token.repository";
+import { hasPostgresStorage } from "../db/postgres";
+import {
+  getIntegrationConnectionSecrets,
+  listIntegrationConnections
+} from "../repositories/integration-connection.repository";
+import { refreshOAuthConnection } from "./oauth-connection.service";
 
 export async function getActiveAccessToken(
   ownerId: string,
@@ -20,8 +26,20 @@ export async function getActiveAccessToken(
   service?: OAuthServiceId | null
 ) {
   if (provider === "firebase") return null;
+  if (hasPostgresStorage()) {
+    const connection = await findDurableConnection(ownerId, provider, service);
+    if (!connection || connection.status !== "connected") return null;
+    let secrets = await getIntegrationConnectionSecrets(ownerId, connection.id);
+    if (!secrets) return null;
+    if (connection.expiresAt && new Date(connection.expiresAt).getTime() <= Date.now() + 60_000) {
+      const refreshed = await refreshOAuthConnection(ownerId, connection.id);
+      if (refreshed.status !== "connected") return null;
+      secrets = await getIntegrationConnectionSecrets(ownerId, connection.id);
+    }
+    return secrets?.accessToken || null;
+  }
 
-  let token = (await listOAuthTokens(ownerId)).find(
+  const token = (await listOAuthTokens(ownerId)).find(
     (item) =>
       item.provider === provider &&
       item.status === "active" &&
@@ -29,7 +47,8 @@ export async function getActiveAccessToken(
   );
   if (!token || !token.verifiedAt) return null;
   if (token.expiresAt && new Date(token.expiresAt).getTime() <= Date.now() + 60000) {
-    token = (await refreshOAuthToken(ownerId, provider, service)) || token;
+    const refreshed = await refreshOAuthToken(ownerId, provider, service);
+    if (refreshed) return decryptToken(refreshed.accessTokenEncrypted);
   }
   return decryptToken(token.accessTokenEncrypted);
 }
@@ -39,6 +58,48 @@ export async function getOAuthConnectionStatus(
   provider: OAuthProviderId,
   service?: OAuthServiceId | null
 ) {
+  if (provider !== "firebase" && hasPostgresStorage()) {
+    const connection = await findDurableConnection(ownerId, provider, service);
+    if (connection) {
+      const expired = Boolean(connection.expiresAt && new Date(connection.expiresAt).getTime() <= Date.now());
+      const connectionState: OAuthConnectionState = connection.status === "connected" && !expired
+        ? "connected"
+        : connection.status === "disconnected" || connection.status === "revoked"
+          ? "revoked"
+          : expired || connection.status === "token_expired"
+            ? "expired"
+            : "error";
+      return {
+        provider,
+        service: service || null,
+        connectionState,
+        connected: connectionState === "connected",
+        configured: true,
+        accountEmail: connection.accountEmail,
+        accountName: connection.accountLabel,
+        workspaceName: connection.providerWorkspaceId,
+        scope: connection.grantedScopes,
+        expiresAt: connection.expiresAt,
+        verifiedAt: connection.validatedAt || connection.connectedAt,
+        lastVerificationError: connectionState === "error" ? connection.status : null
+      };
+    }
+    const envToken = getEnvAccessToken(provider);
+    return {
+      provider,
+      service: service || null,
+      connectionState: envToken ? "configured_unverified" as const : "not_connected" as const,
+      connected: false,
+      configured: Boolean(envToken),
+      accountEmail: null,
+      accountName: null,
+      workspaceName: null,
+      scope: [] as string[],
+      expiresAt: null,
+      verifiedAt: null,
+      lastVerificationError: null
+    };
+  }
   const token = (await listOAuthTokens(ownerId)).find(
     (item) =>
       item.provider === provider &&
@@ -72,6 +133,37 @@ export async function getOAuthConnectionStatus(
     verifiedAt: token?.verifiedAt || null,
     lastVerificationError: token?.lastVerificationError || null
   };
+}
+
+async function findDurableConnection(
+  ownerId: string,
+  provider: Exclude<OAuthProviderId, "firebase">,
+  service?: OAuthServiceId | null
+) {
+  const appIds = durableAppIds(provider, service);
+  for (const appId of appIds) {
+    const connections = await listIntegrationConnections(ownerId, appId);
+    const connection = connections.find((candidate) => candidate.provider === provider && candidate.status === "connected")
+      || connections.find((candidate) => candidate.provider === provider && !["disconnected", "revoked"].includes(candidate.status))
+      || connections.find((candidate) => candidate.provider === provider);
+    if (connection) return connection;
+  }
+  return null;
+}
+
+function durableAppIds(provider: Exclude<OAuthProviderId, "firebase">, service?: OAuthServiceId | null) {
+  if (provider === "google") {
+    if (service === "gmail") return ["gmail"];
+    if (service === "calendar") return ["calendar"];
+    if (service === "drive") return ["drive", "google-sheets"];
+    return ["gmail", "drive", "google-sheets", "calendar"];
+  }
+  if (provider === "microsoft") {
+    if (service === "outlook") return ["outlook"];
+    if (service === "microsoft-teams") return ["microsoft-teams"];
+    return ["onedrive", "outlook", "microsoft-teams"];
+  }
+  return [provider];
 }
 
 function resolveConnectionState(input: {

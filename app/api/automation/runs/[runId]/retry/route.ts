@@ -1,17 +1,18 @@
 import { NextResponse } from "next/server";
 import { requireOwnerContext } from "@/src/lib/auth/owner-context";
 import {
-  getAutomationRun,
-  recordAutomationRun
+  getAutomationRun
 } from "@/src/lib/automation/run.repository";
 import { getScenario } from "@/src/lib/automation/scenario.repository";
-import { executeScenarioGraph } from "@/src/lib/automation/workflow-engine";
-import { getVerifiedConnectionStates } from "@/src/lib/integrations/verified-connection.service";
+import { enqueueScenarioExecution } from "@/src/lib/automation/runtime/execution-enqueue.service";
+import { assertSameOriginMutation } from "@/src/lib/security/csrf";
+import { randomUUID } from "node:crypto";
 
 type Context = { params: Promise<{ runId: string }> };
 
 /** Re-executes a run with its stored trigger data; links the new run to the original. */
 export async function POST(request: Request, context: Context) {
+  assertSameOriginMutation(request);
   const owner = await requireOwnerContext(request);
   const { runId } = await context.params;
   const original = await getAutomationRun(owner.uid, runId);
@@ -23,33 +24,15 @@ export async function POST(request: Request, context: Context) {
     return NextResponse.json({ error: "시나리오를 찾을 수 없습니다." }, { status: 404 });
   }
 
-  const connectedApps = new Set<string>();
-  try {
-    for (const connection of await getVerifiedConnectionStates(owner.uid)) {
-      if (connection.status === "connected") connectedApps.add(connection.connectorId);
-    }
-  } catch {
-    // Reduced detail only.
-  }
-
-  const startedAt = new Date().toISOString();
-  const result = executeScenarioGraph(scenario, {
-    triggerData: original.triggerData,
-    connectedApps
-  });
-  const run = await recordAutomationRun({
+  const queued = await enqueueScenarioExecution({
     ownerId: owner.uid,
-    scenarioId: scenario.id,
-    scenarioName: scenario.name,
-    trigger: original.trigger,
-    status: result.status,
-    steps: result.steps,
+    actorId: owner.uid,
+    scenario,
+    executionMode: "manual",
+    triggerType: `legacy_retry:${original.trigger}`,
+    triggerEventId: `${original.id}:${randomUUID()}`,
     triggerData: original.triggerData,
-    waiting: result.waiting ? { ...result.waiting, context: result.context } : null,
-    retryOfRunId: original.id,
-    error: null,
-    startedAt,
-    finishedAt: new Date().toISOString()
+    priority: 25
   });
-  return NextResponse.json({ run });
+  return NextResponse.json({ ok: true, execution: queued.execution, jobId: queued.job.id }, { status: 202 });
 }

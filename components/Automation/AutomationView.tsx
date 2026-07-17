@@ -15,7 +15,8 @@ import {
   type EdgeChange,
   type Node,
   type NodeChange,
-  type NodeProps
+  type NodeProps,
+  type ReactFlowInstance
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import {
@@ -23,6 +24,8 @@ import {
   ChevronDown,
   CirclePlay,
   MoreVertical,
+  PanelLeftOpen,
+  PanelRightOpen,
   Play,
   Plus,
   Save,
@@ -32,7 +35,7 @@ import {
   WandSparkles,
   Zap
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AUTOMATION_MODULES,
   createScenarioNode,
@@ -57,6 +60,7 @@ import { DurableRunHistory } from "@/components/Automation/DurableRunHistory";
 import { DurableConnectionPanel } from "@/components/Automation/DurableConnectionPanel";
 import { AdminDlqView } from "@/components/Automation/AdminDlqView";
 import { AuditLogView } from "@/components/Automation/AuditLogView";
+import { ResponsiveAutomationPanel } from "@/components/Automation/ResponsiveAutomationPanel";
 
 type CanvasData = { scenarioNode: ScenarioNode; order: number; oauthConnected?: boolean };
 type CanvasNode = Node<CanvasData, "scenarioModule">;
@@ -87,7 +91,20 @@ export function AutomationView() {
   const [approvalExpiryMinutes, setApprovalExpiryMinutes] = useState(30);
   const [notificationChannels, setNotificationChannels] = useState<string[]>(["in_app"]);
   const [criticalAuthMethod, setCriticalAuthMethod] = useState<"" | "password" | "otp" | "admin">("");
+  const [catalogOpen, setCatalogOpen] = useState(false);
+  const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance<CanvasNode, Edge> | null>(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const catalogButtonRef = useRef<HTMLButtonElement>(null);
+  const inspectorButtonRef = useRef<HTMLButtonElement>(null);
   const selectedNode = nodes.find((node) => node.id === selectedNodeId) || null;
+
+  const refitCanvas = useCallback(() => {
+    if (!reactFlowInstance) return;
+    requestAnimationFrame(() => {
+      void reactFlowInstance.fitView({ padding: 0.2, duration: 180 });
+    });
+  }, [reactFlowInstance]);
 
   useEffect(() => {
     void loadWorkspace();
@@ -98,6 +115,18 @@ export function AutomationView() {
     window.addEventListener("focus", refresh);
     return () => window.removeEventListener("focus", refresh);
   }, []);
+
+  useEffect(() => {
+    refitCanvas();
+  }, [catalogOpen, inspectorOpen, refitCanvas]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(refitCanvas);
+    observer.observe(canvas);
+    return () => observer.disconnect();
+  }, [refitCanvas]);
 
   async function loadOauthConnections() {
     try {
@@ -151,6 +180,7 @@ export function AutomationView() {
   function selectScenario(scenario: AutomationScenario | null) {
     setActive(scenario);
     setSelectedNodeId(null);
+    setInspectorOpen(false);
     setNodes(toCanvasNodes(scenario?.nodes || []));
     setEdges((scenario?.edges || []).map((edge) => ({ ...edge, animated: scenario?.status === "active", style: { stroke: "#8b7cf6", strokeWidth: 1.6 } })));
   }
@@ -178,6 +208,17 @@ export function AutomationView() {
     const scenarioNode = createScenarioNode(item.id, nodes.length);
     setNodes((current) => [...current, toCanvasNode(scenarioNode, current.length)]);
     setSelectedNodeId(scenarioNode.id);
+  }
+
+  function addModuleFromResponsivePanel(item: AutomationModule) {
+    addModule(item);
+    setCatalogOpen(false);
+    setInspectorOpen(true);
+  }
+
+  function selectCanvasNode(nodeId: string) {
+    setSelectedNodeId(nodeId);
+    if (!window.matchMedia("(min-width: 1024px)").matches) setInspectorOpen(true);
   }
 
   const onNodesChange = useCallback((changes: NodeChange<CanvasNode>[]) => {
@@ -263,6 +304,7 @@ export function AutomationView() {
     setNodes((current) => current.filter((node) => node.id !== selectedNodeId));
     setEdges((current) => current.filter((edge) => edge.source !== selectedNodeId && edge.target !== selectedNodeId));
     setSelectedNodeId(null);
+    setInspectorOpen(false);
   }
 
   async function addStructuredCredential(input: { appId: string; label: string; values: Record<string, string> }) {
@@ -283,6 +325,26 @@ export function AutomationView() {
         <section className="rounded-[22px] border border-slate-200 bg-white shadow-sm">
           <div className="flex flex-wrap items-center gap-3 border-b border-slate-200 px-4 py-3">
             <ScenarioPicker scenarios={scenarios} active={active} onSelect={selectScenario} />
+            <div className="flex items-center gap-2 lg:hidden">
+              <button
+                ref={catalogButtonRef}
+                type="button"
+                aria-label="앱 추가"
+                onClick={() => setCatalogOpen(true)}
+                className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
+              >
+                <PanelLeftOpen size={16} /> 앱 추가
+              </button>
+              <button
+                ref={inspectorButtonRef}
+                type="button"
+                aria-label="모듈 설정 열기"
+                onClick={() => setInspectorOpen(true)}
+                className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
+              >
+                <PanelRightOpen size={16} /> 설정
+              </button>
+            </div>
             <div className="ml-auto flex flex-wrap items-center gap-2">
               <select aria-label="승인 정책" value={approvalPolicy} onChange={(event) => setApprovalPolicy(event.target.value)} className="h-8 max-w-[210px] rounded-lg border border-slate-200 px-2 text-[10px] font-bold text-slate-600">
                 <option value="all_external_changes">모든 외부 변경 작업 승인</option><option value="test_only">테스트할 때만 승인</option><option value="medium_and_above">중간 위험 이상 승인</option><option value="high_risk_two_stage">고위험 작업만 2단계 승인</option><option value="automatic">승인 없이 자동 실행</option>
@@ -305,32 +367,60 @@ export function AutomationView() {
             </div>
           </div>
 
-          <div className="grid min-h-[610px] min-w-0 grid-cols-1 xl:grid-cols-[210px_minmax(0,1fr)_300px]">
-            <ModuleCatalog search={search} onSearch={setSearch} onAdd={addModule} />
-            <div className="relative min-h-[610px] min-w-0 overflow-hidden border-y border-slate-200 bg-[#fbfbfd] xl:border-x xl:border-y-0">
+          <div className="grid min-h-[610px] min-w-0 grid-cols-1 lg:grid-cols-[clamp(180px,18vw,210px)_minmax(0,1fr)_clamp(260px,24vw,300px)]">
+            <div className="hidden min-w-0 overflow-hidden bg-white lg:block">
+              <ModuleCatalog search={search} onSearch={setSearch} onAdd={addModule} />
+            </div>
+            <div ref={canvasRef} className="relative min-h-[610px] min-w-0 overflow-hidden border-y border-slate-200 bg-[#fbfbfd] lg:border-x lg:border-y-0">
               {active ? (
                 <ReactFlow<CanvasNode, Edge>
                   nodes={nodes} edges={edges} nodeTypes={nodeTypes}
                   onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect}
-                  onNodeClick={(_, node) => setSelectedNodeId(node.id)} fitView minZoom={0.35} maxZoom={1.8}
+                  onNodeClick={(_, node) => selectCanvasNode(node.id)} onInit={setReactFlowInstance} fitView minZoom={0.35} maxZoom={1.8}
                   defaultEdgeOptions={{ animated: true, style: { stroke: "#8b7cf6", strokeWidth: 1.6 } }}
                   className="automation-flow"
                 >
                   <Background color="#d9d9e5" gap={20} size={1} />
-                  <MiniMap pannable zoomable nodeColor="#8b7cf6" className="!border !border-slate-200 !bg-white" />
+                  <MiniMap pannable zoomable nodeColor="#8b7cf6" className="hidden sm:block !border !border-slate-200 !bg-white" />
                   <Controls showInteractive={false} className="!overflow-hidden !rounded-xl !border-slate-200 !shadow-sm" />
                 </ReactFlow>
               ) : (
                 <EmptyCanvas onCreate={() => void createFromPrompt()} />
               )}
             </div>
+            <div className="hidden min-w-0 overflow-hidden bg-white lg:block">
+              <ScenarioInspector
+                scenario={active} selectedNode={selectedNode?.data.scenarioNode || null}
+                credentials={credentials} connectedOauthApps={connectedOauthApps} oauthConnections={oauthConnections}
+                onNodeChange={updateSelectedNode} onDeleteNode={deleteSelectedNode}
+                onOpenConnections={() => setActiveTab("connections")}
+              />
+            </div>
+          </div>
+
+          <ResponsiveAutomationPanel
+            open={catalogOpen}
+            title="앱 추가"
+            side="left"
+            onClose={() => setCatalogOpen(false)}
+            returnFocusRef={catalogButtonRef}
+          >
+            <ModuleCatalog search={search} onSearch={setSearch} onAdd={addModuleFromResponsivePanel} />
+          </ResponsiveAutomationPanel>
+          <ResponsiveAutomationPanel
+            open={inspectorOpen}
+            title="모듈 설정"
+            side="right"
+            onClose={() => setInspectorOpen(false)}
+            returnFocusRef={inspectorButtonRef}
+          >
             <ScenarioInspector
               scenario={active} selectedNode={selectedNode?.data.scenarioNode || null}
               credentials={credentials} connectedOauthApps={connectedOauthApps} oauthConnections={oauthConnections}
               onNodeChange={updateSelectedNode} onDeleteNode={deleteSelectedNode}
-              onOpenConnections={() => setActiveTab("connections")}
+              onOpenConnections={() => { setInspectorOpen(false); setActiveTab("connections"); }}
             />
-          </div>
+          </ResponsiveAutomationPanel>
         </section>
 
         <section className="rounded-[18px] border border-slate-200 bg-white px-4 py-3 shadow-sm"><div className="flex flex-wrap items-center gap-3"><span className="text-[11px] font-bold text-slate-600">승인 알림 채널</span>{[["in_app", "앱 내부"], ["email", "이메일"], ["slack", "Slack"], ["browser", "브라우저"], ["mobile_push", "모바일 푸시"]].map(([value, label]) => <label key={value} className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-500"><input type="checkbox" checked={notificationChannels.includes(value)} onChange={(event) => setNotificationChannels((current) => event.target.checked ? [...new Set([...current, value])] : current.filter((item) => item !== value))} />{label}</label>)}</div><p className="mt-2 text-[10px] text-slate-400">‘승인 없이 자동 실행’을 선택해도 high 및 critical 작업은 항상 1차 경고와 최종 승인을 거칩니다.</p></section>

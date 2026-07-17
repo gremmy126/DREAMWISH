@@ -62,6 +62,14 @@ export async function changeFirebasePassword(input: {
   await updatePassword(auth.currentUser, input.newPassword);
 }
 
+export async function reauthenticateFirebasePassword(currentPassword: string) {
+  const auth = requireAuth();
+  if (!auth.currentUser?.email) throw new Error("비밀번호 재확인을 사용할 수 없는 계정입니다.");
+  const credential = EmailAuthProvider.credential(auth.currentUser.email, currentPassword);
+  await reauthenticateWithCredential(auth.currentUser, credential);
+  return auth.currentUser.getIdToken(true);
+}
+
 export function firebaseUserHasPasswordProvider() {
   const auth = getFirebaseClientAuth();
   return hasPasswordProvider(auth?.currentUser?.providerData || []);

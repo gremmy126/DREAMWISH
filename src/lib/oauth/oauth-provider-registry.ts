@@ -109,6 +109,30 @@ export const OAUTH_PROVIDER_REGISTRY: Record<ConnectableOAuthProviderId, OAuthPr
     defaultScopes: ["identify", "email"],
     supportsPkce: true,
     supportsRefreshToken: true
+  },
+  microsoft: {
+    id: "microsoft",
+    authorizationUrl: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+    tokenUrl: "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+    clientIdEnv: "MICROSOFT_CLIENT_ID",
+    clientSecretEnv: "MICROSOFT_CLIENT_SECRET",
+    redirectUriEnv: "MICROSOFT_REDIRECT_URI",
+    redirectPath: "/api/integrations/microsoft/callback",
+    defaultScopes: ["openid", "profile", "email", "offline_access", "User.Read"],
+    supportsPkce: true,
+    supportsRefreshToken: true
+  },
+  dropbox: {
+    id: "dropbox",
+    authorizationUrl: "https://www.dropbox.com/oauth2/authorize",
+    tokenUrl: "https://api.dropboxapi.com/oauth2/token",
+    clientIdEnv: "DROPBOX_CLIENT_ID",
+    clientSecretEnv: "DROPBOX_CLIENT_SECRET",
+    redirectUriEnv: "DROPBOX_REDIRECT_URI",
+    redirectPath: "/api/integrations/dropbox/callback",
+    defaultScopes: ["account_info.read", "files.metadata.read", "files.content.read", "files.content.write", "sharing.write"],
+    supportsPkce: true,
+    supportsRefreshToken: true
   }
 };
 
@@ -131,6 +155,8 @@ export function assertOAuthProvider(provider: string): OAuthProviderId {
     provider === "github" ||
     provider === "notion" ||
     provider === "discord" ||
+    provider === "microsoft" ||
+    provider === "dropbox" ||
     provider === "firebase"
   ) {
     return provider;
@@ -156,6 +182,11 @@ export function resolveOAuthService(
   service?: string | null
 ): OAuthServiceId {
   if (provider === "google") return assertGoogleOAuthService(service || "drive");
+  if (provider === "microsoft") {
+    if (service === "outlook" || service === "microsoft-teams" || service === "onedrive") return service;
+    return "onedrive";
+  }
+  if (provider === "dropbox") return "dropbox";
   return provider;
 }
 

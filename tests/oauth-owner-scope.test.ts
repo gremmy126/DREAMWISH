@@ -105,10 +105,10 @@ test("legacy ownerless OAuth tokens remain quarantined from authenticated owners
 
 test("OAuth connect callback status and disconnect routes derive the owner from the session", async () => {
   const routePaths = [
-    "app/api/integrations/[connectorId]/connect/route.ts",
-    "app/api/integrations/[connectorId]/callback/route.ts",
-    "app/api/integrations/[connectorId]/disconnect/route.ts",
-    "app/api/integrations/[connectorId]/sync/route.ts",
+    "app/api/integrations/[appId]/connect/route.ts",
+    "app/api/integrations/[appId]/callback/route.ts",
+    "app/api/integrations/[appId]/disconnect/route.ts",
+    "app/api/integrations/[appId]/sync/route.ts",
     "app/api/integrations/status/route.ts",
     "app/api/oauth/[provider]/disconnect/route.ts"
   ];

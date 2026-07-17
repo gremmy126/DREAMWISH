@@ -59,3 +59,17 @@ export async function verifyFirebaseIdToken(idToken: string): Promise<VerifiedFi
     providerUserInfo: user.providerUserInfo || []
   };
 }
+
+export async function verifyRecentFirebaseAuthentication(idToken: string, expectedUid: string, maxAgeSeconds = 300) {
+  const user = await verifyFirebaseIdToken(idToken);
+  if (user.uid !== expectedUid) throw new Error("Recent authentication belongs to another account.");
+  const payloadSegment = idToken.split(".")[1];
+  if (!payloadSegment) throw new Error("Firebase authentication token is malformed.");
+  const payload = JSON.parse(Buffer.from(payloadSegment, "base64url").toString("utf8")) as { auth_time?: unknown };
+  const authTime = Number(payload.auth_time);
+  const ageSeconds = Math.floor(Date.now() / 1000) - authTime;
+  if (!Number.isFinite(authTime) || ageSeconds < -30 || ageSeconds > Math.max(30, maxAgeSeconds)) {
+    throw new Error("비밀번호를 다시 확인한 뒤 5분 안에 승인해 주세요.");
+  }
+  return user;
+}

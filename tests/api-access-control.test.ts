@@ -91,6 +91,7 @@ test("API access policy classifies public, protected, and admin paths", () => {
     ["/api/auth/logout", "public"],
     ["/api/oauth/google/callback", "public"],
     ["/api/integrations/gmail/callback", "public"],
+    ["/api/integrations/gmail/oauth/callback", "public"],
     ["/api/admin/audit-log", "admin"],
     ["/api", "protected"],
     ["/api/ai/chat", "protected"]

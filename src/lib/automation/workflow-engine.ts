@@ -1,5 +1,6 @@
 import type { AutomationRunStep } from "./run.repository";
-import type { AutomationScenario, ScenarioNode } from "./scenario-designer";
+import type { AutomationScenario, ScenarioConfig, ScenarioNode } from "./scenario-designer";
+import type { ActionValue } from "./registry/action.types";
 
 /**
  * Graph-aware scenario execution: follows edges from the trigger, resolves
@@ -59,12 +60,23 @@ export function resolveTemplate(value: string, context: WorkflowContext): string
 export function resolveNodeConfig(
   node: ScenarioNode,
   context: WorkflowContext
-): Record<string, string | number | boolean> {
-  const resolved: Record<string, string | number | boolean> = {};
+): ScenarioConfig {
+  const resolved: ScenarioConfig = {};
   for (const [key, raw] of Object.entries(node.config || {})) {
-    resolved[key] = typeof raw === "string" ? resolveTemplate(raw, context) : raw;
+    resolved[key] = resolveConfigValue(raw, context);
   }
   return resolved;
+}
+
+function resolveConfigValue(value: ActionValue, context: WorkflowContext): ActionValue {
+  if (typeof value === "string") return resolveTemplate(value, context);
+  if (Array.isArray(value)) return value.map((item) => resolveConfigValue(item, context));
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, resolveConfigValue(item, context)])
+    );
+  }
+  return value;
 }
 
 export type FilterOperator =

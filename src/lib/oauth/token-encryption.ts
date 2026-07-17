@@ -36,11 +36,14 @@ export function decryptToken(encryptedToken: string) {
 }
 
 function getEncryptionKey() {
-  const secret =
+  const configured =
     process.env.INTEGRATION_TOKEN_ENCRYPTION_KEY ||
     process.env.OAUTH_TOKEN_ENCRYPTION_KEY ||
-    process.env.AUTH_SECRET ||
-    "dreamwish-local-first-development-token-key";
+    process.env.AUTH_SECRET;
+  if (process.env.NODE_ENV === "production" && (!configured || configured.length < 32)) {
+    throw new Error("A 32+ character integration token encryption key is required in production.");
+  }
+  const secret = configured || "dreamwish-local-first-development-token-key";
 
   return createHash("sha256").update(secret).digest();
 }

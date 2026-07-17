@@ -10,7 +10,8 @@
     "lint": "node scripts/lint.mjs",
     "test": "node scripts/run-tests.mjs",
     "typecheck": "tsc --noEmit",
-    "cron:schedulers": "node scripts/run-schedulers.mjs"
+    "cron:schedulers": "node scripts/run-schedulers.mjs",
+    "automation:worker": "node scripts/run-automation-worker.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1086.0",
