@@ -3,8 +3,10 @@ import { loginAccount } from "@/src/lib/auth/account.repository";
 import { getAuthRouteError } from "@/src/lib/auth/auth-route-error";
 import {
   authCookieAttributes,
+  clearedAuthCookieAttributes,
   completePrimaryAuthentication
 } from "@/src/lib/auth/session-issuance.service";
+import { SESSION_COOKIE_NAME } from "@/src/lib/auth/session-token";
 import { verifyFirebaseIdToken } from "@/src/lib/firebase/firebase-server-auth";
 import { upsertOperationalAccount } from "@/src/lib/admin/account-admin.repository";
 import { redeemCouponByCode } from "@/src/lib/coupons/coupon.repository";
@@ -59,6 +61,7 @@ export async function POST(request: Request) {
         mfaRequired: true,
         couponResult
       });
+      response.cookies.set(clearedAuthCookieAttributes(SESSION_COOKIE_NAME));
       response.cookies.set(authCookieAttributes(authentication.challengeCookie));
       return response;
     }

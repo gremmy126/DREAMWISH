@@ -59,6 +59,25 @@ test("MFA challenge tokens are purpose-bound, signed, and expire after five minu
   });
 });
 
+test("PostgreSQL serializes login challenge issuance per account", () => {
+  const source = fs.readFileSync("src/lib/auth/totp.repository.ts", "utf8");
+  const postgres = source.slice(source.indexOf("export class PostgresTotpSecurityRepository"));
+  const issuance = postgres.slice(
+    postgres.indexOf("async createLoginChallenge"),
+    postgres.indexOf("async peekLoginChallenge")
+  );
+
+  const lockIndex = issuance.indexOf("pg_advisory_xact_lock");
+  const accountScopeIndex = issuance.indexOf("`totp:${input.accountId}`");
+  const invalidationIndex = issuance.indexOf("UPDATE account_totp_challenges");
+  assert.notEqual(lockIndex, -1, "expected an account-scoped PostgreSQL issuance lock");
+  assert.ok(
+    accountScopeIndex > lockIndex && accountScopeIndex < invalidationIndex,
+    "issuance lock must be scoped to the account"
+  );
+  assert.ok(lockIndex < invalidationIndex, "issuance must lock before invalidating active challenges");
+});
+
 test("password login without an authenticator issues the normal full session", async () => {
   await withMfaEnv(async () => {
     await withFirebaseUser("plain-user-1", "plain@example.com", async () => {
@@ -81,7 +100,7 @@ test("password login with an active authenticator sets only the five-minute MFA 
   await withMfaEnv(async (dataDir) => {
     await enrollAuthenticator("mfa-user-1", "mfa-user@example.com");
     await withFirebaseUser("mfa-user-1", "mfa-user@example.com", async () => {
-      const response = await callLoginRoute();
+      const response = await callLoginRoute(`${SESSION_COOKIE}=pre-existing-session`);
       const json = (await response.json()) as {
         ok?: boolean;
         mfaRequired?: boolean;
@@ -95,7 +114,7 @@ test("password login with an active authenticator sets only the five-minute MFA 
       assert.equal(json.account, undefined);
       assert.equal(json.access, undefined);
 
-      assert.equal(findSetCookie(response, SESSION_COOKIE), null);
+      assert.match(findSetCookie(response, SESSION_COOKIE) || "", /max-age=0/iu);
       const challengeCookie = findSetCookie(response, CHALLENGE_COOKIE);
       assert.ok(challengeCookie, "expected a dreamwish-mfa-challenge cookie");
       assert.match(challengeCookie, /httponly/iu);
@@ -129,7 +148,10 @@ test("Firebase session refresh with an active authenticator is gated behind MFA"
       const response = await sessionRoute.POST(
         new Request("http://localhost/api/auth/session", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            cookie: `${SESSION_COOKIE}=pre-existing-session`
+          },
           body: JSON.stringify({ idToken: "verified-token" })
         })
       );
@@ -139,7 +161,7 @@ test("Firebase session refresh with an active authenticator is gated behind MFA"
       assert.equal(json.ok, true);
       assert.equal(json.mfaRequired, true);
       assert.equal(json.access, undefined);
-      assert.equal(findSetCookie(response, SESSION_COOKIE), null);
+      assert.match(findSetCookie(response, SESSION_COOKIE) || "", /max-age=0/iu);
       assert.ok(findSetCookie(response, CHALLENGE_COOKIE));
     });
   });
@@ -161,6 +183,65 @@ test("every primary authentication path issues sessions only through completePri
   assert.match(callback, /new URL\("\/\?oauth_login=mfa_required", origin\)/u);
   assert.doesNotMatch(callback, /mfa_required[^\n]*\$\{/u);
   assert.doesNotMatch(callback, /searchParams\.set\([^)]*token/iu);
+});
+
+test("Kakao and Naver MFA callbacks clear a pre-existing full session", async () => {
+  await withMfaEnv(async () => {
+    await withEnvValues(
+      {
+        AUTH_OAUTH_STATE_SECRET: "test-oauth-state-secret-that-is-at-least-32-bytes",
+        KAKAO_CLIENT_ID: "kakao-client-id",
+        KAKAO_CLIENT_SECRET: "kakao-client-secret",
+        KAKAO_REDIRECT_URI: "https://dreamwish.co.kr/api/auth/oauth/kakao/callback",
+        NAVER_CLIENT_ID: "naver-client-id",
+        NAVER_CLIENT_SECRET: "naver-client-secret",
+        NAVER_REDIRECT_URI: "https://dreamwish.co.kr/api/auth/oauth/naver/callback",
+        NEXT_PUBLIC_APP_URL: "https://dreamwish.co.kr"
+      },
+      async () => {
+        const { issueOAuthLoginState, OAUTH_LOGIN_STATE_COOKIE } = require(
+          "../src/lib/auth/oauth-login-state"
+        );
+        const { getSocialAccountId } = require("../src/lib/auth/social-identity.service");
+        const callbackRoute = requireProjectModule<{
+          GET(
+            request: Request,
+            context: { params: Promise<{ provider: string }> }
+          ): Promise<Response>;
+        }>("app/api/auth/oauth/[provider]/callback/route.ts");
+
+        for (const provider of ["kakao", "naver"] as const) {
+          const subject = `${provider}-mfa-subject`;
+          const email = `${provider}-mfa@example.com`;
+          await enrollAuthenticator(getSocialAccountId(provider, subject), email);
+          const issued = await issueOAuthLoginState({
+            provider,
+            pendingCouponHash: null
+          });
+          const response = await withSocialOAuthProfile(
+            provider,
+            { subject, email },
+            () =>
+              callbackRoute.GET(
+                new Request(
+                  `https://dreamwish.co.kr/api/auth/oauth/${provider}/callback?code=verified-code&state=${issued.state}`,
+                  {
+                    headers: {
+                      cookie: `${OAUTH_LOGIN_STATE_COOKIE}=${encodeURIComponent(issued.cookie)}; ${SESSION_COOKIE}=pre-existing-session`
+                    }
+                  }
+                ),
+                { params: Promise.resolve({ provider }) }
+              )
+          );
+
+          assert.match(response.headers.get("location") || "", /oauth_login=mfa_required/u);
+          assert.ok(findSetCookie(response, CHALLENGE_COOKIE));
+          assert.match(findSetCookie(response, SESSION_COOKIE) || "", /max-age=0/iu);
+        }
+      }
+    );
+  });
 });
 
 test("a valid TOTP code consumes the challenge and issues the full session", async () => {
@@ -256,6 +337,73 @@ test("concurrent MFA verification consumes only the recovery code paired with th
 
       assert.equal(retry.status, 200);
       assert.ok(findSetCookie(retry, SESSION_COOKIE));
+    });
+  });
+});
+
+test("an unavailable account does not consume its MFA challenge or recovery code", async () => {
+  await withMfaEnv(async () => {
+    const accountId = "mfa-user-unavailable";
+    const email = "mfa-user-unavailable@example.com";
+    const { recoveryCodes } = await enrollAuthenticator(accountId, email);
+    await withFirebaseUser(accountId, email, async () => {
+      const loginResponse = await callLoginRoute();
+      const challengeToken = cookieValue(
+        findSetCookie(loginResponse, CHALLENGE_COOKIE) || ""
+      );
+      const { mutateOperationalAccount } = require(
+        "../src/lib/admin/account-admin.repository"
+      );
+      await mutateOperationalAccount(accountId, { type: "suspend" });
+
+      const rejected = await callMfaVerifyRoute(challengeToken, {
+        method: "recovery",
+        code: recoveryCodes[0]
+      });
+      assert.equal(rejected.status, 401);
+      assert.equal(findSetCookie(rejected, SESSION_COOKIE), null);
+
+      const { verifyMfaChallengeToken } = require("../src/lib/auth/mfa-challenge-token");
+      const token = verifyMfaChallengeToken({ token: challengeToken });
+      assert.equal(token.ok, true);
+      const { getTotpSecurityRepository } = require("../src/lib/auth/totp.repository");
+      assert.equal(
+        await getTotpSecurityRepository().peekLoginChallenge({
+          accountId,
+          challengeHash: token.challengeHash,
+          now: new Date().toISOString()
+        }),
+        "active"
+      );
+
+      const { listAuthSecurityAuditEvents } = require(
+        "../src/lib/auth/auth-security-audit"
+      );
+      const events = await listAuthSecurityAuditEvents(accountId);
+      assert.equal(
+        events.some((event: { action: string }) => event.action === "mfa_login_completed"),
+        false
+      );
+      assert.equal(
+        events.some((event: { action: string }) => event.action === "recovery_code_used"),
+        false
+      );
+      assert.equal(events.at(-1)?.action, "mfa_challenge_rejected");
+      assert.deepEqual(
+        events.at(-1)?.safeMetadata,
+        { reason: "account_unavailable" }
+      );
+
+      await mutateOperationalAccount(accountId, { type: "restore" });
+      const retryLogin = await callLoginRoute();
+      const retryChallenge = cookieValue(
+        findSetCookie(retryLogin, CHALLENGE_COOKIE) || ""
+      );
+      const retry = await callMfaVerifyRoute(retryChallenge, {
+        method: "recovery",
+        code: recoveryCodes[0]
+      });
+      assert.equal(retry.status, 200);
     });
   });
 });
@@ -427,17 +575,64 @@ async function enrollAuthenticator(accountId: string, email: string) {
   return { secret: enrollment.manualKey, recoveryCodes: confirmation.recoveryCodes };
 }
 
-async function callLoginRoute() {
+async function callLoginRoute(cookieHeader?: string) {
   const loginRoute = requireProjectModule<{ POST(request: Request): Promise<Response> }>(
     "app/api/auth/login/route.ts"
   );
   return loginRoute.POST(
     new Request("http://localhost/api/auth/login", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(cookieHeader ? { cookie: cookieHeader } : {})
+      },
       body: JSON.stringify({ idToken: "verified-token" })
     })
   );
+}
+
+async function withSocialOAuthProfile<T>(
+  provider: "kakao" | "naver",
+  profile: { subject: string; email: string },
+  run: () => T | Promise<T>
+) {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (input) => {
+    const url = input instanceof Request ? input.url : String(input);
+    if (url.includes("/token")) {
+      return new Response(JSON.stringify({ access_token: "social-access-token" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+    const body =
+      provider === "kakao"
+        ? {
+            id: profile.subject,
+            kakao_account: {
+              email: profile.email,
+              is_email_valid: true,
+              is_email_verified: true,
+              profile: { nickname: "MFA User" }
+            }
+          }
+        : {
+            response: {
+              id: profile.subject,
+              email: profile.email,
+              name: "MFA User"
+            }
+          };
+    return new Response(JSON.stringify(body), {
+      status: 200,
+      headers: { "Content-Type": "application/json" }
+    });
+  };
+  try {
+    return await run();
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 }
 
 async function callMfaVerifyRoute(

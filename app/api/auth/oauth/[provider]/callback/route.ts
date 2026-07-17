@@ -11,8 +11,10 @@ import { exchangeSocialCode, fetchSocialProfile, isSocialProvider } from "@/src/
 import { linkOrCreateSocialIdentity } from "@/src/lib/auth/social-identity.service";
 import {
   authCookieAttributes,
+  clearedAuthCookieAttributes,
   completePrimaryAuthentication
 } from "@/src/lib/auth/session-issuance.service";
+import { SESSION_COOKIE_NAME } from "@/src/lib/auth/session-token";
 
 export async function GET(request: Request, context: { params: Promise<{ provider: string }> }) {
   const origin = getAppOrigin();
@@ -46,6 +48,7 @@ export async function GET(request: Request, context: { params: Promise<{ provide
       // Redirect carries only a non-secret signal; the challenge token travels
       // exclusively in the HttpOnly cookie and never appears in any URL.
       const response = NextResponse.redirect(new URL("/?oauth_login=mfa_required", origin));
+      response.cookies.set(clearedAuthCookieAttributes(SESSION_COOKIE_NAME));
       response.cookies.set(authCookieAttributes(authentication.challengeCookie));
       clearTransientCookies(response);
       return response;

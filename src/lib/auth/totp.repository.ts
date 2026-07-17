@@ -815,6 +815,7 @@ export class PostgresTotpSecurityRepository implements TotpSecurityRepository {
     assertAuditEventAccount(input.auditEvent, input.accountId);
     const sql = getPostgres();
     await sql.begin(async (transaction) => {
+      await transaction`SELECT pg_advisory_xact_lock(hashtext(${`totp:${input.accountId}`}))`;
       await transaction`
         UPDATE account_totp_challenges
         SET consumed_at = ${input.now}

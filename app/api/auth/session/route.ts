@@ -2,8 +2,10 @@ import { NextResponse } from "next/server";
 import { getAuthRouteError } from "@/src/lib/auth/auth-route-error";
 import {
   authCookieAttributes,
+  clearedAuthCookieAttributes,
   completePrimaryAuthentication
 } from "@/src/lib/auth/session-issuance.service";
+import { SESSION_COOKIE_NAME } from "@/src/lib/auth/session-token";
 import { verifyFirebaseIdToken } from "@/src/lib/firebase/firebase-server-auth";
 import { upsertOperationalAccount } from "@/src/lib/admin/account-admin.repository";
 
@@ -39,6 +41,7 @@ export async function POST(request: Request) {
     });
     if (authentication.status === "mfa_required") {
       const response = NextResponse.json({ ok: true, mfaRequired: true });
+      response.cookies.set(clearedAuthCookieAttributes(SESSION_COOKIE_NAME));
       response.cookies.set(authCookieAttributes(authentication.challengeCookie));
       return response;
     }

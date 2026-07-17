@@ -88,6 +88,12 @@ export async function POST(request: Request) {
     }
 
     const { accountId, challengeHash } = verification;
+    const account = await getOperationalAccount(accountId);
+    if (!account || account.status !== "active") {
+      await auditChallengeRejection(accountId, "account_unavailable");
+      return challengeFailure("account_unavailable");
+    }
+
     const verified = await verifyAndConsumeMfaLoginChallenge({
       accountId,
       challengeHash,
@@ -96,11 +102,6 @@ export async function POST(request: Request) {
       networkKey: resolveNetworkKey(request)
     });
     if (!verified.verified) return challengeFailure(verified.challengeState);
-
-    const account = await getOperationalAccount(accountId);
-    if (!account || account.status !== "active") {
-      return challengeFailure("account_unavailable");
-    }
 
     const issued = await issueFullSession({
       account: {
@@ -146,7 +147,7 @@ function challengeFailure(
 
 async function auditChallengeRejection(
   accountId: string,
-  reason: "expired" | "already_used" | "not_found"
+  reason: "expired" | "already_used" | "not_found" | "account_unavailable"
 ) {
   await appendAuthSecurityAuditEvent({
     accountId,

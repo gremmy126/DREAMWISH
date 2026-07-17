@@ -42,7 +42,8 @@ const ALLOWED_REASONS = new Set([
   "replayed",
   "clock_drift",
   "not_enabled",
-  "already_used"
+  "already_used",
+  "account_unavailable"
 ]);
 const ALLOWED_METHODS = new Set(["totp", "recovery"]);
 const ALLOWED_OPERATIONS = new Set(["login", "recovery_regeneration", "disable"]);
