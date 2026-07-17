@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireOwnerContext } from "@/src/lib/auth/owner-context";
 import { markCheckoutPending } from "@/src/lib/billing/billing.repository";
 import {
+  buildCheckoutMetadata,
   getAppOrigin,
   getPolarClient,
   getPolarProductId
@@ -33,10 +34,7 @@ export async function POST(request: Request) {
       customerEmail: owner.email,
       customerIpAddress: forwardedIp || null,
       discountId: preparedDiscount?.coupon.polarDiscountId || undefined,
-      metadata: {
-        owner_id: owner.uid,
-        coupon_redemption_id: preparedDiscount?.redemption.id || ""
-      }
+      metadata: buildCheckoutMetadata(owner.uid, preparedDiscount?.redemption.id)
     });
     await markCheckoutPending(owner.uid);
     return NextResponse.json({ ok: true, checkoutUrl: checkout.url });

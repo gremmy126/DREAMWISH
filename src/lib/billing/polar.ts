@@ -39,6 +39,18 @@ export function getAppOrigin() {
   return url.origin;
 }
 
+export function buildCheckoutMetadata(
+  ownerId: string,
+  couponRedemptionId?: string | null
+) {
+  const metadata: Record<string, string> = { owner_id: ownerId };
+  // Polar rejects empty metadata strings with a 422, which blocked every
+  // non-coupon checkout; only attach the key when a redemption exists.
+  const redemption = couponRedemptionId?.trim();
+  if (redemption) metadata.coupon_redemption_id = redemption;
+  return metadata;
+}
+
 export function requirePolarEnv(name: string) {
   const value = process.env[name]?.trim();
   if (!value) throw new Error(`${name} is not configured.`);

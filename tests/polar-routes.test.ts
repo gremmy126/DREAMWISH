@@ -10,6 +10,26 @@ test("Polar checkout binds customer identity to the verified owner", () => {
   assert.doesNotMatch(source, /body\.customerEmail|body\.externalCustomerId/u);
 });
 
+test("Polar checkout metadata omits coupon_redemption_id when no discount is prepared", () => {
+  const { buildCheckoutMetadata } = require("../src/lib/billing/polar") as {
+    buildCheckoutMetadata: (
+      ownerId: string,
+      couponRedemptionId?: string | null
+    ) => Record<string, string>;
+  };
+  assert.deepEqual(buildCheckoutMetadata("owner-1"), { owner_id: "owner-1" });
+  assert.deepEqual(buildCheckoutMetadata("owner-1", null), { owner_id: "owner-1" });
+  assert.deepEqual(buildCheckoutMetadata("owner-1", ""), { owner_id: "owner-1" });
+  assert.deepEqual(buildCheckoutMetadata("owner-1", "  "), { owner_id: "owner-1" });
+  assert.deepEqual(buildCheckoutMetadata("owner-1", "redemption-9"), {
+    owner_id: "owner-1",
+    coupon_redemption_id: "redemption-9"
+  });
+  const route = fs.readFileSync("app/api/billing/checkout/route.ts", "utf8");
+  assert.match(route, /buildCheckoutMetadata/u);
+  assert.doesNotMatch(route, /coupon_redemption_id:.*\|\|\s*""/u);
+});
+
 test("Polar webhook uses the official signature adapter and fails closed", () => {
   assert.equal(fs.existsSync("app/api/webhooks/polar/route.ts"), true);
   const source = fs.readFileSync("app/api/webhooks/polar/route.ts", "utf8");
