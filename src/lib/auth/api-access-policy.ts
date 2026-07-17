@@ -26,6 +26,7 @@ const PUBLIC_API_PATHS = new Set([
 ]);
 
 const BILLING_API_PATHS = new Set([
+  "/api/auth/me",
   "/api/billing/checkout",
   "/api/billing/status",
   "/api/billing/portal"

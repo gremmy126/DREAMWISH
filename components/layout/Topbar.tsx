@@ -1,6 +1,7 @@
 "use client";
 
-import { Bell, Command, LogOut, Search, UserRound } from "lucide-react";
+import { Bell, Command, LogOut, Search, ShieldCheck, UserRound } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { IconButton } from "@/components/Common/IconButton";
 import { LanguageSwitcher } from "@/components/layout/LanguageSwitcher";
@@ -12,9 +13,19 @@ import { useAppLanguage } from "@/src/lib/i18n/use-app-language";
 export function Topbar() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [email, setEmail] = useState("");
+  const [account, setAccount] = useState<{ email: string; role: "admin" | "user" } | null>(null);
   const { t } = useAppLanguage();
 
   useEffect(() => {
+    void fetch("/api/auth/me", { cache: "no-store" })
+      .then(async (response) => response.ok ? response.json() : null)
+      .then((body: { account?: { email?: string; role?: "admin" | "user" } } | null) => {
+        if (body?.account?.email && body.account.role) {
+          setAccount({ email: body.account.email, role: body.account.role });
+          setEmail(body.account.email);
+        }
+      })
+      .catch(() => undefined);
     try {
       const raw = window.localStorage.getItem(AUTH_SESSION_KEY);
       const session = raw ? (JSON.parse(raw) as { email?: string }) : null;
@@ -71,6 +82,15 @@ export function Topbar() {
                   {email || t("common.noAccount")}
                 </p>
               </div>
+              {account?.role === "admin" ? (
+                <Link
+                  href="/admin"
+                  className="mt-2 flex min-h-10 w-full items-center gap-2 rounded-2xl px-3 py-2 text-xs font-semibold text-app-primary transition hover:bg-app-hover"
+                >
+                  <ShieldCheck size={14} />
+                  관리자 페이지
+                </Link>
+              ) : null}
               <button
                 type="button"
                 onClick={() => void logout()}

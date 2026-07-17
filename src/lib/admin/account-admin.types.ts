@@ -39,3 +39,11 @@ export type AuthIdentity = {
   lastLoginAt: string;
 };
 
+export type AdminAuditEvent = {
+  id: string;
+  actorAccountId: string;
+  targetAccountId: string | null;
+  action: string;
+  safeMetadata: Record<string, unknown>;
+  createdAt: string;
+};

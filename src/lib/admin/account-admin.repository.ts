@@ -7,6 +7,7 @@ import {
 } from "../local-db/json-store";
 import { ensureAdminSchema } from "./schema";
 import type {
+  AdminAuditEvent,
   AdminUserMutation,
   AuthIdentity,
   IdentityProvider,
@@ -204,6 +205,55 @@ export async function countActiveAdministrators() {
   ).length;
 }
 
+export async function appendAdminAuditEvent(input: {
+  actorAccountId: string;
+  targetAccountId?: string | null;
+  action: string;
+  safeMetadata?: Record<string, unknown>;
+}): Promise<AdminAuditEvent> {
+  const event: AdminAuditEvent = {
+    id: crypto.randomUUID(),
+    actorAccountId: input.actorAccountId,
+    targetAccountId: input.targetAccountId || null,
+    action: input.action,
+    safeMetadata: input.safeMetadata || {},
+    createdAt: new Date().toISOString()
+  };
+  if (hasPostgresStorage()) {
+    await ensureAdminSchema();
+    await getPostgres()`
+      INSERT INTO admin_audit_events (id, actor_account_id, target_account_id, action, safe_metadata, created_at)
+      VALUES (${event.id}, ${event.actorAccountId}, ${event.targetAccountId}, ${event.action}, ${getPostgres().json(event.safeMetadata as never)}, ${event.createdAt})
+    `;
+    return event;
+  }
+  return withJsonStoreLock(ADMIN_ACCOUNT_FILE, async () => {
+    const db = await readLocalDb();
+    db.auditEvents = [event, ...db.auditEvents];
+    await writeJsonStore(ADMIN_ACCOUNT_FILE, db);
+    return event;
+  });
+}
+
+export async function listAdminAuditEvents(limit = 200): Promise<AdminAuditEvent[]> {
+  const safeLimit = Math.max(1, Math.min(500, Math.trunc(limit)));
+  if (hasPostgresStorage()) {
+    await ensureAdminSchema();
+    const rows = await getPostgres()`
+      SELECT * FROM admin_audit_events ORDER BY created_at DESC LIMIT ${safeLimit}
+    `;
+    return rows.map((row) => ({
+      id: String(row.id),
+      actorAccountId: String(row.actor_account_id),
+      targetAccountId: row.target_account_id ? String(row.target_account_id) : null,
+      action: String(row.action),
+      safeMetadata: (row.safe_metadata || {}) as Record<string, unknown>,
+      createdAt: toIso(row.created_at)
+    }));
+  }
+  return (await readLocalDb()).auditEvents.slice(0, safeLimit) as AdminAuditEvent[];
+}
+
 function applyMutation(account: OperationalAccount, mutation: AdminUserMutation) {
   const now = new Date().toISOString();
   const next = { ...account, updatedAt: now };
@@ -268,4 +318,3 @@ function mapAccountRow(row: Record<string, unknown>): OperationalAccount {
 function toIso(value: unknown) {
   return value instanceof Date ? value.toISOString() : new Date(String(value)).toISOString();
 }
-
