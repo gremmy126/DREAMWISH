@@ -1,6 +1,6 @@
 import { getOAuthProviderConfig } from "./oauth-provider-registry";
 import { createProviderAuthorizationUrl, getOAuthAppTarget } from "./oauth-provider-adapter";
-import { getPublicAppUrl } from "./oauth-redirect";
+import { getOAuthRedirectUri } from "./oauth-redirect";
 import { createOAuthSecurityParams } from "./oauth-state";
 import { createOAuthSession } from "../repositories/oauth-session.repository";
 import { hasPostgresStorage } from "../db/postgres";
@@ -15,10 +15,7 @@ export async function startOAuthAuthorization(input: {
   if (!hasPostgresStorage()) throw new Error("DATABASE_URL is required for durable OAuth connections.");
   const target = getOAuthAppTarget(input.appId);
   const security = createOAuthSecurityParams();
-  const redirectUri = new URL(
-    `/api/integrations/${encodeURIComponent(input.appId)}/oauth/callback`,
-    getPublicAppUrl(input.requestUrl)
-  ).toString();
+  const redirectUri = getOAuthRedirectUri(target.provider, input.requestUrl);
   const supportsPkce = getOAuthProviderConfig(target.provider).supportsPkce;
 
   await createOAuthSession({
