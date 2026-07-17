@@ -3,15 +3,18 @@
 import type { LucideIcon } from "lucide-react";
 import { useAppLanguage } from "@/src/lib/i18n/use-app-language";
 import type { Integration } from "@/src/lib/integrations/types";
+import { AppLogo } from "@/components/shared/AppLogo";
 import { IntegrationStatusBadge } from "./IntegrationStatusBadge";
 
 export function IntegrationCard({
   integration,
+  appId,
   icon: Icon,
   active,
   onSelect
 }: {
   integration: Integration;
+  appId: string;
   icon: LucideIcon;
   active: boolean;
   onSelect: () => void;
@@ -30,7 +33,7 @@ export function IntegrationCard({
     >
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-app-primary shadow-soft">
-          <Icon size={18} />
+          <AppLogo appId={appId} size={40} fallbackIcon={Icon} />
         </div>
         <IntegrationStatusBadge status={integration.status} />
       </div>

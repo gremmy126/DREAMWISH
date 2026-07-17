@@ -14,6 +14,7 @@ export function GmailIntegrationCard({
   return (
     <IntegrationCard
       icon={Mail}
+      appId="gmail"
       integration={integration}
       active={active}
       onSelect={onSelect}

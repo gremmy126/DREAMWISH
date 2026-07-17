@@ -14,6 +14,7 @@ export function SlackIntegrationCard({
   return (
     <IntegrationCard
       icon={MessageSquare}
+      appId="slack"
       integration={integration}
       active={active}
       onSelect={onSelect}

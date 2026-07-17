@@ -28,7 +28,7 @@ import { useAppLanguage } from "@/src/lib/i18n/use-app-language";
 import { readApiResponse } from "@/src/lib/api/api-response";
 import { AUTOMATION_APPS } from "@/src/lib/automation/app-registry";
 import type { VerifiedConnectionState } from "@/src/lib/integrations/verified-connection.service";
-import { AutomationAppLogo } from "@/components/Automation/AutomationAppLogo";
+import { AppLogo } from "@/components/shared/AppLogo";
 import type {
   ConnectableOAuthProviderId,
   OAuthConnectionState,
@@ -230,7 +230,7 @@ export function IntegrationCenter({ selectedConnectorId }: { selectedConnectorId
               const connection = connections.find((item) => item.connectorId === app.id);
               return (
                 <button key={app.id} type="button" onClick={() => setSelectedAppId(app.id)} className={`flex min-w-0 items-center gap-3 rounded-xl px-3 py-2.5 text-left transition ${selectedAppId === app.id ? "bg-app-hover ring-1 ring-app-primary/20" : "hover:bg-app-bg"}`}>
-                  <AutomationAppLogo appId={app.id} size={30} color={app.color} />
+                  <AppLogo appId={app.id} size={30} color={app.color} />
                   <span className="min-w-0 flex-1"><span className="block truncate text-xs font-bold text-app-text">{app.label}</span><span className={`mt-0.5 block text-[10px] ${connection?.status === "connected" ? "text-emerald-600" : connection?.status === "needs_reconnect" ? "text-amber-600" : "text-app-muted"}`}>{connection?.status === "connected" ? "연결됨" : connection?.status === "needs_reconnect" ? "재연결 필요" : "연결 안 됨"}</span></span>
                 </button>
               );
@@ -478,7 +478,7 @@ function renderIntegrationCard(
   }
 
   const Icon = iconMap[item.connector.id as keyof typeof iconMap] || Cable;
-  return <IntegrationCard key={item.connector.id} {...props} icon={Icon} />;
+  return <IntegrationCard key={item.connector.id} {...props} appId={item.connector.id} icon={Icon} />;
 }
 
 function previewActionFor(connectorId: string, name: string) {

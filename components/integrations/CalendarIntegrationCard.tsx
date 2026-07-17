@@ -14,6 +14,7 @@ export function CalendarIntegrationCard({
   return (
     <IntegrationCard
       icon={CalendarDays}
+      appId="calendar"
       integration={integration}
       active={active}
       onSelect={onSelect}

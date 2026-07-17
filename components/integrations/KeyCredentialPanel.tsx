@@ -2,7 +2,7 @@
 
 import { CheckCircle2, KeyRound, Loader2, LogIn, ShieldAlert, Unplug } from "lucide-react";
 import { useEffect, useState } from "react";
-import { AutomationAppLogo } from "@/components/Automation/AutomationAppLogo";
+import { AppLogo } from "@/components/shared/AppLogo";
 import { getAutomationApp } from "@/src/lib/automation/app-registry";
 import type { VerifiedConnectionState } from "@/src/lib/integrations/verified-connection.service";
 
@@ -42,6 +42,7 @@ export function KeyCredentialPanel({
   }
 
   async function disconnect() {
+    if (!window.confirm(`${app?.label || "이 앱"} 연결을 해제하면 관련 자동화가 대기 상태로 전환될 수 있습니다. 계속할까요?`)) return;
     setBusy(true);
     setError(null);
     try {
@@ -71,7 +72,7 @@ export function KeyCredentialPanel({
   return (
     <section className="min-w-0 rounded-[22px] border border-app-border bg-white p-5 shadow-soft">
       <div className="flex items-center gap-3">
-        <AutomationAppLogo appId={app.id} size={46} color={app.color} />
+        <AppLogo appId={app.id} size={46} color={app.color} />
         <div className="min-w-0">
           <h2 className="truncate text-base font-bold text-app-text">{app.label} 연결</h2>
           <p className="mt-1 text-xs leading-5 text-app-muted">{app.help}</p>

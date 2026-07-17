@@ -38,18 +38,29 @@ import {
   createScenarioNode,
   type AutomationModule,
   type AutomationScenario,
+  type ScenarioConfig,
   type ScenarioNode
 } from "@/src/lib/automation/scenario-designer";
 import type { PublicAutomationCredential } from "@/src/lib/automation/credential.repository";
-import { AutomationAppLogo } from "@/components/Automation/AutomationAppLogo";
+import { AppLogo } from "@/components/shared/AppLogo";
 import { ActionPicker } from "@/components/Automation/ActionPicker";
+import { ActionInputForm } from "@/components/Automation/ActionInputForm";
+import { ActionPreviewCard } from "@/components/Automation/ActionPreviewCard";
 import { AutomationTabs, type AutomationTab } from "@/components/Automation/AutomationTabs";
 import { AutomationGuide, ConnectionManager, RunHistory, TemplateGallery } from "@/components/Automation/AutomationSecondaryViews";
 import { getAutomationApp } from "@/src/lib/automation/app-registry";
 import { readStoredTimezonePreference } from "@/src/lib/settings/app-preferences";
+import { changeScenarioAction } from "@/src/lib/automation/action-ui-model";
+import { getActionDefinition } from "@/src/lib/automation/registry/action-registry";
+import { ApprovalCenter } from "@/components/Automation/ApprovalCenter";
+import { DurableRunHistory } from "@/components/Automation/DurableRunHistory";
+import { DurableConnectionPanel } from "@/components/Automation/DurableConnectionPanel";
+import { AdminDlqView } from "@/components/Automation/AdminDlqView";
+import { AuditLogView } from "@/components/Automation/AuditLogView";
 
 type CanvasData = { scenarioNode: ScenarioNode; order: number; oauthConnected?: boolean };
 type CanvasNode = Node<CanvasData, "scenarioModule">;
+type OAuthConnectionOption = { id: string; appId: string; status: string; accountLabel?: string | null; accountEmail?: string | null };
 
 const nodeTypes = { scenarioModule: ScenarioModuleNode };
 const templates = [
@@ -66,14 +77,16 @@ export function AutomationView() {
   const [edges, setEdges] = useState<Edge[]>([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [credentials, setCredentials] = useState<PublicAutomationCredential[]>([]);
-  const [oauthConnections, setOauthConnections] = useState<
-    Array<{ connectorId: string; status: string; accountLabel?: string | null }>
-  >([]);
+  const [oauthConnections, setOauthConnections] = useState<OAuthConnectionOption[]>([]);
   const [search, setSearch] = useState("");
   const [prompt, setPrompt] = useState("");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<AutomationTab>("scenario");
+  const [approvalPolicy, setApprovalPolicy] = useState("high_risk_two_stage");
+  const [approvalExpiryMinutes, setApprovalExpiryMinutes] = useState(30);
+  const [notificationChannels, setNotificationChannels] = useState<string[]>(["in_app"]);
+  const [criticalAuthMethod, setCriticalAuthMethod] = useState<"" | "password" | "otp" | "admin">("");
   const selectedNode = nodes.find((node) => node.id === selectedNodeId) || null;
 
   useEffect(() => {
@@ -88,9 +101,9 @@ export function AutomationView() {
 
   async function loadOauthConnections() {
     try {
-      const response = await fetch("/api/integrations/status", { cache: "no-store" });
+      const response = await fetch("/api/integrations/connections", { cache: "no-store" });
       const data = (await response.json().catch(() => ({}))) as {
-        connections?: Array<{ connectorId: string; status: string; accountLabel?: string | null }>;
+        connections?: OAuthConnectionOption[];
       };
       if (response.ok) setOauthConnections(data.connections || []);
     } catch {
@@ -118,7 +131,7 @@ export function AutomationView() {
       new Map(
         oauthConnections
           .filter((connection) => connection.status === "connected")
-          .map((connection) => [connection.connectorId, connection.accountLabel || null])
+          .map((connection) => [connection.appId, connection.accountLabel || connection.accountEmail || null])
       ),
     [oauthConnections]
   );
@@ -204,21 +217,33 @@ export function AutomationView() {
     if (!scenario) return;
     setBusy(true);
     await saveScenario();
-    const response = await fetch(`/api/automation/scenarios/${scenario.id}/run`, { method: "POST" });
-    const data = (await response.json().catch(() => ({}))) as { scenario?: AutomationScenario; issues?: Array<{ message: string }>; error?: string };
+    const response = await fetch(`/api/automation/workflows/${scenario.id}/execute`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ approvalPolicy, approvalExpiryMinutes, notificationChannels, criticalAuthMethod: criticalAuthMethod || null })
+    });
+    const data = (await response.json().catch(() => ({}))) as { execution?: { id: string }; issues?: Array<{ message: string }>; error?: string };
     setBusy(false);
     if (!response.ok) { setNotice(data.issues?.map((issue) => issue.message).join(" · ") || data.error || "실행하지 못했습니다."); return; }
     await loadWorkspace(scenario.id);
-    setNotice("모든 모듈을 순서대로 실행했습니다.");
+    setNotice(`실행을 Queue에 안전하게 등록했습니다.${data.execution?.id ? ` 실행 ID: ${data.execution.id}` : ""}`);
   }
 
   async function toggleActive() {
     if (!active) return;
     const status = active.status === "active" ? "paused" : "active";
-    const response = await fetch(`/api/automation/scenarios/${active.id}`, {
-      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status })
+    const response = await fetch(`/api/automation/workflows/${active.id}/activate`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+        status,
+        approvalPolicy,
+        approvalExpiryMinutes,
+        notificationChannels,
+        criticalAuthMethod: criticalAuthMethod || null
+      })
     });
+    const data = await response.json().catch(() => ({})) as { error?: string; issues?: Array<{ message: string }> };
     if (response.ok) await loadWorkspace(active.id);
+    else setNotice(data.issues?.map((issue) => issue.message).join(" · ") || data.error || "활성화 전 검증에 실패했습니다.");
   }
 
   async function removeScenario() {
@@ -255,70 +280,84 @@ export function AutomationView() {
       <AutomationTabs value={activeTab} onChange={setActiveTab} />
 
       {activeTab === "scenario" ? <>
-      <section className="rounded-[22px] border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-wrap items-center gap-3 border-b border-slate-200 px-4 py-3">
-          <ScenarioPicker scenarios={scenarios} active={active} onSelect={selectScenario} />
-          <div className="ml-auto flex flex-wrap items-center gap-2">
-            <label className="flex items-center gap-2 text-xs font-semibold text-slate-600">
-              <button type="button" onClick={() => void toggleActive()} className={`relative h-6 w-11 rounded-full transition ${active?.status === "active" ? "bg-emerald-500" : "bg-slate-200"}`} aria-label="실시간 실행 전환">
-                <span className={`absolute top-1 h-4 w-4 rounded-full bg-white transition ${active?.status === "active" ? "left-6" : "left-1"}`} />
-              </button>
-              실시간 실행
-            </label>
-            <ToolbarButton icon={Play} label="실행" onClick={() => void runScenario()} disabled={!active || busy} />
-            <ToolbarButton icon={Save} label="저장" onClick={() => void saveScenario()} disabled={!active || busy} />
-            <ToolbarButton icon={Trash2} label="삭제" onClick={() => void removeScenario()} disabled={!active || busy} danger />
+        <section className="rounded-[22px] border border-slate-200 bg-white shadow-sm">
+          <div className="flex flex-wrap items-center gap-3 border-b border-slate-200 px-4 py-3">
+            <ScenarioPicker scenarios={scenarios} active={active} onSelect={selectScenario} />
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+              <select aria-label="승인 정책" value={approvalPolicy} onChange={(event) => setApprovalPolicy(event.target.value)} className="h-8 max-w-[210px] rounded-lg border border-slate-200 px-2 text-[10px] font-bold text-slate-600">
+                <option value="all_external_changes">모든 외부 변경 작업 승인</option><option value="test_only">테스트할 때만 승인</option><option value="medium_and_above">중간 위험 이상 승인</option><option value="high_risk_two_stage">고위험 작업만 2단계 승인</option><option value="automatic">승인 없이 자동 실행</option>
+              </select>
+              <select aria-label="승인 만료 시간" value={approvalExpiryMinutes} onChange={(event) => setApprovalExpiryMinutes(Number(event.target.value))} className="h-8 rounded-lg border border-slate-200 px-2 text-[10px] font-bold text-slate-600">
+                <option value={5}>5분</option><option value={15}>15분</option><option value={30}>30분</option><option value={60}>1시간</option><option value={1440}>24시간</option>
+              </select>
+              <select aria-label="critical 추가 인증" value={criticalAuthMethod} onChange={(event) => setCriticalAuthMethod(event.target.value as "" | "password" | "otp" | "admin")} className="h-8 rounded-lg border border-slate-200 px-2 text-[10px] font-bold text-slate-600">
+                <option value="">critical 추가 인증 없음</option><option value="password">비밀번호 재확인</option><option value="otp">OTP</option><option value="admin">관리자 승인</option>
+              </select>
+              <label className="flex items-center gap-2 text-xs font-semibold text-slate-600">
+                <button type="button" onClick={() => void toggleActive()} className={`relative h-6 w-11 rounded-full transition ${active?.status === "active" ? "bg-emerald-500" : "bg-slate-200"}`} aria-label="실시간 실행 전환">
+                  <span className={`absolute top-1 h-4 w-4 rounded-full bg-white transition ${active?.status === "active" ? "left-6" : "left-1"}`} />
+                </button>
+                실시간 실행
+              </label>
+              <ToolbarButton icon={Play} label="실행" onClick={() => void runScenario()} disabled={!active || busy} />
+              <ToolbarButton icon={Save} label="저장" onClick={() => void saveScenario()} disabled={!active || busy} />
+              <ToolbarButton icon={Trash2} label="삭제" onClick={() => void removeScenario()} disabled={!active || busy} danger />
+            </div>
           </div>
-        </div>
 
-        <div className="grid min-h-[610px] min-w-0 grid-cols-1 xl:grid-cols-[210px_minmax(0,1fr)_300px]">
-          <ModuleCatalog search={search} onSearch={setSearch} onAdd={addModule} />
-          <div className="relative min-h-[610px] min-w-0 overflow-hidden border-y border-slate-200 bg-[#fbfbfd] xl:border-x xl:border-y-0">
-            {active ? (
-              <ReactFlow<CanvasNode, Edge>
-                nodes={nodes} edges={edges} nodeTypes={nodeTypes}
-                onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect}
-                onNodeClick={(_, node) => setSelectedNodeId(node.id)} fitView minZoom={0.35} maxZoom={1.8}
-                defaultEdgeOptions={{ animated: true, style: { stroke: "#8b7cf6", strokeWidth: 1.6 } }}
-                className="automation-flow"
-              >
-                <Background color="#d9d9e5" gap={20} size={1} />
-                <MiniMap pannable zoomable nodeColor="#8b7cf6" className="!border !border-slate-200 !bg-white" />
-                <Controls showInteractive={false} className="!overflow-hidden !rounded-xl !border-slate-200 !shadow-sm" />
-              </ReactFlow>
-            ) : (
-              <EmptyCanvas onCreate={() => void createFromPrompt()} />
-            )}
+          <div className="grid min-h-[610px] min-w-0 grid-cols-1 xl:grid-cols-[210px_minmax(0,1fr)_300px]">
+            <ModuleCatalog search={search} onSearch={setSearch} onAdd={addModule} />
+            <div className="relative min-h-[610px] min-w-0 overflow-hidden border-y border-slate-200 bg-[#fbfbfd] xl:border-x xl:border-y-0">
+              {active ? (
+                <ReactFlow<CanvasNode, Edge>
+                  nodes={nodes} edges={edges} nodeTypes={nodeTypes}
+                  onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect}
+                  onNodeClick={(_, node) => setSelectedNodeId(node.id)} fitView minZoom={0.35} maxZoom={1.8}
+                  defaultEdgeOptions={{ animated: true, style: { stroke: "#8b7cf6", strokeWidth: 1.6 } }}
+                  className="automation-flow"
+                >
+                  <Background color="#d9d9e5" gap={20} size={1} />
+                  <MiniMap pannable zoomable nodeColor="#8b7cf6" className="!border !border-slate-200 !bg-white" />
+                  <Controls showInteractive={false} className="!overflow-hidden !rounded-xl !border-slate-200 !shadow-sm" />
+                </ReactFlow>
+              ) : (
+                <EmptyCanvas onCreate={() => void createFromPrompt()} />
+              )}
+            </div>
+            <ScenarioInspector
+              scenario={active} selectedNode={selectedNode?.data.scenarioNode || null}
+              credentials={credentials} connectedOauthApps={connectedOauthApps} oauthConnections={oauthConnections}
+              onNodeChange={updateSelectedNode} onDeleteNode={deleteSelectedNode}
+              onOpenConnections={() => setActiveTab("connections")}
+            />
           </div>
-          <ScenarioInspector
-            scenario={active} selectedNode={selectedNode?.data.scenarioNode || null}
-            credentials={credentials} connectedOauthApps={connectedOauthApps}
-            onNodeChange={updateSelectedNode} onDeleteNode={deleteSelectedNode}
-            onOpenConnections={() => setActiveTab("connections")}
-          />
+        </section>
+
+        <section className="rounded-[18px] border border-slate-200 bg-white px-4 py-3 shadow-sm"><div className="flex flex-wrap items-center gap-3"><span className="text-[11px] font-bold text-slate-600">승인 알림 채널</span>{[["in_app", "앱 내부"], ["email", "이메일"], ["slack", "Slack"], ["browser", "브라우저"], ["mobile_push", "모바일 푸시"]].map(([value, label]) => <label key={value} className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-500"><input type="checkbox" checked={notificationChannels.includes(value)} onChange={(event) => setNotificationChannels((current) => event.target.checked ? [...new Set([...current, value])] : current.filter((item) => item !== value))} />{label}</label>)}</div><p className="mt-2 text-[10px] text-slate-400">‘승인 없이 자동 실행’을 선택해도 high 및 critical 작업은 항상 1차 경고와 최종 승인을 거칩니다.</p></section>
+
+        <section className="rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="mb-3 flex items-center justify-between"><h2 className="text-sm font-bold text-slate-900">추천 템플릿</h2><span className="text-xs font-semibold text-violet-600">모두 보기</span></div>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {templates.map((template) => <TemplateCard key={template.title} {...template} onUse={() => void createFromPrompt(template.prompt)} />)}
+          </div>
+        </section>
+
+        <div className="rounded-[18px] border border-violet-100 bg-violet-50/70 p-3">
+          <form onSubmit={(event) => { event.preventDefault(); void createFromPrompt(); }} className="flex min-w-0 items-center gap-3">
+            <WandSparkles className="shrink-0 text-violet-600" size={18} />
+            <input value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="AI Chat처럼 말해보세요. 예: 새 Gmail을 요약해서 Slack에 보내줘" className="min-w-0 flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400" />
+            <button type="submit" disabled={busy} className="shrink-0 rounded-xl bg-violet-600 px-4 py-2 text-xs font-bold text-white disabled:opacity-50">AI로 만들기</button>
+          </form>
         </div>
-      </section>
 
-      <section className="rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="mb-3 flex items-center justify-between"><h2 className="text-sm font-bold text-slate-900">추천 템플릿</h2><span className="text-xs font-semibold text-violet-600">모두 보기</span></div>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {templates.map((template) => <TemplateCard key={template.title} {...template} onUse={() => void createFromPrompt(template.prompt)} />)}
-        </div>
-      </section>
-
-      <div className="rounded-[18px] border border-violet-100 bg-violet-50/70 p-3">
-        <form onSubmit={(event) => { event.preventDefault(); void createFromPrompt(); }} className="flex min-w-0 items-center gap-3">
-          <WandSparkles className="shrink-0 text-violet-600" size={18} />
-          <input value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="AI Chat처럼 말해보세요. 예: 새 Gmail을 요약해서 Slack에 보내줘" className="min-w-0 flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400" />
-          <button type="submit" disabled={busy} className="shrink-0 rounded-xl bg-violet-600 px-4 py-2 text-xs font-bold text-white disabled:opacity-50">AI로 만들기</button>
-        </form>
-      </div>
-
-      <AiAnalysisCard />
+        <AiAnalysisCard />
       </> : null}
       {activeTab === "templates" ? <TemplateGallery onUse={(value) => { setActiveTab("scenario"); void createFromPrompt(value); }} /> : null}
-      {activeTab === "runs" ? <RunHistory scenarios={scenarios} onOpen={(scenario) => { selectScenario(scenario); setActiveTab("scenario"); }} /> : null}
-      {activeTab === "connections" ? <ConnectionManager credentials={credentials} onSave={addStructuredCredential} /> : null}
+      {activeTab === "runs" ? <div className="space-y-5"><DurableRunHistory /><RunHistory scenarios={scenarios} onOpen={(scenario) => { selectScenario(scenario); setActiveTab("scenario"); }} /></div> : null}
+      {activeTab === "approvals" ? <ApprovalCenter /> : null}
+      {activeTab === "connections" ? <div><DurableConnectionPanel /><ConnectionManager credentials={credentials} onSave={addStructuredCredential} /></div> : null}
+      {activeTab === "audit" ? <AuditLogView /> : null}
+      {activeTab === "dlq" ? <AdminDlqView /> : null}
       {activeTab === "guide" ? <AutomationGuide /> : null}
       {notice ? <p className="fixed bottom-5 right-6 z-50 max-w-sm rounded-2xl bg-slate-950 px-4 py-3 text-xs font-semibold leading-5 text-white shadow-xl">{notice}</p> : null}
     </div>
@@ -445,15 +484,19 @@ function ToolbarButton({ icon: Icon, label, onClick, disabled, danger = false }:
 
 function ModuleCatalog({ search, onSearch, onAdd }: { search: string; onSearch: (value: string) => void; onAdd: (item: AutomationModule) => void }) {
   const modules = AUTOMATION_MODULES.filter((item) => `${item.label} ${item.id}`.toLowerCase().includes(search.toLowerCase()));
-  return <aside className="min-w-0 overflow-hidden bg-white"><div className="border-b border-slate-100 p-3"><h2 className="text-xs font-bold text-slate-900">기본 모듈</h2><label className="mt-3 flex h-9 min-w-0 items-center gap-2 rounded-xl border border-slate-200 px-3"><Search size={14} className="shrink-0 text-slate-400" /><input value={search} onChange={(event) => onSearch(event.target.value)} placeholder="모듈 검색" className="min-w-0 flex-1 text-xs outline-none" /></label></div><div className="max-h-[510px] overflow-y-auto p-2 app-scrollbar">{["app", "ai", "tool"].map((category) => <div key={category} className="mb-3"><p className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">{category === "app" ? "앱" : category === "ai" ? "AI" : "도구"}</p>{modules.filter((item) => item.category === category).map((item) => <button type="button" key={item.id} onClick={() => onAdd(item)} className="group flex w-full min-w-0 items-center gap-2.5 rounded-xl px-2 py-2 text-left hover:bg-violet-50"><AutomationAppLogo appId={item.id} size={28} color={item.color} /><span className="min-w-0 flex-1 truncate text-xs font-semibold text-slate-700 group-hover:text-violet-700">{item.label}</span><Plus size={13} className="shrink-0 text-slate-300 group-hover:text-violet-500" /></button>)}</div>)}</div></aside>;
+  return <aside className="min-w-0 overflow-hidden bg-white"><div className="border-b border-slate-100 p-3"><h2 className="text-xs font-bold text-slate-900">기본 모듈</h2><label className="mt-3 flex h-9 min-w-0 items-center gap-2 rounded-xl border border-slate-200 px-3"><Search size={14} className="shrink-0 text-slate-400" /><input value={search} onChange={(event) => onSearch(event.target.value)} placeholder="모듈 검색" className="min-w-0 flex-1 text-xs outline-none" /></label></div><div className="max-h-[510px] overflow-y-auto p-2 app-scrollbar">{["app", "ai", "tool"].map((category) => <div key={category} className="mb-3"><p className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">{category === "app" ? "앱" : category === "ai" ? "AI" : "도구"}</p>{modules.filter((item) => item.category === category).map((item) => <button type="button" key={item.id} onClick={() => onAdd(item)} className="group flex w-full min-w-0 items-center gap-2.5 rounded-xl px-2 py-2 text-left hover:bg-violet-50"><AppLogo appId={item.id} size={28} color={item.color} /><span className="min-w-0 flex-1 truncate text-xs font-semibold text-slate-700 group-hover:text-violet-700">{item.label}</span><Plus size={13} className="shrink-0 text-slate-300 group-hover:text-violet-500" /></button>)}</div>)}</div></aside>;
 }
 
-function ScenarioInspector({ scenario, selectedNode, credentials, connectedOauthApps, onNodeChange, onDeleteNode, onOpenConnections }: { scenario: AutomationScenario | null; selectedNode: ScenarioNode | null; credentials: PublicAutomationCredential[]; connectedOauthApps: Map<string, string | null>; onNodeChange: (patch: Partial<ScenarioNode>) => void; onDeleteNode: () => void; onOpenConnections: () => void }) {
+function ScenarioInspector({ scenario, selectedNode, credentials, connectedOauthApps, oauthConnections, onNodeChange, onDeleteNode, onOpenConnections }: { scenario: AutomationScenario | null; selectedNode: ScenarioNode | null; credentials: PublicAutomationCredential[]; connectedOauthApps: Map<string, string | null>; oauthConnections: OAuthConnectionOption[]; onNodeChange: (patch: Partial<ScenarioNode>) => void; onDeleteNode: () => void; onOpenConnections: () => void }) {
   const matchingCredentials = credentials.filter((item) => !selectedNode || item.appId === selectedNode.appId);
   const selectedModule = selectedNode ? AUTOMATION_MODULES.find((item) => item.id === selectedNode.appId) || AUTOMATION_MODULES[0]! : null;
   const app = selectedNode ? getAutomationApp(selectedNode.appId) : null;
   const oauthConnected = selectedNode ? connectedOauthApps.has(selectedNode.appId) : false;
   const oauthAccountLabel = selectedNode ? connectedOauthApps.get(selectedNode.appId) || null : null;
+  const matchingOauthConnections = oauthConnections.filter((connection) => selectedNode && connection.appId === selectedNode.appId && connection.status === "connected");
+  const selectedAction = selectedNode?.actionId
+    ? getActionDefinition(selectedNode.appId, selectedNode.actionId, selectedNode.actionVersion || undefined)
+    : null;
   function openConnectionSetup() {
     if (app?.supportedAuthModes.length === 1 && app.supportedAuthModes[0] === "oauth") {
       window.dispatchEvent(new CustomEvent("dreamwish:navigate", { detail: { view: "integrations", connectorId: app.id } }));
@@ -461,7 +504,44 @@ function ScenarioInspector({ scenario, selectedNode, credentials, connectedOauth
     }
     onOpenConnections();
   }
-  return <aside className="min-w-0 overflow-hidden bg-white p-4"><div className="flex items-center justify-between"><h2 className="truncate text-sm font-bold text-slate-950">{selectedNode ? "모듈 설정" : "시나리오 정보"}</h2><MoreVertical size={16} className="shrink-0 text-slate-400" /></div>{selectedNode && selectedModule ? <div className="mt-5 space-y-4"><div className="flex min-w-0 items-center gap-3"><AutomationAppLogo appId={selectedModule.id} size={40} color={selectedModule.color} /><div className="min-w-0"><p className="truncate text-sm font-bold text-slate-900">{selectedNode.label}</p><p className="truncate text-xs text-slate-400">{selectedNode.operation}</p></div></div><InspectorField label="모듈 이름" value={selectedNode.label} onChange={(label) => onNodeChange({ label })} /><ActionPicker appId={selectedNode.appId} value={selectedNode.operation} onChange={(operation) => onNodeChange({ operation })} />{selectedNode.appId === "schedule" ? <ScheduleEditor config={selectedNode.config} onChange={(config) => onNodeChange({ config })} /> : null}{selectedNode.appId === "filter" || selectedNode.appId === "router" ? <FilterEditor appId={selectedNode.appId} config={selectedNode.config} onChange={(config) => onNodeChange({ config })} /> : null}{selectedNode.appId === "webhook" && scenario ? <WebhookPanel scenarioId={scenario.id} /> : null}{selectedNode.requiresCredential ? <div><label className="text-[11px] font-bold text-slate-500">검증된 계정 / API 키</label><select value={selectedNode.credentialId || ""} onChange={(event) => onNodeChange({ credentialId: event.target.value || null })} className="mt-2 h-10 w-full min-w-0 truncate rounded-xl border border-slate-200 px-3 text-xs outline-none"><option value="">{oauthConnected ? "OAuth 연결 사용 (기본)" : "연결 필요"}</option>{oauthConnected ? <option value={`oauth:${selectedNode.appId}`}>OAuth 연결됨{oauthAccountLabel ? ` · ${oauthAccountLabel}` : ""}</option> : null}{matchingCredentials.filter((item) => item.verificationStatus === "verified").map((item) => <option key={item.id} value={item.id}>{item.accountLabel || item.label} · {item.masked}</option>)}</select>{oauthConnected ? <p className="mt-2 rounded-xl bg-emerald-50 p-3 text-[11px] leading-5 text-emerald-700">Integrations에서 OAuth로 연결된 계정{oauthAccountLabel ? ` (${oauthAccountLabel})` : ""}이 이 모듈에서 바로 사용됩니다.</p> : <div className="mt-3 rounded-xl bg-slate-50 p-3"><p className="text-[11px] leading-5 text-slate-600">앱별 정확한 키 항목 또는 OAuth를 연결 관리에서 인증하세요.</p><button type="button" onClick={openConnectionSetup} className="mt-2 flex h-9 w-full items-center justify-center rounded-lg bg-violet-600 text-[11px] font-bold text-white">연결 관리에서 인증</button></div>}</div> : <p className="rounded-xl bg-emerald-50 p-3 text-[11px] leading-5 text-emerald-700">이 모듈은 별도 API 키 없이 DREAMWISH 내부에서 실행됩니다.</p>}<button type="button" onClick={onDeleteNode} className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-red-100 text-xs font-bold text-red-600 hover:bg-red-50"><Trash2 size={14} />모듈 삭제</button></div> : <ScenarioSummary scenario={scenario} credentials={credentials} />}</aside>;
+  return <aside className="min-w-0 overflow-hidden bg-white p-4">
+<div className="flex items-center justify-between">
+<h2 className="truncate text-sm font-bold text-slate-950">{selectedNode ? "모듈 설정" : "시나리오 정보"}</h2>
+<MoreVertical size={16} className="shrink-0 text-slate-400" />
+</div>{selectedNode && selectedModule ? <div className="mt-5 space-y-4">
+<div className="flex min-w-0 items-center gap-3">
+<AppLogo appId={selectedModule.id} size={40} color={selectedModule.color} />
+<div className="min-w-0">
+<p className="truncate text-sm font-bold text-slate-900">{selectedNode.label}</p>
+<p className="truncate text-xs text-slate-400">{selectedNode.operation}</p>
+</div>
+</div>
+<InspectorField label="모듈 이름" value={selectedNode.label} onChange={(label) => onNodeChange({ label })} />
+{selectedNode.appId !== "filter" ? (
+  <ActionPicker
+    appId={selectedNode.appId}
+    actionId={selectedNode.actionId}
+    actionVersion={selectedNode.actionVersion}
+    onChange={({ actionId, actionVersion }) => onNodeChange(changeScenarioAction(selectedNode, actionId, actionVersion))}
+  />
+) : null}
+{selectedAction && selectedNode.appId !== "schedule" ? (
+  <ActionInputForm definition={selectedAction} value={selectedNode.config} onChange={(config) => onNodeChange({ config })} />
+) : null}
+{selectedAction ? <ActionPreviewCard appId={selectedNode.appId} actionId={selectedAction.id} actionVersion={selectedAction.version} input={selectedNode.config} /> : null}
+{selectedNode.appId === "schedule" ? <ScheduleEditor config={selectedNode.config} onChange={(config) => onNodeChange({ config })} /> : null}
+{selectedNode.appId === "filter" || selectedNode.appId === "router" ? <FilterEditor appId={selectedNode.appId} config={selectedNode.config} onChange={(config) => onNodeChange({ config })} /> : null}
+{selectedNode.appId === "webhook" && scenario ? <WebhookPanel scenarioId={scenario.id} /> : null}
+{selectedNode.requiresCredential ? <div>
+<label className="text-[11px] font-bold text-slate-500">검증된 계정 / API 키</label>
+<select value={selectedNode.credentialId || ""} onChange={(event) => onNodeChange({ credentialId: event.target.value || null })} className="mt-2 h-10 w-full min-w-0 truncate rounded-xl border border-slate-200 px-3 text-xs outline-none">
+<option value="">{oauthConnected ? "사용할 연결 계정을 선택하세요" : "연결 필요"}</option>{matchingOauthConnections.map((connection) => <option key={connection.id} value={connection.id}>OAuth · {connection.accountLabel || connection.accountEmail || connection.id}</option>)}
+{matchingCredentials.filter((item) => item.verificationStatus === "verified").map((item) => <option key={item.id} value={item.id}>{item.accountLabel || item.label} · {item.masked}</option>)}</select>{oauthConnected ? <p className="mt-2 rounded-xl bg-emerald-50 p-3 text-[11px] leading-5 text-emerald-700">Integrations에서 OAuth로 연결된 계정{oauthAccountLabel ? ` (${oauthAccountLabel})` : ""}이 이 모듈에서 바로 사용됩니다.</p> : <div className="mt-3 rounded-xl bg-slate-50 p-3">
+<p className="text-[11px] leading-5 text-slate-600">앱별 정확한 키 항목 또는 OAuth를 연결 관리에서 인증하세요.</p>
+<button type="button" onClick={openConnectionSetup} className="mt-2 flex h-9 w-full items-center justify-center rounded-lg bg-violet-600 text-[11px] font-bold text-white">연결 관리에서 인증</button>
+</div>}</div> : <p className="rounded-xl bg-emerald-50 p-3 text-[11px] leading-5 text-emerald-700">이 모듈은 별도 API 키 없이 DREAMWISH 내부에서 실행됩니다.</p>}<button type="button" onClick={onDeleteNode} className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-red-100 text-xs font-bold text-red-600 hover:bg-red-50">
+<Trash2 size={14} />모듈 삭제</button>
+</div> : <ScenarioSummary scenario={scenario} credentials={credentials} />}</aside>;
 }
 
 function ScenarioSummary({ scenario, credentials }: { scenario: AutomationScenario | null; credentials: PublicAutomationCredential[] }) {
@@ -472,12 +552,12 @@ function ScenarioSummary({ scenario, credentials }: { scenario: AutomationScenar
 
 function ScenarioModuleNode({ data, selected }: NodeProps<CanvasNode>) {
   const item = AUTOMATION_MODULES.find((module) => module.id === data.scenarioNode.appId) || AUTOMATION_MODULES[0]!;
-  return <div className={`relative w-[154px] rounded-2xl border bg-white px-3 py-3 shadow-lg shadow-slate-200/50 transition ${selected ? "border-violet-500 ring-4 ring-violet-100" : "border-slate-200"}`}><Handle type="target" position={Position.Left} className="!h-2.5 !w-2.5 !border-2 !border-white !bg-violet-500" /><span className="absolute -left-2.5 -top-2.5 flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold text-white shadow" style={{ backgroundColor: item.color }}>{data.order + 1}</span><div className="flex items-center gap-2"><AutomationAppLogo appId={item.id} size={40} color={item.color} /><div className="min-w-0 flex-1"><p className="truncate text-xs font-bold text-slate-900" title={data.scenarioNode.label}>{data.scenarioNode.label}</p><p className="mt-1 line-clamp-2 break-words text-[10px] leading-4 text-slate-500">{data.scenarioNode.operation}</p></div></div>{data.scenarioNode.requiresCredential && !data.scenarioNode.credentialId && !data.oauthConnected ? <span className="mt-2 block truncate rounded-md bg-amber-50 px-2 py-1 text-[9px] font-bold text-amber-700">연결 필요</span> : null}{data.scenarioNode.requiresCredential && !data.scenarioNode.credentialId && data.oauthConnected ? <span className="mt-2 block truncate rounded-md bg-emerald-50 px-2 py-1 text-[9px] font-bold text-emerald-700">OAuth 연결됨</span> : null}<Handle type="source" position={Position.Right} className="!h-2.5 !w-2.5 !border-2 !border-white !bg-violet-500" /></div>;
+  return <div className={`relative w-[154px] rounded-2xl border bg-white px-3 py-3 shadow-lg shadow-slate-200/50 transition ${selected ? "border-violet-500 ring-4 ring-violet-100" : "border-slate-200"}`}><Handle type="target" position={Position.Left} className="!h-2.5 !w-2.5 !border-2 !border-white !bg-violet-500" /><span className="absolute -left-2.5 -top-2.5 flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold text-white shadow" style={{ backgroundColor: item.color }}>{data.order + 1}</span><div className="flex items-center gap-2"><AppLogo appId={item.id} size={40} color={item.color} /><div className="min-w-0 flex-1"><p className="truncate text-xs font-bold text-slate-900" title={data.scenarioNode.label}>{data.scenarioNode.label}</p><p className="mt-1 line-clamp-2 break-words text-[10px] leading-4 text-slate-500">{data.scenarioNode.operation}</p></div></div>{data.scenarioNode.requiresCredential && !data.scenarioNode.credentialId && !data.oauthConnected ? <span className="mt-2 block truncate rounded-md bg-amber-50 px-2 py-1 text-[9px] font-bold text-amber-700">연결 필요</span> : null}{data.scenarioNode.requiresCredential && !data.scenarioNode.credentialId && data.oauthConnected ? <span className="mt-2 block truncate rounded-md bg-emerald-50 px-2 py-1 text-[9px] font-bold text-emerald-700">OAuth 연결됨</span> : null}<Handle type="source" position={Position.Right} className="!h-2.5 !w-2.5 !border-2 !border-white !bg-violet-500" /></div>;
 }
 
 function InspectorField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) { return <label className="block min-w-0"><span className="text-[11px] font-bold text-slate-500">{label}</span><input value={value} onChange={(event) => onChange(event.target.value)} className="mt-2 h-10 w-full min-w-0 rounded-xl border border-slate-200 px-3 text-xs outline-none focus:border-violet-400" /></label>; }
 
-function FilterEditor({ appId, config, onChange }: { appId: string; config: Record<string, string | number | boolean>; onChange: (config: Record<string, string | number | boolean>) => void }) {
+function FilterEditor({ appId, config, onChange }: { appId: string; config: ScenarioConfig; onChange: (config: ScenarioConfig) => void }) {
   const field = "mt-1 h-9 w-full min-w-0 rounded-xl border border-slate-200 px-2.5 text-xs outline-none";
   const patch = (next: Record<string, string | number | boolean>) => onChange({ ...config, ...next });
   return (
@@ -559,7 +639,7 @@ function WebhookPanel({ scenarioId }: { scenarioId: string }) {
   );
 }
 
-function ScheduleEditor({ config, onChange }: { config: Record<string, string | number | boolean>; onChange: (config: Record<string, string | number | boolean>) => void }) {
+function ScheduleEditor({ config, onChange }: { config: ScenarioConfig; onChange: (config: ScenarioConfig) => void }) {
   const kind = String(config.scheduleKind || "daily");
   const time = /^\d{2}:\d{2}$/u.test(String(config.scheduleTime)) ? String(config.scheduleTime) : "09:00";
   const weekday = Number.isFinite(Number(config.scheduleWeekday)) ? Number(config.scheduleWeekday) : 1;
@@ -629,7 +709,7 @@ function ScheduleEditor({ config, onChange }: { config: Record<string, string | 
 }
 function SummaryRow({ label, value }: { label: string; value: string }) { return <div className="flex min-w-0 items-center justify-between gap-3"><dt className="shrink-0 text-slate-500">{label}</dt><dd className="min-w-0 truncate font-bold text-slate-800">{value}</dd></div>; }
 function EmptyCanvas({ onCreate }: { onCreate: () => void }) { return <div className="absolute inset-0 flex items-center justify-center"><div className="max-w-xs text-center"><div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-100 text-violet-600"><Bot size={25} /></div><h2 className="mt-4 text-base font-bold text-slate-900">첫 시나리오를 만들어보세요</h2><p className="mt-2 break-keep text-xs leading-6 text-slate-500">AI에게 원하는 자동화를 말하거나 왼쪽 모듈을 연결해 시작할 수 있습니다.</p><button type="button" onClick={onCreate} className="mt-4 rounded-xl bg-violet-600 px-4 py-2.5 text-xs font-bold text-white">AI로 초안 만들기</button></div></div>; }
-function TemplateCard({ title, chain, onUse }: { title: string; prompt: string; chain: string[]; onUse: () => void }) { return <article className="min-w-0 rounded-2xl border border-slate-200 p-3"><div className="flex items-center gap-1.5">{chain.map((id, index) => { const item = AUTOMATION_MODULES.find((module) => module.id === id) || AUTOMATION_MODULES[0]!; return <span key={`${id}-${index}`} className="flex items-center gap-1.5"><AutomationAppLogo appId={item.id} size={28} color={item.color} />{index < chain.length - 1 ? <span className="text-slate-300">→</span> : null}</span>; })}</div><p className="mt-3 truncate text-xs font-bold text-slate-900" title={title}>{title}</p><button type="button" onClick={onUse} className="mt-3 h-8 w-full rounded-lg border border-violet-100 text-[11px] font-bold text-violet-600 hover:bg-violet-50">사용하기</button></article>; }
+function TemplateCard({ title, chain, onUse }: { title: string; prompt: string; chain: string[]; onUse: () => void }) { return <article className="min-w-0 rounded-2xl border border-slate-200 p-3"><div className="flex items-center gap-1.5">{chain.map((id, index) => { const item = AUTOMATION_MODULES.find((module) => module.id === id) || AUTOMATION_MODULES[0]!; return <span key={`${id}-${index}`} className="flex items-center gap-1.5"><AppLogo appId={item.id} size={28} color={item.color} />{index < chain.length - 1 ? <span className="text-slate-300">→</span> : null}</span>; })}</div><p className="mt-3 truncate text-xs font-bold text-slate-900" title={title}>{title}</p><button type="button" onClick={onUse} className="mt-3 h-8 w-full rounded-lg border border-violet-100 text-[11px] font-bold text-violet-600 hover:bg-violet-50">사용하기</button></article>; }
 
 function toCanvasNodes(nodes: ScenarioNode[]): CanvasNode[] { return nodes.map(toCanvasNode); }
 function toCanvasNode(scenarioNode: ScenarioNode, order: number): CanvasNode { return { id: scenarioNode.id, type: "scenarioModule", position: scenarioNode.position, data: { scenarioNode, order } }; }
