@@ -58,6 +58,21 @@ test("billing event mapping revokes stale or failed subscriptions", () => {
   assert.equal(statusFromPolarEvent("order.refunded", "active"), "revoked");
 });
 
+test("billing entitlement explicitly tracks scheduled cancellation", () => {
+  const { emptyBillingEntitlement } = require("../src/lib/billing/billing.types") as {
+    emptyBillingEntitlement: (ownerId: string) => Record<string, unknown>;
+  };
+  const entitlement = emptyBillingEntitlement("owner-1");
+  assert.equal(entitlement.cancelAtPeriodEnd, false);
+  assert.equal(entitlement.canceledAt, null);
+  assert.equal(entitlement.endsAt, null);
+
+  const repository = fs.readFileSync("src/lib/billing/billing.repository.ts", "utf8");
+  assert.match(repository, /cancelAtPeriodEnd/u);
+  assert.match(repository, /canceledAt/u);
+  assert.match(repository, /endsAt/u);
+});
+
 test("entitled owner context rechecks durable billing state", () => {
   assert.equal(fs.existsSync("src/lib/auth/entitled-owner-context.ts"), true);
   const source = fs.readFileSync("src/lib/auth/entitled-owner-context.ts", "utf8");

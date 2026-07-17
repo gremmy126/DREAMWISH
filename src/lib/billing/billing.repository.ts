@@ -54,6 +54,9 @@ export async function applyPolarBillingEvent(input: {
   polarCustomerId?: string | null;
   polarSubscriptionId?: string | null;
   currentPeriodEnd?: string | null;
+  cancelAtPeriodEnd?: boolean;
+  canceledAt?: string | null;
+  endsAt?: string | null;
 }) {
   return updateBillingEntitlement(input.ownerId, (current) => {
     if (current.lastEventId === input.eventId) return current;
@@ -70,6 +73,11 @@ export async function applyPolarBillingEvent(input: {
       polarSubscriptionId:
         input.polarSubscriptionId || current.polarSubscriptionId,
       currentPeriodEnd: input.currentPeriodEnd ?? current.currentPeriodEnd,
+      cancelAtPeriodEnd:
+        input.cancelAtPeriodEnd ?? current.cancelAtPeriodEnd,
+      canceledAt:
+        input.canceledAt === undefined ? current.canceledAt : input.canceledAt,
+      endsAt: input.endsAt === undefined ? current.endsAt : input.endsAt,
       lastEventId: input.eventId,
       lastEventAt: input.occurredAt,
       updatedAt: new Date().toISOString()

@@ -8,6 +8,9 @@ export type NormalizedPolarBillingEvent = {
   polarCustomerId: string | null;
   polarSubscriptionId: string | null;
   currentPeriodEnd: string | null;
+  cancelAtPeriodEnd?: boolean;
+  canceledAt?: string | null;
+  endsAt?: string | null;
 };
 
 export function extractPolarBillingEvent(
@@ -51,7 +54,14 @@ export function extractPolarBillingEvent(
         "current_period_end",
         "endsAt",
         "ends_at"
-      ) || null
+      ) || null,
+    cancelAtPeriodEnd: readOptionalBoolean(
+      data,
+      "cancelAtPeriodEnd",
+      "cancel_at_period_end"
+    ),
+    canceledAt: readOptionalNullableString(data, "canceledAt", "canceled_at"),
+    endsAt: readOptionalNullableString(data, "endsAt", "ends_at")
   };
 }
 
@@ -84,6 +94,28 @@ function readArray(source: Record<string, unknown>, ...keys: string[]) {
     if (Array.isArray(source[key])) return source[key] as unknown[];
   }
   return [];
+}
+
+function readOptionalBoolean(source: Record<string, unknown>, ...keys: string[]) {
+  for (const key of keys) {
+    if (!Object.prototype.hasOwnProperty.call(source, key)) continue;
+    const value = source[key];
+    if (typeof value === "boolean") return value;
+  }
+  return undefined;
+}
+
+function readOptionalNullableString(
+  source: Record<string, unknown>,
+  ...keys: string[]
+) {
+  for (const key of keys) {
+    if (!Object.prototype.hasOwnProperty.call(source, key)) continue;
+    const value = source[key];
+    if (value === null) return null;
+    if (typeof value === "string") return value.trim() || null;
+  }
+  return undefined;
 }
 
 function normalizeDate(value: string) {

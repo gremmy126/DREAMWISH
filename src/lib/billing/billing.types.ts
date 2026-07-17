@@ -12,6 +12,9 @@ export type BillingEntitlement = {
   polarCustomerId: string | null;
   polarSubscriptionId: string | null;
   currentPeriodEnd: string | null;
+  cancelAtPeriodEnd: boolean;
+  canceledAt: string | null;
+  endsAt: string | null;
   lastEventId: string | null;
   lastEventAt: string | null;
   updatedAt: string;
@@ -24,6 +27,9 @@ export function emptyBillingEntitlement(ownerId: string): BillingEntitlement {
     polarCustomerId: null,
     polarSubscriptionId: null,
     currentPeriodEnd: null,
+    cancelAtPeriodEnd: false,
+    canceledAt: null,
+    endsAt: null,
     lastEventId: null,
     lastEventAt: null,
     updatedAt: new Date(0).toISOString()

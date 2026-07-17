@@ -50,6 +50,45 @@ test("Polar webhook payload maps external customer id and subscription state", (
   });
 });
 
+test("Polar scheduled cancellation keeps access active and records its end state", () => {
+  const { extractPolarBillingEvent } = require("../src/lib/billing/polar-event") as {
+    extractPolarBillingEvent: (payload: unknown) => {
+      eventType: string;
+      cancelAtPeriodEnd: boolean;
+      canceledAt: string | null;
+      endsAt: string | null;
+      currentPeriodEnd: string | null;
+    } | null;
+  };
+  const event = extractPolarBillingEvent({
+    type: "subscription.updated",
+    timestamp: "2026-07-17T09:00:00.000Z",
+    data: {
+      id: "subscription-canceling",
+      status: "active",
+      cancel_at_period_end: true,
+      canceled_at: "2026-07-17T09:00:00.000Z",
+      ends_at: "2026-08-17T09:00:00.000Z",
+      current_period_end: "2026-08-17T09:00:00.000Z",
+      customer: { id: "customer-1", external_id: "firebase-owner-1" }
+    }
+  });
+
+  assert.deepEqual(event && {
+    eventType: event.eventType,
+    cancelAtPeriodEnd: event.cancelAtPeriodEnd,
+    canceledAt: event.canceledAt,
+    endsAt: event.endsAt,
+    currentPeriodEnd: event.currentPeriodEnd
+  }, {
+    eventType: "subscription.active",
+    cancelAtPeriodEnd: true,
+    canceledAt: "2026-07-17T09:00:00.000Z",
+    endsAt: "2026-08-17T09:00:00.000Z",
+    currentPeriodEnd: "2026-08-17T09:00:00.000Z"
+  });
+});
+
 test("billing status and portal routes remain available to unpaid owners", () => {
   for (const file of [
     "app/api/billing/status/route.ts",
