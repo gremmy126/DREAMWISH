@@ -2,7 +2,7 @@ import type { ResearchMode, ResearchSettings } from "./deep-research.types";
 
 export const RESEARCH_LIMITS = {
   minDurationMs: 60_000,
-  maxDurationMs: 60 * 60_000,
+  maxDurationMs: 120 * 60_000,
   maxSearchQueries: 40,
   maxPages: 60,
   maxSources: 40,

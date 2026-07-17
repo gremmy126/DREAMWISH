@@ -361,15 +361,25 @@ export async function runResearchJob(
       throw new Error("사용 가능한 출처를 찾지 못했습니다. 검색 범위를 넓혀 다시 시도하세요.");
     }
     let body = "";
-    try {
-      body = await askAI(buildReportMessages(job.query, state, settings));
-      await mutateResearchJob(ownerId, jobId, (record) => {
-        record.usage.aiCalls += 1;
+    let aiFailure: string | null = null;
+    for (let attempt = 0; attempt < 2 && !body; attempt += 1) {
+      try {
+        body = await askAI(buildReportMessages(job.query, state, settings));
+        await mutateResearchJob(ownerId, jobId, (record) => {
+          record.usage.aiCalls += 1;
+        });
+      } catch (error) {
+        aiFailure = error instanceof Error ? error.message : "AI 보고서 생성 실패";
+      }
+    }
+    // AI synthesis failing must not lose the collected evidence: fall back to
+    // a deterministic evidence-centric report so the job still completes.
+    if (!body) {
+      body = buildEvidenceOnlyReport(job.query, state);
+      await progress({
+        step: "write",
+        message: `AI 요약 생성에 실패해 수집된 근거 중심 보고서로 완료합니다.${aiFailure ? ` (${aiFailure.slice(0, 120)})` : ""}`
       });
-    } catch (error) {
-      throw new Error(
-        error instanceof Error ? `보고서 생성에 실패했습니다: ${error.message}` : "보고서 생성에 실패했습니다."
-      );
     }
     const report = appendSourceList(body, state.sources, state.evidence);
     await persistCheckpoint("done", state);
@@ -560,6 +570,36 @@ function buildReportMessages(query: string, state: ResearchState, settings: Rese
     },
     { role: "user" as const, content: query }
   ];
+}
+
+/**
+ * Deterministic report used when every AI synthesis attempt fails: verbatim
+ * evidence excerpts with citations, clearly labelled — nothing is invented.
+ */
+export function buildEvidenceOnlyReport(
+  query: string,
+  state: Pick<ResearchState, "evidence" | "sources" | "usedQueries">
+): string {
+  const lines: string[] = [
+    "## 핵심 요약",
+    "AI 요약 생성에 실패하여 수집된 근거를 원문 중심으로 정리했습니다. 아래 내용은 출처 발췌이며 별도의 해석이 더해지지 않았습니다.",
+    ""
+  ];
+  if (state.usedQueries.length > 0) {
+    lines.push(`사용한 검색어: ${state.usedQueries.slice(0, 8).join(", ")}`, "");
+  }
+  lines.push("## 확인된 근거");
+  state.evidence.slice(0, 12).forEach((item, index) => {
+    const source = state.sources.find((candidate) => candidate.id === item.sourceId);
+    const label = source?.title || source?.domain || "출처";
+    lines.push("", `### [${index + 1}] ${label}`, item.excerpt.slice(0, 700));
+  });
+  lines.push(
+    "",
+    "## 상충되는 정보와 한계",
+    "자동 요약이 수행되지 않았으므로 출처 간 비교·검증이 필요합니다. 재시도하면 AI 요약을 다시 생성합니다."
+  );
+  return lines.join("\n");
 }
 
 function appendSourceList(

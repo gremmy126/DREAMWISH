@@ -29,7 +29,7 @@ import { listSessions } from "../src/lib/db/repositories/chat.repository";
 test("research settings clamp custom budgets to hard limits", () => {
   const settings = resolveResearchSettings({
     mode: "custom",
-    maxDurationMs: 100 * 60_000,
+    maxDurationMs: 999 * 60_000,
     maxSearchQueries: 500,
     maxPages: 999,
     maxSources: 999,

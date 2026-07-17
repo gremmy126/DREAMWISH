@@ -313,12 +313,120 @@ export function AutomationView() {
           <button type="submit" disabled={busy} className="shrink-0 rounded-xl bg-violet-600 px-4 py-2 text-xs font-bold text-white disabled:opacity-50">AI로 만들기</button>
         </form>
       </div>
+
+      <AiAnalysisCard />
       </> : null}
       {activeTab === "templates" ? <TemplateGallery onUse={(value) => { setActiveTab("scenario"); void createFromPrompt(value); }} /> : null}
       {activeTab === "runs" ? <RunHistory scenarios={scenarios} onOpen={(scenario) => { selectScenario(scenario); setActiveTab("scenario"); }} /> : null}
       {activeTab === "connections" ? <ConnectionManager credentials={credentials} onSave={addStructuredCredential} /> : null}
       {activeTab === "guide" ? <AutomationGuide /> : null}
       {notice ? <p className="fixed bottom-5 right-6 z-50 max-w-sm rounded-2xl bg-slate-950 px-4 py-3 text-xs font-semibold leading-5 text-white shadow-xl">{notice}</p> : null}
+    </div>
+  );
+}
+
+type AnalysisData = {
+  generatedAt: string;
+  aiGenerated: boolean;
+  stats: {
+    totalScenarios: number;
+    activeScenarios: number;
+    scheduledScenarios: number;
+    totalRuns: number;
+    successRate: number;
+    pendingApprovals: number;
+    missingConnections: number;
+    failedRuns: number;
+  };
+  findings: string[];
+  recommendations: string[];
+};
+
+function AiAnalysisCard() {
+  const [analysis, setAnalysis] = useState<AnalysisData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/automation/analysis", { cache: "no-store" });
+      const data = (await response.json().catch(() => ({}))) as { analysis?: AnalysisData; error?: string };
+      if (!response.ok || !data.analysis) throw new Error(data.error || "분석을 불러오지 못했습니다.");
+      setAnalysis(data.analysis);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "분석을 불러오지 못했습니다.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void load(); }, [load]);
+
+  return (
+    <section className="rounded-[22px] border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Sparkles size={16} className="text-violet-600" />
+          <h2 className="text-sm font-bold text-slate-950">AI 자동화 분석</h2>
+          {analysis ? (
+            <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${analysis.aiGenerated ? "bg-violet-100 text-violet-700" : "bg-slate-100 text-slate-600"}`}>
+              {analysis.aiGenerated ? "AI 분석" : "규칙 기반"}
+            </span>
+          ) : null}
+        </div>
+        <button
+          type="button"
+          onClick={() => void load()}
+          disabled={loading}
+          className="rounded-xl border border-slate-200 px-3 py-1.5 text-[11px] font-bold text-slate-600 disabled:opacity-50"
+        >
+          {loading ? "분석 중..." : "다시 분석"}
+        </button>
+      </div>
+
+      {error ? <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p> : null}
+      {loading && !analysis ? (
+        <div className="mt-4 h-24 animate-pulse rounded-2xl bg-slate-50" aria-hidden />
+      ) : null}
+
+      {analysis ? (
+        <>
+          <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <AnalysisStat label="시나리오" value={`${analysis.stats.totalScenarios}개 (활성 ${analysis.stats.activeScenarios})`} />
+            <AnalysisStat label="누적 실행 · 성공률" value={`${analysis.stats.totalRuns}회 · ${analysis.stats.successRate}%`} />
+            <AnalysisStat label="승인 대기" value={`${analysis.stats.pendingApprovals}건`} warn={analysis.stats.pendingApprovals > 0} />
+            <AnalysisStat label="연결 누락" value={`${analysis.stats.missingConnections}개`} warn={analysis.stats.missingConnections > 0} />
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <div className="rounded-2xl bg-slate-50 p-3">
+              <p className="text-[11px] font-bold text-slate-500">진단</p>
+              <ul className="mt-1.5 space-y-1 text-xs leading-5 text-slate-700">
+                {analysis.findings.map((finding) => <li key={finding}>• {finding}</li>)}
+              </ul>
+            </div>
+            <div className="rounded-2xl bg-violet-50/60 p-3">
+              <p className="text-[11px] font-bold text-violet-600">개선 추천</p>
+              <ul className="mt-1.5 space-y-1 text-xs leading-5 text-slate-700">
+                {analysis.recommendations.map((recommendation) => <li key={recommendation}>• {recommendation}</li>)}
+              </ul>
+            </div>
+          </div>
+          <p className="mt-2 text-right text-[10px] text-slate-400">
+            {new Date(analysis.generatedAt).toLocaleTimeString("ko-KR")} 기준 실제 실행 데이터 분석
+          </p>
+        </>
+      ) : null}
+    </section>
+  );
+}
+
+function AnalysisStat({ label, value, warn = false }: { label: string; value: string; warn?: boolean }) {
+  return (
+    <div className={`rounded-2xl border p-3 ${warn ? "border-amber-200 bg-amber-50" : "border-slate-200 bg-white"}`}>
+      <p className="text-[10px] font-bold text-slate-500">{label}</p>
+      <p className={`mt-1 truncate text-sm font-bold ${warn ? "text-amber-700" : "text-slate-900"}`}>{value}</p>
     </div>
   );
 }

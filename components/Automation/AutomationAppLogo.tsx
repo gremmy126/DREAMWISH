@@ -19,8 +19,10 @@ export function AutomationAppLogo({ appId, size = 32, color = "#6d5dfc" }: { app
     ? [
         `/images/app-logos/${app.id}.svg`,
         `/images/app-logos/${app.id}.png`,
+        `/images/app-logos/${app.id}.jpg`,
         `/images/${app.id}.svg`,
         `/images/${app.id}.png`,
+        `/images/${app.id}.jpg`,
         app.logoPath
       ]
     : [];

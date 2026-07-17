@@ -177,21 +177,31 @@ export async function requestResearchPause(ownerId: string, jobId: string) {
 
 export async function prepareResearchResume(ownerId: string, jobId: string) {
   return mutateResearchJob(ownerId, jobId, (job) => {
-    if (job.status !== "paused") {
+    if (job.status !== "paused" && job.status !== "failed") {
       throw new ResearchJobError(
-        "RESEARCH_NOT_PAUSED",
-        "일시정지된 조사만 다시 시작할 수 있습니다.",
+        "RESEARCH_NOT_RESUMABLE",
+        "일시정지되었거나 실패한 조사만 다시 시작할 수 있습니다.",
         409
       );
+    }
+    const retrying = job.status === "failed";
+    if (retrying) {
+      // A user-initiated retry gets a fresh time budget; the checkpoint keeps
+      // already-collected queries, sources and evidence so work is not redone.
+      job.startedAt = null;
+      job.error = null;
+      job.completedAt = null;
     }
     job.status = "queued";
     job.pauseRequested = false;
     job.cancelRequested = false;
-    job.currentStep = "재개 대기 중";
+    job.currentStep = retrying ? "재시도 대기 중" : "재개 대기 중";
     job.progressEvents.push({
       at: new Date().toISOString(),
-      step: "resume",
-      message: "저장된 체크포인트에서 조사를 재개합니다."
+      step: retrying ? "retry" : "resume",
+      message: retrying
+        ? "실패 지점의 체크포인트에서 새 시간 예산으로 재시도합니다."
+        : "저장된 체크포인트에서 조사를 재개합니다."
     });
   });
 }

@@ -80,7 +80,7 @@ const MODE_OPTIONS = [
   { id: "custom", label: "사용자 지정", hint: "직접 설정" }
 ] as const;
 
-const TIME_OPTIONS = [1, 3, 5, 10, 20, 30, 60] as const;
+const TIME_OPTIONS = [1, 3, 5, 10, 20, 30, 60, 120] as const;
 
 export function DeepResearchDock({
   currentQuery,
@@ -481,6 +481,11 @@ function ResearchJobCard({
                 <Square size={12} />
               </IconAction>
             </>
+          ) : null}
+          {job.status === "failed" ? (
+            <IconAction label="다시 시도 (체크포인트에서 이어서)" onClick={() => void onAction(job.id, "resume")}>
+              <Play size={12} />
+            </IconAction>
           ) : null}
           {job.report ? (
             <IconAction label="Markdown 내보내기" onClick={exportMarkdown}>
