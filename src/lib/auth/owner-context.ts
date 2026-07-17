@@ -1,4 +1,5 @@
 import { SESSION_COOKIE_NAME, verifySessionToken } from "./session-token";
+import { getOperationalAccount } from "../admin/account-admin.repository";
 
 export type OwnerContext = {
   uid: string;
@@ -23,10 +24,17 @@ export async function getOwnerContext(request: Request): Promise<OwnerContext | 
   const claims = await verifySessionToken(token);
   if (!claims) return null;
 
+  const account = await getOperationalAccount(claims.uid);
+  if (account) {
+    if (account.email !== claims.email) return null;
+    if (account.status !== "active") return null;
+    if (account.sessionVersion !== claims.sessionVersion) return null;
+  }
+
   const owner: OwnerContext = {
     uid: claims.uid,
     email: claims.email,
-    role: claims.role
+    role: account?.role || claims.role
   };
   if (owner.role === "admin") {
     const { runOwnerV1Migration } = await import("../migrations/owner-v1");
@@ -42,7 +50,7 @@ export async function requireOwnerContext(request: Request): Promise<OwnerContex
   return owner;
 }
 
-function readSessionCookie(cookieHeader: string | null): string | null {
+export function readSessionCookie(cookieHeader: string | null): string | null {
   if (!cookieHeader) return null;
 
   for (const cookie of cookieHeader.split(";")) {

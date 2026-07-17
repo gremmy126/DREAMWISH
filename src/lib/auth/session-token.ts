@@ -14,12 +14,19 @@ export type SessionClaims = {
   name: string | null;
   role: AccountRole;
   paid: boolean;
+  entitled: boolean;
+  sessionVersion: number;
   iat: number;
   exp: number;
 };
 
 export type CreateSessionClaims = Pick<SessionClaims, "uid" | "email" | "paid"> &
-  Partial<Pick<SessionClaims, "name" | "iat" | "exp">>;
+  Partial<
+    Pick<
+      SessionClaims,
+      "name" | "role" | "entitled" | "sessionVersion" | "iat" | "exp"
+    >
+  >;
 
 export async function createSessionToken(input: CreateSessionClaims): Promise<string> {
   const secret = getSessionSecret();
@@ -57,7 +64,11 @@ export async function verifySessionToken(token: string): Promise<SessionClaims |
     if (parsed.iat > now + MAX_CLOCK_SKEW_SECONDS) return null;
     if (parsed.exp <= now || parsed.exp <= parsed.iat) return null;
 
-    return parsed;
+    return {
+      ...parsed,
+      entitled: parsed.entitled ?? parsed.paid,
+      sessionVersion: parsed.sessionVersion ?? 1
+    };
   } catch {
     return null;
   }
@@ -70,10 +81,16 @@ function buildClaims(input: CreateSessionClaims): SessionClaims {
   const now = Math.floor(Date.now() / 1000);
   const iat = input.iat ?? now;
   const exp = input.exp ?? iat + SESSION_MAX_AGE_SECONDS;
+  const role = input.role || (isAdminEmail(email) ? "admin" : "user");
+  const sessionVersion = input.sessionVersion ?? 1;
 
   if (!uid) throw new Error("Session claims require a Firebase uid.");
   if (!email || !email.includes("@")) throw new Error("Session claims require an email.");
   if (typeof input.paid !== "boolean") throw new Error("Session claims require paid status.");
+  if (role !== "admin" && role !== "user") throw new Error("Session claims require a valid role.");
+  if (!Number.isInteger(sessionVersion) || sessionVersion < 1) {
+    throw new Error("Session claims require a valid session version.");
+  }
   if (!Number.isInteger(iat) || iat <= 0) throw new Error("Session claims require a valid iat.");
   if (!Number.isInteger(exp) || exp <= iat) throw new Error("Session claims require a valid exp.");
 
@@ -81,8 +98,10 @@ function buildClaims(input: CreateSessionClaims): SessionClaims {
     uid,
     email,
     name,
-    role: isAdminEmail(email) ? "admin" : "user",
-    paid: isAdminEmail(email) || input.paid,
+    role,
+    paid: role === "admin" || input.paid,
+    entitled: role === "admin" || (input.entitled ?? input.paid),
+    sessionVersion,
     iat,
     exp
   };
@@ -100,6 +119,9 @@ function isSessionClaims(value: unknown): value is SessionClaims {
     (claims.name === null || typeof claims.name === "string") &&
     (claims.role === "admin" || claims.role === "user") &&
     typeof claims.paid === "boolean" &&
+    (claims.entitled === undefined || typeof claims.entitled === "boolean") &&
+    (claims.sessionVersion === undefined ||
+      (Number.isInteger(claims.sessionVersion) && (claims.sessionVersion as number) > 0)) &&
     Number.isInteger(claims.iat) &&
     Number.isInteger(claims.exp) &&
     (claims.iat as number) > 0

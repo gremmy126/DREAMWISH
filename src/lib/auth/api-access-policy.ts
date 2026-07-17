@@ -11,12 +11,17 @@ export type ApiAccessDecision =
       code: "UNAUTHORIZED" | "PAYMENT_REQUIRED" | "FORBIDDEN";
     };
 
-type AccessClaims = Pick<SessionClaims, "email" | "paid">;
+type AccessClaims = Pick<SessionClaims, "email" | "paid"> &
+  Partial<Pick<SessionClaims, "entitled" | "role">>;
 
 const PUBLIC_API_PATHS = new Set([
   "/api/auth/login",
   "/api/auth/session",
   "/api/auth/logout",
+  "/api/auth/oauth/kakao/start",
+  "/api/auth/oauth/kakao/callback",
+  "/api/auth/oauth/naver/start",
+  "/api/auth/oauth/naver/callback",
   "/api/webhooks/polar"
 ]);
 
@@ -61,14 +66,14 @@ export function decideApiAccess(
     return { allowed: false, status: 401, code: "UNAUTHORIZED" };
   }
 
-  const admin = isAdminEmail(claims.email);
+  const admin = claims.role === "admin" || isAdminEmail(claims.email);
   if (accessClass === "admin") {
     return admin
       ? { allowed: true }
       : { allowed: false, status: 403, code: "FORBIDDEN" };
   }
 
-  if (accessClass === "billing" || admin || claims.paid) {
+  if (accessClass === "billing" || admin || (claims.entitled ?? claims.paid)) {
     return { allowed: true };
   }
 

@@ -11,6 +11,7 @@ import {
 } from "@/src/lib/auth/session-token";
 import { verifyFirebaseIdToken } from "@/src/lib/firebase/firebase-server-auth";
 import { getBillingEntitlement } from "@/src/lib/billing/billing.repository";
+import { upsertOperationalAccount } from "@/src/lib/admin/account-admin.repository";
 
 export async function POST(request: Request) {
   try {
@@ -33,11 +34,21 @@ export async function POST(request: Request) {
       email: verified.email,
       paid: entitlement?.status === "active"
     });
+    const operationalAccount = await upsertOperationalAccount({
+      id: verified.uid,
+      email: verified.email,
+      name: verified.name,
+      provider: "password",
+      providerSubject: verified.uid
+    });
     const sessionToken = await createSessionToken({
       uid: verified.uid,
       email: verified.email,
       name: verified.name,
-      paid: access.paid
+      role: operationalAccount.role,
+      paid: access.paid,
+      entitled: access.canUseApp,
+      sessionVersion: operationalAccount.sessionVersion
     });
     const response = NextResponse.json({ ok: true, access });
     response.cookies.set({
