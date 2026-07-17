@@ -35,10 +35,12 @@ export default function PrivacyPage() {
       <PolicySection id="purpose" title="2. 개인정보의 처리 목적">
         <ul>
           <li>회원 가입, 본인 식별, 로그인 세션 유지 및 계정 보안</li>
+          <li>카카오·네이버 소셜 로그인, 동일한 검증 이메일을 기준으로 한 계정 연결</li>
           <li>AI 대화, 분석, 메모리, 검색, 파일 및 업무 관리 기능 제공</li>
           <li>OAuth 계정 연결, 외부 앱 동기화 및 사용자가 설정한 자동화 실행</li>
           <li>고위험 자동화의 Preview, 승인, 실행 기록 및 감사 로그 제공</li>
           <li>월간 구독 결제, 이용 권한 확인, 영수증·결제 내역 및 구독 상태 관리</li>
+          <li>이용권형·할인형 쿠폰의 유효성 확인, 사용 횟수 관리, 접근권한 또는 결제 할인 적용</li>
           <li>오류 분석, 부정 이용 방지, 보안 대응, 고객문의 처리 및 서비스 개선</li>
           <li>이용자가 동의한 경우 서비스 이용 분석과 광고 측정·제공</li>
         </ul>
@@ -53,7 +55,7 @@ export default function PrivacyPage() {
             <tbody>
               <tr>
                 <td>계정·인증</td>
-                <td>Firebase 사용자 ID, 이메일, 표시 이름, 로그인 제공자, 계정 상태</td>
+                <td>Firebase 사용자 ID 또는 Kakao·Naver 제공자 식별자, 검증된 이메일, 표시 이름, 로그인 제공자, 계정 상태</td>
               </tr>
               <tr>
                 <td>서비스 콘텐츠</td>
@@ -70,6 +72,10 @@ export default function PrivacyPage() {
               <tr>
                 <td>결제·구독</td>
                 <td>Polar 고객·주문·구독 식별자, 결제 상태, 결제 금액·통화, 결제·갱신·해지 시각, 이용 종료일</td>
+              </tr>
+              <tr>
+                <td>쿠폰·이용권</td>
+                <td>쿠폰 코드의 HMAC 해시와 일부 힌트, 종류·혜택·만료·사용 횟수, 사용자·할인 예약·이용권 식별자와 적용 결과</td>
               </tr>
               <tr>
                 <td>기술·보안</td>
@@ -92,7 +98,7 @@ export default function PrivacyPage() {
       <PolicySection id="collection" title="4. 개인정보의 수집 방법">
         <ul>
           <li>회원가입, 설정, 콘텐츠 작성, 파일 업로드, 고객문의 과정에서 이용자가 직접 입력</li>
-          <li>Firebase 로그인, Polar 결제 및 OAuth 제공자의 동의 화면을 통한 전달</li>
+          <li>Firebase 이메일 로그인, Kakao·Naver 로그인, Polar 결제 및 OAuth 제공자의 동의 화면을 통한 전달</li>
           <li>사용자가 연결한 외부 앱의 API 또는 Webhook을 통한 동기화</li>
           <li>서비스 이용 과정에서 서버·브라우저 로그와 쿠키를 통해 자동 생성</li>
         </ul>
@@ -108,7 +114,9 @@ export default function PrivacyPage() {
             <thead><tr><th>기록</th><th>원칙적 보유 기간</th></tr></thead>
             <tbody>
               <tr><td>계정 및 이용자 콘텐츠</td><td>회원 탈퇴 또는 이용자가 삭제할 때까지</td></tr>
+              <tr><td>삭제 대기 계정</td><td>삭제 요청 후 7일의 취소 가능 기간까지. 이후 법정 보관 대상 외 계정 정보를 삭제</td></tr>
               <tr><td>OAuth 연결 및 암호화된 인증정보</td><td>연결 해제, 자격증명 삭제 또는 회원 탈퇴 시까지</td></tr>
+              <tr><td>쿠폰 발급·사용 및 이용권 기록</td><td>혜택 제공·분쟁 대응 목적 달성 시까지. 결제·계약 관련 기록은 관계 법령상 기간</td></tr>
               <tr><td>쿠키 동의 선택</td><td>선택 시점부터 180일 또는 이용자가 먼저 삭제·변경할 때까지</td></tr>
               <tr><td>계약 또는 청약철회 등에 관한 기록</td><td>전자상거래법에 따라 5년</td></tr>
               <tr><td>대금결제 및 재화·서비스 공급 기록</td><td>전자상거래법에 따라 5년</td></tr>
@@ -126,6 +134,11 @@ export default function PrivacyPage() {
           Google Sheets, YouTube, Notion, Slack, Microsoft, GitHub, Discord, Dropbox 등 외부 서비스를 연결하고
           동기화·전송·자동화를 실행하면 선택한 데이터가 해당 제공자에게 전송됩니다. 이 전송은 이용자가 지정한
           기능을 수행하기 위한 것이며 전송 범위와 결과는 실행 전 설정 또는 Preview에서 확인할 수 있습니다.
+        </p>
+        <p>
+          회원이 Kakao(카카오) 또는 Naver(네이버) 로그인을 선택하면 해당 제공자로부터 제공자 식별자, 이메일과
+          이름을 전달받습니다. DREAMWISH는 검증된 이메일 제공에 동의한 경우에만 로그인과 기존 계정 연결을
+          처리하며, 제공자 Access Token을 회원 계정이나 브라우저 저장소에 보관하지 않습니다.
         </p>
         <p>
           법령상 요구, 생명·신체의 급박한 보호 또는 적법한 수사기관의 요청이 있는 경우에는 관계 법령이 허용하는
@@ -182,7 +195,8 @@ export default function PrivacyPage() {
         <p>
           전자적 기록은 복구하기 어려운 방식으로 삭제하고, 출력물은 분쇄 또는 소각합니다. 법정 보관 대상은
           운영 데이터와 분리하고 보관 목적이 끝나면 파기합니다. 외부 계정 연결을 해제하면 내부 인증정보를
-          삭제하며, 필요한 경우 외부 제공자에게 토큰 폐기를 요청합니다.
+          삭제하며, 필요한 경우 외부 제공자에게 토큰 폐기를 요청합니다. 계정 삭제는 오조작 방지를 위해 요청 후
+          7일 동안 삭제 예정 상태로 보관하며, 이 기간에는 취소할 수 있습니다. 기간이 지나면 법정 보관분을 제외하고 파기합니다.
         </p>
       </PolicySection>
 
@@ -192,6 +206,7 @@ export default function PrivacyPage() {
           계정과 서비스 내에서 직접 처리하거나 <a href={`mailto:${OPERATOR_INFO.email}`}>{OPERATOR_INFO.email}</a>로
           요청할 수 있습니다. 회사는 요청자의 본인 여부를 확인한 후 관계 법령에서 정한 기간 안에 조치합니다.
         </p>
+        <p>계정 삭제를 요청하면 7일의 취소 가능 기간이 적용되며, 삭제 예정일 전에는 요청을 취소할 수 있습니다.</p>
         <p>
           쿠키 동의는 Footer 또는 설정의 쿠키 설정에서 언제든 변경할 수 있으며, OAuth 연결은 연동 또는 자동화
           설정에서 해제할 수 있습니다.

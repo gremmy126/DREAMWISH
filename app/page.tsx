@@ -52,12 +52,7 @@ const structuredData = {
       applicationCategory: "BusinessApplication",
       operatingSystem: "Web",
       description: SITE_DESCRIPTION,
-      isAccessibleForFree: true,
-      offers: {
-        "@type": "Offer",
-        price: "0",
-        priceCurrency: "KRW"
-      }
+      isAccessibleForFree: false
     }
   ]
 };

@@ -35,6 +35,9 @@ npm run build
   전환과 매출 원장 반영이 자동입니다. 모든 금액은 정수(원) 단위로 저장합니다.
 - **CRM** — 고객/회사/거래/활동/업무. Business 개요와 AI 컨텍스트가 이 데이터를 함께
   사용합니다.
+- **Automation** — Action Registry 기반 앱·도구 실행, 이전 노드 출력 매핑, Preview와 고위험
+  2단계 승인, 영속 Queue·Worker를 제공합니다. 화면의 **자동화 사용 가이드**에서 모든 실행
+  작업의 설정값 출처와 예시를 확인할 수 있습니다.
 
 ## API 개요
 
@@ -46,6 +49,9 @@ npm run build
 모든 라우트는 `requireOwnerContext()`로 소유자를 도출하며 요청 본문/쿼리의 소유자 ID를 믿지 않습니다.
 
 ## Railway 배포
+
+Kakao·Naver 로그인, 관리자, 이용권형·할인형 쿠폰과 Polar 권한 설정은
+[`docs/railway-auth-coupon-env.md`](docs/railway-auth-coupon-env.md)를 먼저 확인하세요.
 
 | 서비스 | Config as Code | 역할 |
 | --- | --- | --- |
