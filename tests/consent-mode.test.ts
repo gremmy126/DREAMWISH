@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import {
   CONSENT_COOKIE_NAME,
   DEFAULT_CONSENT_MODE,
@@ -64,4 +65,21 @@ test("Consent initializer defines dataLayer, default consent, privacy flags, and
   assert.match(script, new RegExp(CONSENT_COOKIE_NAME, "u"));
   assert.match(script, /gtag\('consent', 'update'/u);
   assert.doesNotThrow(() => new Function(script));
+});
+
+test("Root layout uses the DREAMWISH GA4 measurement ID as its deploy-safe default", () => {
+  const source = fs.readFileSync("app/layout.tsx", "utf8");
+
+  assert.match(
+    source,
+    /const DEFAULT_GA_MEASUREMENT_ID = "G-PKW99058QE";/u
+  );
+  assert.match(
+    source,
+    /getPublicEnv\("NEXT_PUBLIC_GOOGLE_TAG_ID"\) \|\|\s*DEFAULT_GA_MEASUREMENT_ID/u
+  );
+  assert.equal(
+    source.match(/www\.googletagmanager\.com\/gtag\/js/gu)?.length,
+    1
+  );
 });

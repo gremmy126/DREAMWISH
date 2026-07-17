@@ -10,8 +10,11 @@ import {
 } from "@/src/lib/site/metadata";
 import "./globals.css";
 
+const DEFAULT_GA_MEASUREMENT_ID = "G-PKW99058QE";
 const GA_MEASUREMENT_ID =
-  getPublicEnv("NEXT_PUBLIC_GA_MEASUREMENT_ID") || getPublicEnv("NEXT_PUBLIC_GOOGLE_TAG_ID");
+  getPublicEnv("NEXT_PUBLIC_GA_MEASUREMENT_ID") ||
+  getPublicEnv("NEXT_PUBLIC_GOOGLE_TAG_ID") ||
+  DEFAULT_GA_MEASUREMENT_ID;
 const GTM_ID = getPublicEnv("NEXT_PUBLIC_GTM_ID");
 const GOOGLE_ADS_ID = getPublicEnv("NEXT_PUBLIC_GOOGLE_ADS_ID");
 const GOOGLE_TAG_LOADER_ID = GA_MEASUREMENT_ID || GOOGLE_ADS_ID;
