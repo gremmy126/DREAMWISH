@@ -130,7 +130,7 @@ export function LoginDialog(props: LoginDialogProps) {
               </h2>
             </div>
           </div>
-          <button type="button" onClick={props.onClose} disabled={props.submitting} aria-label="로그인 창 닫기" className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-100 disabled:opacity-40">
+          <button type="button" onClick={props.onClose} disabled={props.submitting} aria-label="로그인 창 닫기" className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-100 focus:outline-none focus:ring-4 focus:ring-violet-100 disabled:opacity-40">
             <X size={18} />
           </button>
         </header>

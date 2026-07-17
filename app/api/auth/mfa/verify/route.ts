@@ -22,26 +22,32 @@ const GENERIC_ERROR_MESSAGE =
 
 const CHALLENGE_FAILURES = {
   missing: {
+    code: "MFA_CHALLENGE_REQUIRED",
     status: 401,
     message: "로그인 인증 요청이 없습니다. 다시 로그인해 주세요."
   },
   invalid: {
+    code: "MFA_CHALLENGE_INVALID",
     status: 401,
     message: "로그인 인증 요청이 유효하지 않습니다. 다시 로그인해 주세요."
   },
   not_found: {
+    code: "MFA_CHALLENGE_NOT_FOUND",
     status: 401,
     message: "로그인 인증 요청을 찾을 수 없습니다. 다시 로그인해 주세요."
   },
   expired: {
+    code: "MFA_CHALLENGE_EXPIRED",
     status: 410,
     message: "로그인 인증 요청이 만료되었습니다. 다시 로그인해 주세요."
   },
   already_used: {
+    code: "MFA_CHALLENGE_ALREADY_USED",
     status: 409,
     message: "이미 사용된 로그인 인증 요청입니다. 다시 로그인해 주세요."
   },
   account_unavailable: {
+    code: "MFA_ACCOUNT_UNAVAILABLE",
     status: 401,
     message: "이 계정으로는 로그인을 완료할 수 없습니다."
   }
@@ -67,7 +73,7 @@ export async function POST(request: Request) {
     const code = typeof body.code === "string" ? body.code.trim() : "";
     if (!method || !code || code.length > 64) {
       return NextResponse.json(
-        { ok: false, error: "인증 방식과 인증 코드를 확인해 주세요." },
+        { ok: false, code: "MFA_INVALID_REQUEST", error: "인증 방식과 인증 코드를 확인해 주세요." },
         { status: 400 }
       );
     }
@@ -119,7 +125,7 @@ export async function POST(request: Request) {
   } catch (error) {
     if (isTotpSecurityError(error)) {
       return NextResponse.json(
-        { ok: false, error: CODE_ERROR_MESSAGES[error.code] || GENERIC_ERROR_MESSAGE },
+        { ok: false, code: error.code, error: CODE_ERROR_MESSAGES[error.code] || GENERIC_ERROR_MESSAGE },
         { status: error.status }
       );
     }
@@ -136,7 +142,7 @@ function challengeFailure(
 ) {
   const failure = CHALLENGE_FAILURES[kind];
   const response = NextResponse.json(
-    { ok: false, error: failure.message },
+    { ok: false, code: failure.code, error: failure.message },
     { status: failure.status }
   );
   if (options.clearCookie !== false) {

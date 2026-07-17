@@ -3,6 +3,7 @@
 import { KeyRound, Loader2 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { LoginDialog } from "@/components/auth/LoginDialog";
+import { MfaChallengeDialog } from "@/components/auth/MfaChallengeDialog";
 import { AuthRestoringScreen } from "@/components/auth/AuthRestoringScreen";
 import { GuestChatHome } from "@/components/home/GuestChatHome";
 import { AUTH_SESSION_KEY, type AccessState } from "@/src/lib/auth/access-control";
@@ -44,6 +45,7 @@ export function AuthGate({ children, hasServerSession }: AuthGateProps) {
   const [couponCode, setCouponCode] = useState("");
   const [loading, setLoading] = useState(true);
   const [loginOpen, setLoginOpen] = useState(false);
+  const [mfaOpen, setMfaOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resetMessage, setResetMessage] = useState<string | null>(null);
@@ -57,11 +59,14 @@ export function AuthGate({ children, hasServerSession }: AuthGateProps) {
   const authenticatingRef = useRef(false);
   const lastFirebaseTokenRef = useRef<string | null>(null);
   const serverOnlySessionRef = useRef(false);
+  const mfaPendingRef = useRef(false);
   const { t } = useAppLanguage();
 
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search);
     if (searchParams.get("login") === "1") setLoginOpen(true);
+    const oauthMfaRequired = searchParams.get("oauth_login") === "mfa_required";
+    if (oauthMfaRequired) openMfaChallenge();
     const oauthError = searchParams.get("oauth_error");
     if (oauthError) {
       setLoginOpen(true);
@@ -74,7 +79,11 @@ export function AuthGate({ children, hasServerSession }: AuthGateProps) {
 
     const handleSessionCleared = () => clearAuthenticatedClientState();
     const handleVisibilityChange = () => {
-      if (document.visibilityState !== "visible" || authenticatingRef.current) return;
+      if (
+        document.visibilityState !== "visible" ||
+        authenticatingRef.current ||
+        mfaPendingRef.current
+      ) return;
       const firebaseUser = getFirebaseClientAuth()?.currentUser;
       if (firebaseUser) void refreshFirebaseSession(firebaseUser, true);
     };
@@ -83,10 +92,10 @@ export function AuthGate({ children, hasServerSession }: AuthGateProps) {
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
     void (async () => {
-      await restoreSession();
+      if (!oauthMfaRequired) await restoreSession();
       if (!active) return;
       unsubscribeFromTokens = subscribeToFirebaseIdToken((firebaseUser) => {
-        if (!active || authenticatingRef.current) return;
+        if (!active || authenticatingRef.current || mfaPendingRef.current) return;
         if (!firebaseUser && serverOnlySessionRef.current) return;
         void refreshFirebaseSession(firebaseUser);
       });
@@ -103,8 +112,10 @@ export function AuthGate({ children, hasServerSession }: AuthGateProps) {
   function clearAuthenticatedClientState() {
     lastFirebaseTokenRef.current = null;
     serverOnlySessionRef.current = false;
+    mfaPendingRef.current = false;
     window.localStorage.removeItem(AUTH_SESSION_KEY);
     setAccess(null);
+    setMfaOpen(false);
     setEmail("");
     setCanChangePassword(false);
     setShowPasswordChange(false);
@@ -113,7 +124,9 @@ export function AuthGate({ children, hasServerSession }: AuthGateProps) {
 
   function applyAuthenticatedAccess(nextAccess: AccessState, idToken: string, passwordLogin = firebaseUserHasPasswordProvider()) {
     lastFirebaseTokenRef.current = idToken;
+    mfaPendingRef.current = false;
     setAccess(nextAccess);
+    setMfaOpen(false);
     setEmail(nextAccess.email);
     setCanChangePassword(passwordLogin);
     setError(null);
@@ -148,8 +161,12 @@ export function AuthGate({ children, hasServerSession }: AuthGateProps) {
       }
 
       const idToken = await firebaseUser.getIdToken();
-      const nextAccess = await fetchAccess(idToken, t("auth.sessionFailed"));
-      applyAuthenticatedAccess(nextAccess, idToken);
+      const authentication = await fetchAccess(idToken, t("auth.sessionFailed"));
+      if (authentication.mfaRequired) {
+        openMfaChallenge();
+        return;
+      }
+      applyAuthenticatedAccess(authentication.access, idToken);
     } catch (caught) {
       setError(getAuthActionError(caught));
       clearAuthenticatedClientState();
@@ -175,8 +192,12 @@ export function AuthGate({ children, hasServerSession }: AuthGateProps) {
         ? await firebaseUser.getIdToken(true)
         : await firebaseUser.getIdToken();
       if (!forceRefresh && idToken === lastFirebaseTokenRef.current) return;
-      const nextAccess = await fetchAccess(idToken, t("auth.sessionFailed"));
-      applyAuthenticatedAccess(nextAccess, idToken);
+      const authentication = await fetchAccess(idToken, t("auth.sessionFailed"));
+      if (authentication.mfaRequired) {
+        openMfaChallenge();
+        return;
+      }
+      applyAuthenticatedAccess(authentication.access, idToken);
     } catch (caught) {
       clearAuthenticatedClientState();
       setError(getAuthActionError(caught));
@@ -264,12 +285,55 @@ export function AuthGate({ children, hasServerSession }: AuthGateProps) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ idToken, couponCode })
     });
-    const nextAccess = await readAuthSessionAccess(response);
-    applyAuthenticatedAccess(nextAccess, idToken);
+    const authentication = await readPrimaryAuthentication(response);
+    if (authentication.mfaRequired) {
+      openMfaChallenge();
+      return;
+    }
+    applyAuthenticatedAccess(authentication.access, idToken);
     setPassword("");
     setCouponCode("");
     setLoginOpen(false);
     clearLoginQuery();
+  }
+
+  function openMfaChallenge() {
+    mfaPendingRef.current = true;
+    setMfaOpen(true);
+    setLoginOpen(false);
+    setPassword("");
+    setCouponCode("");
+    setError(null);
+    setLoading(false);
+    clearLoginQuery();
+  }
+
+  async function completeMfaLogin() {
+    const response = await fetch("/api/auth/me", { cache: "no-store" });
+    const nextAccess = await readAuthSessionAccess(response, t("auth.sessionFailed"));
+    const firebaseUser = getFirebaseClientAuth()?.currentUser || null;
+    const idToken = firebaseUser ? await firebaseUser.getIdToken() : "";
+    serverOnlySessionRef.current = !firebaseUser;
+    applyAuthenticatedAccess(
+      nextAccess,
+      idToken,
+      firebaseUser ? firebaseUserHasPasswordProvider() : false
+    );
+    setLoginOpen(false);
+    setMfaOpen(false);
+    clearLoginQuery();
+  }
+
+  async function cancelMfaLogin() {
+    mfaPendingRef.current = false;
+    setMfaOpen(false);
+    setError(null);
+    clearLoginQuery();
+    try {
+      await logoutServerSession();
+    } finally {
+      setLoginOpen(true);
+    }
   }
 
   async function resetPassword() {
@@ -359,7 +423,7 @@ export function AuthGate({ children, hasServerSession }: AuthGateProps) {
       <>
         <GuestChatHome onLoginRequest={openLogin} />
         <LoginDialog
-          open={loginOpen}
+          open={loginOpen && !mfaOpen}
           email={email}
           name={name}
           password={password}
@@ -379,6 +443,11 @@ export function AuthGate({ children, hasServerSession }: AuthGateProps) {
           onResetPassword={resetPassword}
           onKakao={() => void startSocialLogin("kakao")}
           onNaver={() => void startSocialLogin("naver")}
+        />
+        <MfaChallengeDialog
+          open={mfaOpen}
+          onCancel={cancelMfaLogin}
+          onSuccess={completeMfaLogin}
         />
       </>
     );
@@ -527,13 +596,34 @@ function PasswordField({
   );
 }
 
-async function fetchAccess(idToken: string, fallback: string) {
+type PrimaryAuthenticationResponse =
+  | { mfaRequired: true }
+  | { mfaRequired: false; access: AccessState };
+
+async function fetchAccess(
+  idToken: string,
+  fallback: string
+): Promise<PrimaryAuthenticationResponse> {
   const response = await fetch("/api/auth/session", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ idToken })
   });
-  return readAuthSessionAccess(response, fallback);
+  return readPrimaryAuthentication(response, fallback);
+}
+
+async function readPrimaryAuthentication(
+  response: Response,
+  fallback?: string
+): Promise<PrimaryAuthenticationResponse> {
+  const data = (await response.clone().json().catch(() => null)) as {
+    mfaRequired?: unknown;
+  } | null;
+  if (response.ok && data?.mfaRequired === true) return { mfaRequired: true };
+  return {
+    mfaRequired: false,
+    access: await readAuthSessionAccess(response, fallback)
+  };
 }
 
 async function logoutServerSession() {
