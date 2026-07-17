@@ -1,6 +1,11 @@
 import { getPostgres, hasPostgresStorage } from "../db/postgres";
+import {
+  ensureAuthSecuritySchema,
+  resetAuthSecuritySchemaForTests
+} from "../auth/auth-security.schema";
 
 export const ADMIN_SCHEMA_SQL = `
+-- auth security schema initialized separately by ensureAdminSchema
 CREATE TABLE IF NOT EXISTS user_accounts (
   id TEXT PRIMARY KEY,
   email TEXT NOT NULL UNIQUE,
@@ -123,7 +128,7 @@ export async function ensureAdminSchema() {
   if (!hasPostgresStorage()) return;
   schemaReady ??= getPostgres()
     .unsafe(ADMIN_SCHEMA_SQL)
-    .then(() => undefined)
+    .then(() => ensureAuthSecuritySchema())
     .catch((error) => {
       schemaReady = null;
       throw error;
@@ -133,4 +138,5 @@ export async function ensureAdminSchema() {
 
 export function resetAdminSchemaForTests() {
   schemaReady = null;
+  resetAuthSecuritySchemaForTests();
 }
