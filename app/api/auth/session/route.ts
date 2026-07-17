@@ -1,8 +1,5 @@
 import { NextResponse } from "next/server";
-import {
-  buildAccessState,
-  isAdminEmail
-} from "@/src/lib/auth/access-control";
+import { isAdminEmail } from "@/src/lib/auth/access-control";
 import { getAuthRouteError } from "@/src/lib/auth/auth-route-error";
 import {
   createSessionToken,
@@ -12,6 +9,7 @@ import {
 import { verifyFirebaseIdToken } from "@/src/lib/firebase/firebase-server-auth";
 import { getBillingEntitlement } from "@/src/lib/billing/billing.repository";
 import { upsertOperationalAccount } from "@/src/lib/admin/account-admin.repository";
+import { buildOperationalAccessState, hasEffectiveEntitlement } from "@/src/lib/billing/effective-entitlement";
 
 export async function POST(request: Request) {
   try {
@@ -30,16 +28,22 @@ export async function POST(request: Request) {
     const entitlement = isAdminEmail(verified.email)
       ? null
       : await getBillingEntitlement(verified.uid);
-    const access = buildAccessState({
-      email: verified.email,
-      paid: entitlement?.status === "active"
-    });
     const operationalAccount = await upsertOperationalAccount({
       id: verified.uid,
       email: verified.email,
       name: verified.name,
       provider: "password",
       providerSubject: verified.uid
+    });
+    const entitled = await hasEffectiveEntitlement({
+      userId: verified.uid,
+      role: operationalAccount.role,
+      billingActive: entitlement?.status === "active"
+    });
+    const access = buildOperationalAccessState({
+      email: verified.email,
+      role: operationalAccount.role,
+      entitled
     });
     const sessionToken = await createSessionToken({
       uid: verified.uid,

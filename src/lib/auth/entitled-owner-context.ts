@@ -3,6 +3,7 @@ import {
   requireOwnerContext,
   type OwnerContext
 } from "./owner-context";
+import { hasEffectiveEntitlement } from "../billing/effective-entitlement";
 
 export class EntitlementRequiredError extends Error {
   readonly code = "PAYMENT_REQUIRED" as const;
@@ -21,7 +22,12 @@ export async function requireEntitledOwnerContext(
   if (owner.role === "admin") return owner;
 
   const entitlement = await getBillingEntitlement(owner.uid);
-  if (entitlement.status !== "active") {
+  const entitled = await hasEffectiveEntitlement({
+    userId: owner.uid,
+    role: owner.role,
+    billingActive: entitlement.status === "active"
+  });
+  if (!entitled) {
     throw new EntitlementRequiredError();
   }
   return owner;

@@ -81,12 +81,13 @@ test("entitled owner context rechecks durable billing state", () => {
   assert.match(source, /owner\.role === "admin"/u);
 });
 
-test("Firebase login and session routes derive paid access from owner billing", () => {
+test("Firebase login and session routes derive effective access from billing and grants", () => {
   for (const file of ["app/api/auth/login/route.ts", "app/api/auth/session/route.ts"]) {
     const source = fs.readFileSync(file, "utf8");
     assert.match(source, /getBillingEntitlement/u, file);
     assert.match(source, /verified\.uid/u, file);
-    assert.match(source, /buildAccessState/u, file);
+    assert.match(source, /hasEffectiveEntitlement/u, file);
+    assert.match(source, /buildOperationalAccessState/u, file);
     assert.doesNotMatch(source, /paid:\s*result\.access\.paid/u, file);
   }
 });

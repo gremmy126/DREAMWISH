@@ -22,6 +22,7 @@ const PUBLIC_API_PATHS = new Set([
   "/api/auth/oauth/kakao/callback",
   "/api/auth/oauth/naver/start",
   "/api/auth/oauth/naver/callback",
+  "/api/coupons/prepare",
   "/api/webhooks/polar"
 ]);
 

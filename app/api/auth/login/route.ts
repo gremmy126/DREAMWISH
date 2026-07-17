@@ -1,9 +1,6 @@
 import { NextResponse } from "next/server";
 import { loginAccount } from "@/src/lib/auth/account.repository";
-import {
-  buildAccessState,
-  isAdminEmail
-} from "@/src/lib/auth/access-control";
+import { isAdminEmail } from "@/src/lib/auth/access-control";
 import { getAuthRouteError } from "@/src/lib/auth/auth-route-error";
 import {
   createSessionToken,
@@ -13,11 +10,14 @@ import {
 import { verifyFirebaseIdToken } from "@/src/lib/firebase/firebase-server-auth";
 import { getBillingEntitlement } from "@/src/lib/billing/billing.repository";
 import { upsertOperationalAccount } from "@/src/lib/admin/account-admin.repository";
+import { buildOperationalAccessState, hasEffectiveEntitlement } from "@/src/lib/billing/effective-entitlement";
+import { redeemCouponByCode } from "@/src/lib/coupons/coupon.repository";
 
 export async function POST(request: Request) {
   try {
     const body = (await request.json().catch(() => ({}))) as {
       idToken?: string;
+      couponCode?: string;
     };
     const idToken = typeof body.idToken === "string" ? body.idToken.trim() : "";
     if (!idToken) {
@@ -42,9 +42,24 @@ export async function POST(request: Request) {
       provider: "password",
       providerSubject: verified.uid
     });
-    const access = buildAccessState({
+    let couponResult: "applied" | "invalid" | null = null;
+    if (typeof body.couponCode === "string" && body.couponCode.trim()) {
+      try {
+        await redeemCouponByCode({ code: body.couponCode, userId: verified.uid });
+        couponResult = "applied";
+      } catch {
+        couponResult = "invalid";
+      }
+    }
+    const entitled = await hasEffectiveEntitlement({
+      userId: verified.uid,
+      role: operationalAccount.role,
+      billingActive: entitlement?.status === "active"
+    });
+    const access = buildOperationalAccessState({
       email: verified.email,
-      paid: entitlement?.status === "active"
+      role: operationalAccount.role,
+      entitled
     });
     const sessionToken = await createSessionToken({
       uid: verified.uid,
@@ -63,7 +78,8 @@ export async function POST(request: Request) {
         paid: access.paid,
         paidAt: access.paid ? result.account.paidAt || new Date().toISOString() : null
       },
-      access
+      access,
+      couponResult
     });
     response.cookies.set({
       name: SESSION_COOKIE_NAME,

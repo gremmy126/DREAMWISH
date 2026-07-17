@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { buildAccessState } from "@/src/lib/auth/access-control";
 import { requireOwnerContext } from "@/src/lib/auth/owner-context";
 import {
   createSessionToken,
@@ -7,14 +6,15 @@ import {
   SESSION_MAX_AGE_SECONDS
 } from "@/src/lib/auth/session-token";
 import { getBillingEntitlement } from "@/src/lib/billing/billing.repository";
+import { getOperationalAccount } from "@/src/lib/admin/account-admin.repository";
+import { buildOperationalAccessState, hasEffectiveEntitlement } from "@/src/lib/billing/effective-entitlement";
 
 export async function GET(request: Request) {
   const owner = await requireOwnerContext(request);
   const entitlement = await getBillingEntitlement(owner.uid);
-  const access = buildAccessState({
-    email: owner.email,
-    paid: entitlement.status === "active"
-  });
+  const account = await getOperationalAccount(owner.uid);
+  const entitled = await hasEffectiveEntitlement({ userId: owner.uid, role: owner.role, billingActive: entitlement.status === "active" });
+  const access = buildOperationalAccessState({ email: owner.email, role: owner.role, entitled });
   const response = NextResponse.json({ ok: true, access, entitlement });
   response.cookies.set({
     name: SESSION_COOKIE_NAME,
@@ -22,7 +22,10 @@ export async function GET(request: Request) {
       uid: owner.uid,
       email: owner.email,
       name: null,
-      paid: access.paid
+      role: owner.role,
+      paid: access.paid,
+      entitled: access.canUseApp,
+      sessionVersion: account?.sessionVersion || 1
     }),
     httpOnly: true,
     sameSite: "lax",

@@ -2,6 +2,7 @@ import { Webhooks } from "@polar-sh/nextjs";
 import { NextRequest, NextResponse } from "next/server";
 import { applyPolarBillingEvent } from "@/src/lib/billing/billing.repository";
 import { extractPolarBillingEvent } from "@/src/lib/billing/polar-event";
+import { markPreparedDiscountRedeemed } from "@/src/lib/coupons/coupon.repository";
 
 export async function POST(request: NextRequest) {
   const webhookSecret = process.env.POLAR_WEBHOOK_SECRET?.trim();
@@ -18,6 +19,9 @@ export async function POST(request: NextRequest) {
       const event = extractPolarBillingEvent(payload);
       if (!event) return;
       await applyPolarBillingEvent(event);
+      if (event.eventType.includes("active") || event.eventType.includes("order")) {
+        await markPreparedDiscountRedeemed(event.ownerId);
+      }
     }
   });
   return handler(request);

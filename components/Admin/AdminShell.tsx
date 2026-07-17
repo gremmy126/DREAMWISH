@@ -22,6 +22,8 @@ import { AdminOverview } from "./AdminOverview";
 import { AdminOperations } from "./AdminOperations";
 import { AdminSystemStatus } from "./AdminSystemStatus";
 import { AdminUsers } from "./AdminUsers";
+import { AdminCoupons } from "./AdminCoupons";
+import { AdminAccessGrants } from "./AdminAccessGrants";
 
 type AdminSection =
   | "dashboard"
@@ -113,8 +115,8 @@ export function AdminShell({ account }: { account: { email: string; name: string
         <main className="mx-auto w-full max-w-[1540px] p-4 sm:p-6">
           {section === "dashboard" ? <AdminOverview /> : null}
           {section === "users" ? <AdminUsers /> : null}
-          {section === "access" ? <AccessPanel /> : null}
-          {section === "coupons" ? <CouponPanel /> : null}
+          {section === "access" ? <AdminAccessGrants /> : null}
+          {section === "coupons" ? <AdminCoupons /> : null}
           {section === "automation" ? <AutomationPanel /> : null}
           {section === "dlq" ? <AdminOperations initialView="dlq" /> : null}
           {section === "audit" ? <AdminOperations initialView="audit" /> : null}
@@ -172,14 +174,6 @@ function AdminNavigation({
   );
 }
 
-function AccessPanel() {
-  return <Placeholder icon={KeyRound} title="구독·이용권 관리" description="사용자를 선택해 구독 상태를 확인하고 기간형 이용권을 지급하거나 회수할 수 있습니다. 이용권 기능은 쿠폰 도메인과 함께 연결됩니다." />;
-}
-
-function CouponPanel() {
-  return <Placeholder icon={BadgePercent} title="쿠폰 관리" description="기간형 이용권 코드와 Polar 할인 코드를 생성하고 사용량·만료·활성 상태를 관리합니다." />;
-}
-
 function AutomationPanel() {
   return <Placeholder icon={Activity} title="자동화 운영" description="실행·승인 대기·실패 상태를 확인합니다. Dead Letter Queue와 감사 로그는 각각 전용 메뉴에서 관리합니다." />;
 }
@@ -193,4 +187,3 @@ function Placeholder({ icon: Icon, title, description }: { icon: typeof Activity
     </section>
   );
 }
-
