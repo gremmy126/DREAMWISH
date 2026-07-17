@@ -1,6 +1,4 @@
 import { NextResponse } from "next/server";
-import { getBillingEntitlement } from "@/src/lib/billing/billing.repository";
-import { buildOperationalAccessState, hasEffectiveEntitlement } from "@/src/lib/billing/effective-entitlement";
 import { getAppOrigin } from "@/src/lib/billing/polar";
 import { redeemCouponByHash } from "@/src/lib/coupons/coupon.repository";
 import { PENDING_COUPON_COOKIE } from "@/src/lib/coupons/coupon.service";
@@ -12,10 +10,9 @@ import {
 import { exchangeSocialCode, fetchSocialProfile, isSocialProvider } from "@/src/lib/auth/social-oauth";
 import { linkOrCreateSocialIdentity } from "@/src/lib/auth/social-identity.service";
 import {
-  createSessionToken,
-  SESSION_COOKIE_NAME,
-  SESSION_MAX_AGE_SECONDS
-} from "@/src/lib/auth/session-token";
+  authCookieAttributes,
+  completePrimaryAuthentication
+} from "@/src/lib/auth/session-issuance.service";
 
 export async function GET(request: Request, context: { params: Promise<{ provider: string }> }) {
   const origin = getAppOrigin();
@@ -36,12 +33,25 @@ export async function GET(request: Request, context: { params: Promise<{ provide
     if (consumed.pendingCouponHash) {
       await redeemCouponByHash({ codeHash: consumed.pendingCouponHash, userId: account.id }).catch(() => undefined);
     }
-    const billing = await getBillingEntitlement(account.id);
-    const entitled = await hasEffectiveEntitlement({ userId: account.id, role: account.role, billingActive: billing.status === "active" });
-    const access = buildOperationalAccessState({ email: account.email, role: account.role, entitled });
-    const session = await createSessionToken({ uid: account.id, email: account.email, name: account.name, role: account.role, paid: access.paid, entitled: access.canUseApp, sessionVersion: account.sessionVersion });
+    const authentication = await completePrimaryAuthentication({
+      account: {
+        id: account.id,
+        email: account.email,
+        name: account.name,
+        role: account.role,
+        sessionVersion: account.sessionVersion
+      }
+    });
+    if (authentication.status === "mfa_required") {
+      // Redirect carries only a non-secret signal; the challenge token travels
+      // exclusively in the HttpOnly cookie and never appears in any URL.
+      const response = NextResponse.redirect(new URL("/?oauth_login=mfa_required", origin));
+      response.cookies.set(authCookieAttributes(authentication.challengeCookie));
+      clearTransientCookies(response);
+      return response;
+    }
     const response = NextResponse.redirect(new URL("/?oauth_login=success", origin));
-    response.cookies.set({ name: SESSION_COOKIE_NAME, value: session, httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: SESSION_MAX_AGE_SECONDS });
+    response.cookies.set(authCookieAttributes(authentication.sessionCookie));
     clearTransientCookies(response);
     return response;
   } catch (error) {
@@ -56,4 +66,3 @@ function clearTransientCookies(response: NextResponse) {
   response.cookies.set({ name: OAUTH_LOGIN_STATE_COOKIE, value: "", httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/api/auth/oauth", maxAge: 0 });
   response.cookies.set({ name: PENDING_COUPON_COOKIE, value: "", httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 0 });
 }
-

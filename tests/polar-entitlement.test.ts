@@ -84,10 +84,12 @@ test("entitled owner context rechecks durable billing state", () => {
 test("Firebase login and session routes derive effective access from billing and grants", () => {
   for (const file of ["app/api/auth/login/route.ts", "app/api/auth/session/route.ts"]) {
     const source = fs.readFileSync(file, "utf8");
-    assert.match(source, /getBillingEntitlement/u, file);
+    assert.match(source, /completePrimaryAuthentication/u, file);
     assert.match(source, /verified\.uid/u, file);
-    assert.match(source, /hasEffectiveEntitlement/u, file);
-    assert.match(source, /buildOperationalAccessState/u, file);
     assert.doesNotMatch(source, /paid:\s*result\.access\.paid/u, file);
   }
+  const issuance = fs.readFileSync("src/lib/auth/session-issuance.service.ts", "utf8");
+  assert.match(issuance, /getBillingEntitlement/u);
+  assert.match(issuance, /hasEffectiveEntitlement/u);
+  assert.match(issuance, /buildOperationalAccessState/u);
 });

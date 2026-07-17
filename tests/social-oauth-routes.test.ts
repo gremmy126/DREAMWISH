@@ -11,8 +11,8 @@ test("social OAuth start and callback keep secrets server-side and issue DREAMWI
   assert.match(callback, /consumeOAuthLoginState/u);
   assert.match(callback, /exchangeSocialCode/u);
   assert.match(callback, /fetchSocialProfile/u);
-  assert.match(callback, /createSessionToken/u);
-  assert.match(callback, /SESSION_COOKIE_NAME/u);
+  assert.match(callback, /completePrimaryAuthentication/u);
+  assert.match(callback, /authCookieAttributes/u);
   assert.doesNotMatch(callback, /accessToken.*cookies\.set/u);
 });
 

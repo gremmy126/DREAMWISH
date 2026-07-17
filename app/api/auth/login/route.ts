@@ -1,16 +1,12 @@
 import { NextResponse } from "next/server";
 import { loginAccount } from "@/src/lib/auth/account.repository";
-import { isAdminEmail } from "@/src/lib/auth/access-control";
 import { getAuthRouteError } from "@/src/lib/auth/auth-route-error";
 import {
-  createSessionToken,
-  SESSION_COOKIE_NAME,
-  SESSION_MAX_AGE_SECONDS
-} from "@/src/lib/auth/session-token";
+  authCookieAttributes,
+  completePrimaryAuthentication
+} from "@/src/lib/auth/session-issuance.service";
 import { verifyFirebaseIdToken } from "@/src/lib/firebase/firebase-server-auth";
-import { getBillingEntitlement } from "@/src/lib/billing/billing.repository";
 import { upsertOperationalAccount } from "@/src/lib/admin/account-admin.repository";
-import { buildOperationalAccessState, hasEffectiveEntitlement } from "@/src/lib/billing/effective-entitlement";
 import { redeemCouponByCode } from "@/src/lib/coupons/coupon.repository";
 
 export async function POST(request: Request) {
@@ -32,9 +28,6 @@ export async function POST(request: Request) {
       email: verified.email,
       name: verified.name
     });
-    const entitlement = isAdminEmail(verified.email)
-      ? null
-      : await getBillingEntitlement(verified.uid);
     const operationalAccount = await upsertOperationalAccount({
       id: verified.uid,
       email: verified.email,
@@ -51,25 +44,26 @@ export async function POST(request: Request) {
         couponResult = "invalid";
       }
     }
-    const entitled = await hasEffectiveEntitlement({
-      userId: verified.uid,
-      role: operationalAccount.role,
-      billingActive: entitlement?.status === "active"
+    const authentication = await completePrimaryAuthentication({
+      account: {
+        id: verified.uid,
+        email: verified.email,
+        name: verified.name,
+        role: operationalAccount.role,
+        sessionVersion: operationalAccount.sessionVersion
+      }
     });
-    const access = buildOperationalAccessState({
-      email: verified.email,
-      role: operationalAccount.role,
-      entitled
-    });
-    const sessionToken = await createSessionToken({
-      uid: verified.uid,
-      email: verified.email,
-      name: verified.name,
-      role: operationalAccount.role,
-      paid: access.paid,
-      entitled: access.canUseApp,
-      sessionVersion: operationalAccount.sessionVersion
-    });
+    if (authentication.status === "mfa_required") {
+      const response = NextResponse.json({
+        ok: true,
+        mfaRequired: true,
+        couponResult
+      });
+      response.cookies.set(authCookieAttributes(authentication.challengeCookie));
+      return response;
+    }
+
+    const access = authentication.access;
     const response = NextResponse.json({
       ok: true,
       account: {
@@ -81,15 +75,7 @@ export async function POST(request: Request) {
       access,
       couponResult
     });
-    response.cookies.set({
-      name: SESSION_COOKIE_NAME,
-      value: sessionToken,
-      httpOnly: true,
-      sameSite: "lax",
-      path: "/",
-      maxAge: SESSION_MAX_AGE_SECONDS,
-      secure: process.env.NODE_ENV === "production"
-    });
+    response.cookies.set(authCookieAttributes(authentication.sessionCookie));
 
     return response;
   } catch (error) {

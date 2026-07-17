@@ -103,6 +103,13 @@ export type ActiveTotpResult =
   | { outcome: "not_enabled" }
   | { outcome: "rejected"; reason: Exclude<TotpVerification, { ok: true }>["reason"] };
 
+export type LoginChallengeState = "active" | "expired" | "already_used" | "not_found";
+export type LoginChallengeConsumption =
+  | "consumed"
+  | "expired"
+  | "already_used"
+  | "not_found";
+
 export interface TotpSecurityRepository {
   createPendingEnrollment(input: {
     factorId: string;
@@ -145,6 +152,25 @@ export interface TotpSecurityRepository {
       result: "consumed" | "invalid" | "not_enabled"
     ) => AuthSecurityAuditEvent;
   }): Promise<"consumed" | "invalid" | "not_enabled">;
+  createLoginChallenge(input: {
+    challengeId: string;
+    accountId: string;
+    challengeHash: string;
+    expiresAt: string;
+    now: string;
+    auditEvent: AuthSecurityAuditEvent;
+  }): Promise<void>;
+  peekLoginChallenge(input: {
+    accountId: string;
+    challengeHash: string;
+    now: string;
+  }): Promise<LoginChallengeState>;
+  consumeLoginChallenge(input: {
+    accountId: string;
+    challengeHash: string;
+    now: string;
+    auditEventForResult: (result: LoginChallengeConsumption) => AuthSecurityAuditEvent;
+  }): Promise<LoginChallengeConsumption>;
   takeRateLimit(input: {
     accountId: string;
     scopeKeys: string[];
@@ -330,6 +356,66 @@ export class JsonTotpSecurityRepository implements TotpSecurityRepository {
       );
       if (!recoveryCode) return finish("invalid");
       recoveryCode.usedAt = input.now;
+      return finish("consumed");
+    });
+  }
+
+  async createLoginChallenge(
+    input: Parameters<TotpSecurityRepository["createLoginChallenge"]>[0]
+  ) {
+    await mutateLocalOwner(input.accountId, async (owner) => {
+      owner.challenges = owner.challenges.map((challenge) =>
+        challenge.purpose === "mfa_login" && challenge.consumedAt === null
+          ? { ...challenge, consumedAt: input.now }
+          : challenge
+      );
+      owner.challenges.push({
+        id: input.challengeId,
+        accountId: input.accountId,
+        purpose: "mfa_login",
+        challengeHash: input.challengeHash,
+        failureCount: 0,
+        expiresAt: input.expiresAt,
+        consumedAt: null,
+        createdAt: input.now
+      });
+      appendLocalAudit(owner, input.auditEvent, input.accountId);
+    });
+  }
+
+  async peekLoginChallenge(
+    input: Parameters<TotpSecurityRepository["peekLoginChallenge"]>[0]
+  ) {
+    const owner = await readLocalOwner(input.accountId);
+    const challenge = owner.challenges.find(
+      (item) =>
+        item.accountId === input.accountId &&
+        item.purpose === "mfa_login" &&
+        item.challengeHash === input.challengeHash
+    );
+    return classifyLoginChallenge(challenge, input.now);
+  }
+
+  async consumeLoginChallenge(
+    input: Parameters<TotpSecurityRepository["consumeLoginChallenge"]>[0]
+  ) {
+    return mutateLocalOwner(input.accountId, async (owner) => {
+      const finish = (result: LoginChallengeConsumption) => {
+        appendLocalAudit(owner, input.auditEventForResult(result), input.accountId);
+        return result;
+      };
+      const challenge = owner.challenges.find(
+        (item) =>
+          item.accountId === input.accountId &&
+          item.purpose === "mfa_login" &&
+          item.challengeHash === input.challengeHash
+      );
+      const state = classifyLoginChallenge(challenge, input.now);
+      if (state !== "active" || !challenge) {
+        if (challenge && state === "expired") challenge.consumedAt = input.now;
+        return finish(state === "active" ? "not_found" : state);
+      }
+      challenge.consumedAt = input.now;
       return finish("consumed");
     });
   }
@@ -646,6 +732,118 @@ export class PostgresTotpSecurityRepository implements TotpSecurityRepository {
     })) as "consumed" | "invalid" | "not_enabled";
   }
 
+  async createLoginChallenge(
+    input: Parameters<TotpSecurityRepository["createLoginChallenge"]>[0]
+  ) {
+    await ensureAdminSchema();
+    assertAuditEventAccount(input.auditEvent, input.accountId);
+    const sql = getPostgres();
+    await sql.begin(async (transaction) => {
+      await transaction`
+        UPDATE account_totp_challenges
+        SET consumed_at = ${input.now}
+        WHERE account_id = ${input.accountId}
+          AND purpose = 'mfa_login'
+          AND consumed_at IS NULL
+      `;
+      await transaction`
+        INSERT INTO account_totp_challenges (
+          id, account_id, purpose, challenge_hash, failure_count,
+          expires_at, consumed_at, created_at
+        ) VALUES (
+          ${input.challengeId}, ${input.accountId}, 'mfa_login', ${input.challengeHash},
+          0, ${input.expiresAt}, NULL, ${input.now}
+        )
+      `;
+      await transaction`
+        INSERT INTO auth_security_audit_events (
+          id, account_id, actor_account_id, action, safe_metadata, created_at
+        ) VALUES (
+          ${input.auditEvent.id}, ${input.auditEvent.accountId}, ${input.auditEvent.actorAccountId},
+          ${input.auditEvent.action}, ${transaction.json(input.auditEvent.safeMetadata as never)},
+          ${input.auditEvent.createdAt}
+        )
+      `;
+    });
+  }
+
+  async peekLoginChallenge(
+    input: Parameters<TotpSecurityRepository["peekLoginChallenge"]>[0]
+  ) {
+    await ensureAdminSchema();
+    const rows = await getPostgres()`
+      SELECT consumed_at, expires_at
+      FROM account_totp_challenges
+      WHERE account_id = ${input.accountId}
+        AND purpose = 'mfa_login'
+        AND challenge_hash = ${input.challengeHash}
+      LIMIT 1
+    `;
+    const row = rows[0];
+    return classifyLoginChallenge(
+      row
+        ? {
+            consumedAt: row.consumed_at ? toIso(row.consumed_at) : null,
+            expiresAt: toIso(row.expires_at)
+          }
+        : undefined,
+      input.now
+    );
+  }
+
+  async consumeLoginChallenge(
+    input: Parameters<TotpSecurityRepository["consumeLoginChallenge"]>[0]
+  ) {
+    await ensureAdminSchema();
+    const sql = getPostgres();
+    return (await sql.begin(async (transaction) => {
+      const finish = async (result: LoginChallengeConsumption) => {
+        const event = input.auditEventForResult(result);
+        assertAuditEventAccount(event, input.accountId);
+        await transaction`
+          INSERT INTO auth_security_audit_events (
+            id, account_id, actor_account_id, action, safe_metadata, created_at
+          ) VALUES (
+            ${event.id}, ${event.accountId}, ${event.actorAccountId}, ${event.action},
+            ${transaction.json(event.safeMetadata as never)}, ${event.createdAt}
+          )
+        `;
+        return result;
+      };
+      const rows = await transaction`
+        SELECT id, consumed_at, expires_at
+        FROM account_totp_challenges
+        WHERE account_id = ${input.accountId}
+          AND purpose = 'mfa_login'
+          AND challenge_hash = ${input.challengeHash}
+        LIMIT 1
+        FOR UPDATE
+      `;
+      const row = rows[0];
+      const state = classifyLoginChallenge(
+        row
+          ? {
+              consumedAt: row.consumed_at ? toIso(row.consumed_at) : null,
+              expiresAt: toIso(row.expires_at)
+            }
+          : undefined,
+        input.now
+      );
+      if (state !== "active" || !row) {
+        if (row && state === "expired") {
+          await transaction`
+            UPDATE account_totp_challenges SET consumed_at = ${input.now} WHERE id = ${row.id}
+          `;
+        }
+        return finish(state === "active" ? "not_found" : state);
+      }
+      await transaction`
+        UPDATE account_totp_challenges SET consumed_at = ${input.now} WHERE id = ${row.id}
+      `;
+      return finish("consumed");
+    })) as LoginChallengeConsumption;
+  }
+
   async takeRateLimit(input: Parameters<TotpSecurityRepository["takeRateLimit"]>[0]) {
     await ensureAdminSchema();
     const sql = getPostgres();
@@ -845,6 +1043,16 @@ function applyRateLimit(
   record.attemptCount += 1;
   record.updatedAt = input.now;
   return { allowed: true, record };
+}
+
+function classifyLoginChallenge(
+  challenge: { consumedAt: string | null; expiresAt: string } | undefined,
+  now: string
+): LoginChallengeState {
+  if (!challenge) return "not_found";
+  if (challenge.consumedAt !== null) return "already_used";
+  if (Date.parse(challenge.expiresAt) <= Date.parse(now)) return "expired";
+  return "active";
 }
 
 function latestTimestamp(values: string[]) {

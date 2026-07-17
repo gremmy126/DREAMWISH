@@ -14,7 +14,10 @@ export type AuthSecurityAuditAction =
   | "recovery_code_used"
   | "recovery_codes_regenerated"
   | "totp_disabled"
-  | "auth_security_rate_limited";
+  | "auth_security_rate_limited"
+  | "mfa_challenge_issued"
+  | "mfa_challenge_rejected"
+  | "mfa_login_completed";
 
 const ALLOWED_METADATA_KEYS: Record<AuthSecurityAuditAction, ReadonlySet<string>> = {
   totp_enrollment_started: new Set(["expiresAt"]),
@@ -25,7 +28,10 @@ const ALLOWED_METADATA_KEYS: Record<AuthSecurityAuditAction, ReadonlySet<string>
   recovery_code_used: new Set(["method"]),
   recovery_codes_regenerated: new Set(),
   totp_disabled: new Set(),
-  auth_security_rate_limited: new Set(["rateAction", "blockedUntil"])
+  auth_security_rate_limited: new Set(["rateAction", "blockedUntil"]),
+  mfa_challenge_issued: new Set(["expiresAt"]),
+  mfa_challenge_rejected: new Set(["reason"]),
+  mfa_login_completed: new Set(["method"])
 };
 
 const ALLOWED_REASONS = new Set([
@@ -35,7 +41,8 @@ const ALLOWED_REASONS = new Set([
   "invalid",
   "replayed",
   "clock_drift",
-  "not_enabled"
+  "not_enabled",
+  "already_used"
 ]);
 const ALLOWED_METHODS = new Set(["totp", "recovery"]);
 const ALLOWED_OPERATIONS = new Set(["login", "recovery_regeneration", "disable"]);

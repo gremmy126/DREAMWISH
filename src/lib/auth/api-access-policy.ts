@@ -18,6 +18,12 @@ const PUBLIC_API_PATHS = new Set([
   "/api/auth/login",
   "/api/auth/session",
   "/api/auth/logout",
+  // The MFA verification endpoint authenticates with the single-purpose
+  // `dreamwish-mfa-challenge` cookie. That cookie is never a session:
+  // middleware and owner context read only `dreamwish-session`, so the
+  // challenge cookie grants no other API access. Only this endpoint (and
+  // logout, which clears it) may accept the challenge cookie.
+  "/api/auth/mfa/verify",
   "/api/auth/oauth/kakao/start",
   "/api/auth/oauth/kakao/callback",
   "/api/auth/oauth/naver/start",
