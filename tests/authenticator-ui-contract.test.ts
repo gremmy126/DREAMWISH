@@ -166,7 +166,7 @@ test("Firebase and OAuth primary login hand off MFA before applying access", () 
   assert.match(gate, /setLoginOpen\(false\)/u);
   assert.match(
     gate,
-    /async function cancelMfaLogin\(\)[\s\S]*await logoutServerSession\(\)[\s\S]*setLoginOpen\(true\)/u
+    /async function cancelMfaLogin\(\)[\s\S]*logoutServerSession\(\)[\s\S]*setLoginOpen\(true\)/u
   );
   assert.match(login, /h-11 w-11/u);
   assert.doesNotMatch(gate, /[?&](?:mfaToken|mfaCode)=/u);
@@ -181,6 +181,64 @@ test("MFA verification API returns stable error codes without exposing challenge
   assert.match(route, /TOTP_CLOCK_DRIFT/u);
   assert.match(route, /TOTP_RATE_LIMITED/u);
   assert.doesNotMatch(route, /challengeHash.*NextResponse\.json/u);
+});
+
+test("canceling MFA invalidates stale auth work and signs out Firebase and server before reopening login", () => {
+  const gate = source("components/auth/AuthGate.tsx");
+  const cancelStart = gate.indexOf("async function cancelMfaLogin()");
+  const cancelEnd = gate.indexOf("async function resetPassword()", cancelStart);
+  const cancel = gate.slice(cancelStart, cancelEnd);
+
+  assert.match(gate, /logoutFirebaseUser/u);
+  assert.match(gate, /authFlowVersionRef/u);
+  assert.match(gate, /pendingAuthRequestControllersRef/u);
+  assert.match(cancel, /authFlowVersionRef\.current \+= 1/u);
+  assert.match(cancel, /abortPendingAuthRequests\(\)/u);
+  assert.match(
+    cancel,
+    /await Promise\.allSettled\(\[\s*logoutFirebaseUser\(\),\s*logoutServerSession\(\)\s*\]\)/u
+  );
+  assert.ok(
+    cancel.indexOf("abortPendingAuthRequests()") < cancel.indexOf("await Promise.allSettled"),
+    "in-flight session responses must be aborted before logout can clear their cookies"
+  );
+  assert.ok(
+    cancel.indexOf("await Promise.allSettled") <
+      cancel.indexOf("mfaPendingRef.current = false"),
+    "the MFA pending guard must remain active until both logout operations settle"
+  );
+  assert.ok(
+    cancel.indexOf("mfaPendingRef.current = false") < cancel.indexOf("setLoginOpen(true)"),
+    "login must reopen only after the cancellation guard is released"
+  );
+  assert.ok(
+    [...gate.matchAll(/authFlowVersionRef\.current !== flowVersion/gu)].length >= 3,
+    "restore, refresh, and primary login must ignore results from invalidated auth flows"
+  );
+});
+
+test("MFA challenge synchronously rejects a duplicate submit entry", () => {
+  const dialog = source("components/auth/MfaChallengeDialog.tsx");
+  const submitStart = dialog.indexOf("async function submit(");
+  const submitEnd = dialog.indexOf("return (", submitStart);
+  const submit = dialog.slice(submitStart, submitEnd);
+
+  const guard = submit.indexOf("if (submittingRef.current) return");
+  const lock = submit.indexOf("submittingRef.current = true");
+  assert.ok(guard >= 0, "submit must have a synchronous re-entry guard");
+  assert.ok(lock > guard, "submit must check the guard before acquiring the submission lock");
+});
+
+test("MFA verification success retries session hydration without resubmitting the consumed challenge", () => {
+  const dialog = source("components/auth/MfaChallengeDialog.tsx");
+
+  assert.match(dialog, /verificationCompleteRef/u);
+  assert.match(
+    dialog,
+    /if \(!verificationCompleteRef\.current\) \{[\s\S]*fetch\("\/api\/auth\/mfa\/verify"[\s\S]*verificationCompleteRef\.current = true;[\s\S]*\}[\s\S]*await onSuccess\(\)/u
+  );
+  assert.match(dialog, /로그인 상태 다시 불러오기/u);
+  assert.match(dialog, /추가 인증은 완료되었습니다/u);
 });
 
 function source(filePath: string) {

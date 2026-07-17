@@ -39,11 +39,14 @@ export function MfaChallengeDialog({ open, onCancel, onSuccess }: MfaChallengeDi
   const [method, setMethod] = useState<MfaMethod>("totp");
   const [code, setCode] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [verificationComplete, setVerificationComplete] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const dialogRef = useRef<HTMLElement>(null);
   const codeInputRef = useRef<HTMLInputElement>(null);
+  const submitButtonRef = useRef<HTMLButtonElement>(null);
   const submittingRef = useRef(false);
+  const verificationCompleteRef = useRef(false);
   const onCancelRef = useRef(onCancel);
   onCancelRef.current = onCancel;
 
@@ -51,6 +54,9 @@ export function MfaChallengeDialog({ open, onCancel, onSuccess }: MfaChallengeDi
     if (!open) return;
     setMethod("totp");
     setCode("");
+    setVerificationComplete(false);
+    verificationCompleteRef.current = false;
+    submittingRef.current = false;
     setError(null);
     setStatus("인증 앱의 여섯 자리 코드를 입력해주세요.");
     const previousOverflow = document.body.style.overflow;
@@ -91,6 +97,7 @@ export function MfaChallengeDialog({ open, onCancel, onSuccess }: MfaChallengeDi
   if (!open) return null;
 
   function changeMethod(nextMethod: MfaMethod) {
+    if (verificationCompleteRef.current) return;
     setMethod(nextMethod);
     setCode("");
     setError(null);
@@ -113,12 +120,13 @@ export function MfaChallengeDialog({ open, onCancel, onSuccess }: MfaChallengeDi
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (method === "totp" && !/^[0-9]{6}$/u.test(code)) {
+    if (submittingRef.current) return;
+    if (!verificationCompleteRef.current && method === "totp" && !/^[0-9]{6}$/u.test(code)) {
       setError("여섯 자리 인증 코드를 입력해주세요.");
       codeInputRef.current?.focus();
       return;
     }
-    if (method === "recovery" && !code.trim()) {
+    if (!verificationCompleteRef.current && method === "recovery" && !code.trim()) {
       setError("복구 코드를 입력해주세요.");
       codeInputRef.current?.focus();
       return;
@@ -127,31 +135,44 @@ export function MfaChallengeDialog({ open, onCancel, onSuccess }: MfaChallengeDi
     submittingRef.current = true;
     setSubmitting(true);
     setError(null);
-    setStatus("추가 인증을 확인하고 있습니다.");
+    setStatus(
+      verificationCompleteRef.current
+        ? "로그인 상태를 다시 불러오고 있습니다."
+        : "추가 인증을 확인하고 있습니다."
+    );
     try {
-      const response = await fetch("/api/auth/mfa/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ method, code: code.trim() })
-      });
-      const data = (await response.json().catch(() => ({}))) as {
-        ok?: boolean;
-        code?: string;
-        error?: string;
-      };
-      if (!response.ok || data.ok !== true) {
-        setStatus(null);
-        setError(getMfaErrorMessage(data.code || "", data.error));
-        codeInputRef.current?.focus();
-        return;
+      if (!verificationCompleteRef.current) {
+        const response = await fetch("/api/auth/mfa/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ method, code: code.trim() })
+        });
+        const data = (await response.json().catch(() => ({}))) as {
+          ok?: boolean;
+          code?: string;
+          error?: string;
+        };
+        if (!response.ok || data.ok !== true) {
+          setStatus(null);
+          setError(getMfaErrorMessage(data.code || "", data.error));
+          codeInputRef.current?.focus();
+          return;
+        }
+        verificationCompleteRef.current = true;
+        setVerificationComplete(true);
+        setStatus("추가 인증은 완료되었습니다. 로그인 상태를 불러오고 있습니다.");
+        setCode("");
       }
-      setStatus("인증이 완료되었습니다.");
-      setCode("");
       await onSuccess();
     } catch {
       setStatus(null);
-      setError("추가 인증을 완료하지 못했습니다. 잠시 후 다시 시도해주세요.");
-      codeInputRef.current?.focus();
+      if (verificationCompleteRef.current) {
+        setError("추가 인증은 완료되었습니다. 로그인 상태를 불러오지 못했습니다. 다시 시도해주세요.");
+        window.requestAnimationFrame(() => submitButtonRef.current?.focus());
+      } else {
+        setError("추가 인증을 완료하지 못했습니다. 잠시 후 다시 시도해주세요.");
+        codeInputRef.current?.focus();
+      }
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
@@ -200,7 +221,7 @@ export function MfaChallengeDialog({ open, onCancel, onSuccess }: MfaChallengeDi
             type="button"
             onClick={() => changeMethod("totp")}
             aria-pressed={method === "totp"}
-            disabled={submitting}
+            disabled={submitting || verificationComplete}
             className={`inline-flex h-11 items-center justify-center gap-2 rounded-xl border text-xs font-bold focus:outline-none focus:ring-4 focus:ring-violet-100 ${
               method === "totp"
                 ? "border-violet-600 bg-violet-50 text-violet-700"
@@ -214,7 +235,7 @@ export function MfaChallengeDialog({ open, onCancel, onSuccess }: MfaChallengeDi
             type="button"
             onClick={() => changeMethod("recovery")}
             aria-pressed={method === "recovery"}
-            disabled={submitting}
+            disabled={submitting || verificationComplete}
             className={`inline-flex h-11 items-center justify-center gap-2 rounded-xl border text-xs font-bold focus:outline-none focus:ring-4 focus:ring-violet-100 ${
               method === "recovery"
                 ? "border-violet-600 bg-violet-50 text-violet-700"
@@ -227,7 +248,7 @@ export function MfaChallengeDialog({ open, onCancel, onSuccess }: MfaChallengeDi
         </div>
 
         <form className="mt-5 space-y-4" onSubmit={submit} noValidate>
-          <label htmlFor="mfa-challenge-code" className="block">
+          {!verificationComplete ? <label htmlFor="mfa-challenge-code" className="block">
             <span className="mb-2 block text-sm font-bold text-slate-700">
               {method === "totp" ? "여섯 자리 인증 코드" : "일회용 복구 코드"}
             </span>
@@ -244,7 +265,7 @@ export function MfaChallengeDialog({ open, onCancel, onSuccess }: MfaChallengeDi
               onChange={(event) => changeCode(event.target.value)}
               className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-center text-base font-bold tracking-[0.18em] text-slate-950 outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-100"
             />
-          </label>
+          </label> : null}
 
           {status ? (
             <p role="status" aria-live="polite" className="rounded-xl border border-blue-200 bg-blue-50 px-3.5 py-3 text-xs font-medium leading-5 text-blue-700">
@@ -258,12 +279,17 @@ export function MfaChallengeDialog({ open, onCancel, onSuccess }: MfaChallengeDi
           ) : null}
 
           <button
+            ref={submitButtonRef}
             type="submit"
             disabled={submitting}
             className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 text-sm font-bold text-white shadow-lg shadow-violet-200 transition hover:bg-violet-700 focus:outline-none focus:ring-4 focus:ring-violet-100 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
           >
             {submitting ? <Loader2 className="animate-spin" size={17} /> : <ShieldCheck size={17} />}
-            {submitting ? "확인 중" : "로그인 완료"}
+            {submitting
+              ? "확인 중"
+              : verificationComplete
+                ? "로그인 상태 다시 불러오기"
+                : "로그인 완료"}
           </button>
         </form>
       </section>

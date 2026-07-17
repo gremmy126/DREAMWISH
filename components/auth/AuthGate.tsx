@@ -18,6 +18,7 @@ import {
   createFirebasePasswordAccount,
   firebaseUserHasPasswordProvider,
   getFirebaseClientAuth,
+  logoutFirebaseUser,
   sendFirebasePasswordReset,
   signInWithFirebasePassword,
   subscribeToFirebaseIdToken,
@@ -60,6 +61,8 @@ export function AuthGate({ children, hasServerSession }: AuthGateProps) {
   const lastFirebaseTokenRef = useRef<string | null>(null);
   const serverOnlySessionRef = useRef(false);
   const mfaPendingRef = useRef(false);
+  const authFlowVersionRef = useRef(0);
+  const pendingAuthRequestControllersRef = useRef(new Set<AbortController>());
   const { t } = useAppLanguage();
 
   useEffect(() => {
@@ -122,6 +125,21 @@ export function AuthGate({ children, hasServerSession }: AuthGateProps) {
     setLoading(false);
   }
 
+  async function fetchAccessForCurrentFlow(idToken: string, fallback: string) {
+    const controller = new AbortController();
+    pendingAuthRequestControllersRef.current.add(controller);
+    try {
+      return await fetchAccess(idToken, fallback, controller.signal);
+    } finally {
+      pendingAuthRequestControllersRef.current.delete(controller);
+    }
+  }
+
+  function abortPendingAuthRequests() {
+    for (const controller of pendingAuthRequestControllersRef.current) controller.abort();
+    pendingAuthRequestControllersRef.current.clear();
+  }
+
   function applyAuthenticatedAccess(nextAccess: AccessState, idToken: string, passwordLogin = firebaseUserHasPasswordProvider()) {
     lastFirebaseTokenRef.current = idToken;
     mfaPendingRef.current = false;
@@ -135,6 +153,7 @@ export function AuthGate({ children, hasServerSession }: AuthGateProps) {
   }
 
   async function restoreSession() {
+    const flowVersion = authFlowVersionRef.current;
     setLoading(true);
     setError(null);
     try {
@@ -142,6 +161,7 @@ export function AuthGate({ children, hasServerSession }: AuthGateProps) {
         const response = await fetch("/api/auth/me", { cache: "no-store" });
         const nextAccess = await readAuthSessionAccess(response, t("auth.sessionFailed"));
         const firebaseUser = await waitForFirebaseUser();
+        if (authFlowVersionRef.current !== flowVersion) return;
         if (!firebaseUser) {
           serverOnlySessionRef.current = true;
           applyAuthenticatedAccess(nextAccess, "", false);
@@ -153,6 +173,7 @@ export function AuthGate({ children, hasServerSession }: AuthGateProps) {
         return;
       }
       const firebaseUser = await waitForFirebaseUser();
+      if (authFlowVersionRef.current !== flowVersion) return;
       if (!firebaseUser) {
         window.localStorage.removeItem(AUTH_SESSION_KEY);
         clearAuthenticatedClientState();
@@ -161,13 +182,15 @@ export function AuthGate({ children, hasServerSession }: AuthGateProps) {
       }
 
       const idToken = await firebaseUser.getIdToken();
-      const authentication = await fetchAccess(idToken, t("auth.sessionFailed"));
+      const authentication = await fetchAccessForCurrentFlow(idToken, t("auth.sessionFailed"));
+      if (authFlowVersionRef.current !== flowVersion) return;
       if (authentication.mfaRequired) {
         openMfaChallenge();
         return;
       }
       applyAuthenticatedAccess(authentication.access, idToken);
     } catch (caught) {
+      if (authFlowVersionRef.current !== flowVersion) return;
       setError(getAuthActionError(caught));
       clearAuthenticatedClientState();
       setLoginOpen(true);
@@ -180,6 +203,7 @@ export function AuthGate({ children, hasServerSession }: AuthGateProps) {
     firebaseUser: Awaited<ReturnType<typeof waitForFirebaseUser>>,
     forceRefresh = false
   ) {
+    const flowVersion = authFlowVersionRef.current;
     if (!firebaseUser) {
       if (serverOnlySessionRef.current) return;
       clearAuthenticatedClientState();
@@ -191,14 +215,17 @@ export function AuthGate({ children, hasServerSession }: AuthGateProps) {
       const idToken = forceRefresh
         ? await firebaseUser.getIdToken(true)
         : await firebaseUser.getIdToken();
+      if (authFlowVersionRef.current !== flowVersion) return;
       if (!forceRefresh && idToken === lastFirebaseTokenRef.current) return;
-      const authentication = await fetchAccess(idToken, t("auth.sessionFailed"));
+      const authentication = await fetchAccessForCurrentFlow(idToken, t("auth.sessionFailed"));
+      if (authFlowVersionRef.current !== flowVersion) return;
       if (authentication.mfaRequired) {
         openMfaChallenge();
         return;
       }
       applyAuthenticatedAccess(authentication.access, idToken);
     } catch (caught) {
+      if (authFlowVersionRef.current !== flowVersion) return;
       clearAuthenticatedClientState();
       setError(getAuthActionError(caught));
       setLoginOpen(true);
@@ -280,12 +307,14 @@ export function AuthGate({ children, hasServerSession }: AuthGateProps) {
   }
 
   async function completeFirebaseLogin(idToken: string) {
+    const flowVersion = authFlowVersionRef.current;
     const response = await fetch("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ idToken, couponCode })
     });
     const authentication = await readPrimaryAuthentication(response);
+    if (authFlowVersionRef.current !== flowVersion) return;
     if (authentication.mfaRequired) {
       openMfaChallenge();
       return;
@@ -309,10 +338,12 @@ export function AuthGate({ children, hasServerSession }: AuthGateProps) {
   }
 
   async function completeMfaLogin() {
+    const flowVersion = authFlowVersionRef.current;
     const response = await fetch("/api/auth/me", { cache: "no-store" });
     const nextAccess = await readAuthSessionAccess(response, t("auth.sessionFailed"));
     const firebaseUser = getFirebaseClientAuth()?.currentUser || null;
     const idToken = firebaseUser ? await firebaseUser.getIdToken() : "";
+    if (authFlowVersionRef.current !== flowVersion) return;
     serverOnlySessionRef.current = !firebaseUser;
     applyAuthenticatedAccess(
       nextAccess,
@@ -325,13 +356,27 @@ export function AuthGate({ children, hasServerSession }: AuthGateProps) {
   }
 
   async function cancelMfaLogin() {
-    mfaPendingRef.current = false;
+    authFlowVersionRef.current += 1;
+    mfaPendingRef.current = true;
+    abortPendingAuthRequests();
     setMfaOpen(false);
     setError(null);
     clearLoginQuery();
     try {
-      await logoutServerSession();
+      await Promise.allSettled([
+        logoutFirebaseUser(),
+        logoutServerSession()
+      ]);
     } finally {
+      lastFirebaseTokenRef.current = null;
+      serverOnlySessionRef.current = false;
+      window.localStorage.removeItem(AUTH_SESSION_KEY);
+      setAccess(null);
+      setEmail("");
+      setCanChangePassword(false);
+      setShowPasswordChange(false);
+      setLoading(false);
+      mfaPendingRef.current = false;
       setLoginOpen(true);
     }
   }
@@ -602,12 +647,14 @@ type PrimaryAuthenticationResponse =
 
 async function fetchAccess(
   idToken: string,
-  fallback: string
+  fallback: string,
+  signal?: AbortSignal
 ): Promise<PrimaryAuthenticationResponse> {
   const response = await fetch("/api/auth/session", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ idToken })
+    body: JSON.stringify({ idToken }),
+    signal
   });
   return readPrimaryAuthentication(response, fallback);
 }
