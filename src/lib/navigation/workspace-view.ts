@@ -11,6 +11,12 @@ export function getWorkspaceViewUrl(_view: ViewId) {
 
 export function resolveWorkspaceView(pathname: string, search: string): ViewId {
   const params = new URLSearchParams(search);
+  const isBillingReturn =
+    pathname === "/" &&
+    params.get("view") === "settings" &&
+    params.get("billing") === "return";
+  if (isBillingReturn) return "settings";
+
   const isOAuthReturn =
     pathname === "/" &&
     params.get("view") === "integrations" &&

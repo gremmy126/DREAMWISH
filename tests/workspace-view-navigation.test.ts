@@ -38,6 +38,12 @@ test("OAuth returns can open integrations once before the URL is cleaned", () =>
   assert.equal(resolveWorkspaceView("/", "?view=integrations&provider=firebase"), "integrations");
 });
 
+test("billing portal returns can open Settings once before the URL is cleaned", () => {
+  assert.equal(resolveWorkspaceView("/", "?view=settings&billing=return"), "settings");
+  assert.equal(resolveWorkspaceView("/", "?view=settings"), "chat");
+  assert.equal(resolveWorkspaceView("/", "?view=settings&billing=other"), "chat");
+});
+
 test("navigation rejects views that are not present in the sidebar", () => {
   assert.equal(normalizeWorkspaceView("crm"), "crm");
   assert.equal(normalizeWorkspaceView("business"), "business");

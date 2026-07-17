@@ -107,4 +107,7 @@ test("billing status and portal routes remain available to unpaid owners", () =>
   ]) {
     assert.match(env, new RegExp(variable, "u"));
   }
+
+  const portal = fs.readFileSync("app/api/billing/portal/route.ts", "utf8");
+  assert.match(portal, /\?view=settings&billing=return/u);
 });

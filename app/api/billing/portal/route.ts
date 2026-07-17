@@ -7,7 +7,7 @@ export async function POST(request: Request) {
     const owner = await requireOwnerContext(request);
     const session = await getPolarClient().customerSessions.create({
       externalCustomerId: owner.uid,
-      returnUrl: getAppOrigin()
+      returnUrl: `${getAppOrigin()}/?view=settings&billing=return`
     });
     return NextResponse.json({ ok: true, portalUrl: session.customerPortalUrl });
   } catch (error) {
