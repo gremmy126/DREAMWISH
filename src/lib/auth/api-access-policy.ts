@@ -28,13 +28,23 @@ const BILLING_API_PATHS = new Set([
 
 const OAUTH_CALLBACK_PATTERN = /^\/api\/(?:oauth|integrations)\/[^/]+\/callback$/u;
 const DEVICE_SECRET_PATTERN = /^\/api\/devices\/(?:pair|[^/]+\/sync)$/u;
+// Custom automation webhooks authenticate with their own per-webhook secret,
+// not a session cookie: external services must be able to call them.
+const AUTOMATION_WEBHOOK_PATTERN = /^\/api\/webhooks\/automation\/[^/]+$/u;
 const ADMIN_API_PREFIX = "/api/admin";
 
 export function classifyApiAccess(pathname: string): ApiAccessClass {
   const path = normalizePathname(pathname);
 
   if (!isPathOrChild(path, "/api")) return "public";
-  if (PUBLIC_API_PATHS.has(path) || OAUTH_CALLBACK_PATTERN.test(path) || DEVICE_SECRET_PATTERN.test(path)) return "public";
+  if (
+    PUBLIC_API_PATHS.has(path) ||
+    OAUTH_CALLBACK_PATTERN.test(path) ||
+    DEVICE_SECRET_PATTERN.test(path) ||
+    AUTOMATION_WEBHOOK_PATTERN.test(path)
+  ) {
+    return "public";
+  }
   if (BILLING_API_PATHS.has(path)) return "billing";
   if (isPathOrChild(path, ADMIN_API_PREFIX)) return "admin";
   return "protected";

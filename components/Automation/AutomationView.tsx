@@ -461,7 +461,7 @@ function ScenarioInspector({ scenario, selectedNode, credentials, connectedOauth
     }
     onOpenConnections();
   }
-  return <aside className="min-w-0 overflow-hidden bg-white p-4"><div className="flex items-center justify-between"><h2 className="truncate text-sm font-bold text-slate-950">{selectedNode ? "모듈 설정" : "시나리오 정보"}</h2><MoreVertical size={16} className="shrink-0 text-slate-400" /></div>{selectedNode && selectedModule ? <div className="mt-5 space-y-4"><div className="flex min-w-0 items-center gap-3"><AutomationAppLogo appId={selectedModule.id} size={40} color={selectedModule.color} /><div className="min-w-0"><p className="truncate text-sm font-bold text-slate-900">{selectedNode.label}</p><p className="truncate text-xs text-slate-400">{selectedNode.operation}</p></div></div><InspectorField label="모듈 이름" value={selectedNode.label} onChange={(label) => onNodeChange({ label })} /><ActionPicker appId={selectedNode.appId} value={selectedNode.operation} onChange={(operation) => onNodeChange({ operation })} />{selectedNode.appId === "schedule" ? <ScheduleEditor config={selectedNode.config} onChange={(config) => onNodeChange({ config })} /> : null}{selectedNode.requiresCredential ? <div><label className="text-[11px] font-bold text-slate-500">검증된 계정 / API 키</label><select value={selectedNode.credentialId || ""} onChange={(event) => onNodeChange({ credentialId: event.target.value || null })} className="mt-2 h-10 w-full min-w-0 truncate rounded-xl border border-slate-200 px-3 text-xs outline-none"><option value="">{oauthConnected ? "OAuth 연결 사용 (기본)" : "연결 필요"}</option>{oauthConnected ? <option value={`oauth:${selectedNode.appId}`}>OAuth 연결됨{oauthAccountLabel ? ` · ${oauthAccountLabel}` : ""}</option> : null}{matchingCredentials.filter((item) => item.verificationStatus === "verified").map((item) => <option key={item.id} value={item.id}>{item.accountLabel || item.label} · {item.masked}</option>)}</select>{oauthConnected ? <p className="mt-2 rounded-xl bg-emerald-50 p-3 text-[11px] leading-5 text-emerald-700">Integrations에서 OAuth로 연결된 계정{oauthAccountLabel ? ` (${oauthAccountLabel})` : ""}이 이 모듈에서 바로 사용됩니다.</p> : <div className="mt-3 rounded-xl bg-slate-50 p-3"><p className="text-[11px] leading-5 text-slate-600">앱별 정확한 키 항목 또는 OAuth를 연결 관리에서 인증하세요.</p><button type="button" onClick={openConnectionSetup} className="mt-2 flex h-9 w-full items-center justify-center rounded-lg bg-violet-600 text-[11px] font-bold text-white">연결 관리에서 인증</button></div>}</div> : <p className="rounded-xl bg-emerald-50 p-3 text-[11px] leading-5 text-emerald-700">이 모듈은 별도 API 키 없이 DREAMWISH 내부에서 실행됩니다.</p>}<button type="button" onClick={onDeleteNode} className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-red-100 text-xs font-bold text-red-600 hover:bg-red-50"><Trash2 size={14} />모듈 삭제</button></div> : <ScenarioSummary scenario={scenario} credentials={credentials} />}</aside>;
+  return <aside className="min-w-0 overflow-hidden bg-white p-4"><div className="flex items-center justify-between"><h2 className="truncate text-sm font-bold text-slate-950">{selectedNode ? "모듈 설정" : "시나리오 정보"}</h2><MoreVertical size={16} className="shrink-0 text-slate-400" /></div>{selectedNode && selectedModule ? <div className="mt-5 space-y-4"><div className="flex min-w-0 items-center gap-3"><AutomationAppLogo appId={selectedModule.id} size={40} color={selectedModule.color} /><div className="min-w-0"><p className="truncate text-sm font-bold text-slate-900">{selectedNode.label}</p><p className="truncate text-xs text-slate-400">{selectedNode.operation}</p></div></div><InspectorField label="모듈 이름" value={selectedNode.label} onChange={(label) => onNodeChange({ label })} /><ActionPicker appId={selectedNode.appId} value={selectedNode.operation} onChange={(operation) => onNodeChange({ operation })} />{selectedNode.appId === "schedule" ? <ScheduleEditor config={selectedNode.config} onChange={(config) => onNodeChange({ config })} /> : null}{selectedNode.appId === "filter" || selectedNode.appId === "router" ? <FilterEditor appId={selectedNode.appId} config={selectedNode.config} onChange={(config) => onNodeChange({ config })} /> : null}{selectedNode.appId === "webhook" && scenario ? <WebhookPanel scenarioId={scenario.id} /> : null}{selectedNode.requiresCredential ? <div><label className="text-[11px] font-bold text-slate-500">검증된 계정 / API 키</label><select value={selectedNode.credentialId || ""} onChange={(event) => onNodeChange({ credentialId: event.target.value || null })} className="mt-2 h-10 w-full min-w-0 truncate rounded-xl border border-slate-200 px-3 text-xs outline-none"><option value="">{oauthConnected ? "OAuth 연결 사용 (기본)" : "연결 필요"}</option>{oauthConnected ? <option value={`oauth:${selectedNode.appId}`}>OAuth 연결됨{oauthAccountLabel ? ` · ${oauthAccountLabel}` : ""}</option> : null}{matchingCredentials.filter((item) => item.verificationStatus === "verified").map((item) => <option key={item.id} value={item.id}>{item.accountLabel || item.label} · {item.masked}</option>)}</select>{oauthConnected ? <p className="mt-2 rounded-xl bg-emerald-50 p-3 text-[11px] leading-5 text-emerald-700">Integrations에서 OAuth로 연결된 계정{oauthAccountLabel ? ` (${oauthAccountLabel})` : ""}이 이 모듈에서 바로 사용됩니다.</p> : <div className="mt-3 rounded-xl bg-slate-50 p-3"><p className="text-[11px] leading-5 text-slate-600">앱별 정확한 키 항목 또는 OAuth를 연결 관리에서 인증하세요.</p><button type="button" onClick={openConnectionSetup} className="mt-2 flex h-9 w-full items-center justify-center rounded-lg bg-violet-600 text-[11px] font-bold text-white">연결 관리에서 인증</button></div>}</div> : <p className="rounded-xl bg-emerald-50 p-3 text-[11px] leading-5 text-emerald-700">이 모듈은 별도 API 키 없이 DREAMWISH 내부에서 실행됩니다.</p>}<button type="button" onClick={onDeleteNode} className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-red-100 text-xs font-bold text-red-600 hover:bg-red-50"><Trash2 size={14} />모듈 삭제</button></div> : <ScenarioSummary scenario={scenario} credentials={credentials} />}</aside>;
 }
 
 function ScenarioSummary({ scenario, credentials }: { scenario: AutomationScenario | null; credentials: PublicAutomationCredential[] }) {
@@ -476,6 +476,88 @@ function ScenarioModuleNode({ data, selected }: NodeProps<CanvasNode>) {
 }
 
 function InspectorField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) { return <label className="block min-w-0"><span className="text-[11px] font-bold text-slate-500">{label}</span><input value={value} onChange={(event) => onChange(event.target.value)} className="mt-2 h-10 w-full min-w-0 rounded-xl border border-slate-200 px-3 text-xs outline-none focus:border-violet-400" /></label>; }
+
+function FilterEditor({ appId, config, onChange }: { appId: string; config: Record<string, string | number | boolean>; onChange: (config: Record<string, string | number | boolean>) => void }) {
+  const field = "mt-1 h-9 w-full min-w-0 rounded-xl border border-slate-200 px-2.5 text-xs outline-none";
+  const patch = (next: Record<string, string | number | boolean>) => onChange({ ...config, ...next });
+  return (
+    <div className="rounded-xl border border-slate-200 p-3">
+      <p className="text-[11px] font-bold text-slate-500">{appId === "filter" ? "필터 조건" : "라우터 분기 기준"}</p>
+      <label className="mt-2 block text-[10px] font-semibold text-slate-500">값 경로
+        <input value={String(config.path || "")} placeholder="예: trigger.email.from 또는 steps.노드ID.output.x" onChange={(event) => patch({ path: event.target.value })} className={field} />
+      </label>
+      {appId === "filter" ? (
+        <>
+          <label className="mt-2 block text-[10px] font-semibold text-slate-500">연산자
+            <select value={String(config.operator || "contains")} onChange={(event) => patch({ operator: event.target.value })} className={field}>
+              {["equals", "not_equals", "contains", "not_contains", "starts_with", "ends_with", "gt", "lt", "gte", "lte", "is_empty", "is_not_empty", "exists", "not_exists", "regex"].map((operator) => <option key={operator} value={operator}>{operator}</option>)}
+            </select>
+          </label>
+          <label className="mt-2 block text-[10px] font-semibold text-slate-500">비교 값
+            <input value={String(config.value ?? "")} onChange={(event) => patch({ value: event.target.value })} className={field} />
+          </label>
+          <p className="mt-2 text-[10px] leading-4 text-slate-500">조건이 거짓이면 이후 경로는 오류가 아니라 건너뜀으로 처리됩니다.</p>
+        </>
+      ) : (
+        <p className="mt-2 text-[10px] leading-4 text-slate-500">연결선의 라벨과 값이 일치하는 분기가 실행됩니다. 라벨 없는 연결선은 기본 경로입니다.</p>
+      )}
+    </div>
+  );
+}
+
+function WebhookPanel({ scenarioId }: { scenarioId: string }) {
+  const [webhook, setWebhook] = useState<{ id: string; secret: string; active: boolean; requestCount: number } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    void (async () => {
+      const response = await fetch(`/api/automation/webhooks?scenarioId=${encodeURIComponent(scenarioId)}`);
+      const data = (await response.json().catch(() => ({}))) as { webhooks?: Array<{ id: string; secret: string; active: boolean; requestCount: number }> };
+      if (response.ok) setWebhook(data.webhooks?.[0] || null);
+    })();
+  }, [scenarioId]);
+
+  async function issue() {
+    setBusy(true);
+    try {
+      const response = await fetch("/api/automation/webhooks", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scenarioId })
+      });
+      const data = (await response.json().catch(() => ({}))) as { webhook?: { id: string; secret: string; active: boolean; requestCount: number } };
+      if (response.ok && data.webhook) setWebhook(data.webhook);
+    } finally { setBusy(false); }
+  }
+
+  async function toggleActive() {
+    if (!webhook) return;
+    const response = await fetch("/api/automation/webhooks", {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ webhookId: webhook.id, active: !webhook.active })
+    });
+    const data = (await response.json().catch(() => ({}))) as { webhook?: typeof webhook };
+    if (response.ok && data.webhook) setWebhook(data.webhook);
+  }
+
+  const url = webhook ? `${window.location.origin}/api/webhooks/automation/${webhook.id}` : "";
+  return (
+    <div className="rounded-xl border border-slate-200 p-3">
+      <p className="text-[11px] font-bold text-slate-500">커스텀 웹훅 트리거</p>
+      {webhook ? (
+        <div className="mt-2 space-y-2">
+          <p className="break-all rounded-lg bg-slate-50 p-2 font-mono text-[10px] text-slate-700">{url}</p>
+          <p className="text-[10px] text-slate-500">헤더 <span className="font-mono">X-Webhook-Secret</span> 또는 <span className="font-mono">X-Signature-256</span>(HMAC-SHA256)으로 인증 · 수신 {webhook.requestCount}회</p>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => { void navigator.clipboard.writeText(`${url}\nX-Webhook-Secret: ${webhook.secret}`); setCopied(true); setTimeout(() => setCopied(false), 1500); }} className="flex-1 rounded-lg border border-slate-200 py-1.5 text-[10px] font-bold text-slate-600">{copied ? "복사됨" : "URL+Secret 복사"}</button>
+            <button type="button" onClick={() => void toggleActive()} className={`flex-1 rounded-lg py-1.5 text-[10px] font-bold ${webhook.active ? "bg-emerald-600 text-white" : "bg-slate-200 text-slate-600"}`}>{webhook.active ? "활성" : "비활성"}</button>
+          </div>
+          <p className="text-[10px] leading-4 text-slate-500">시나리오가 활성 상태이고 웹훅이 활성일 때, JSON POST 수신 즉시 실행 기록이 생성됩니다. 같은 <span className="font-mono">X-Event-Id</span>는 한 번만 처리됩니다.</p>
+        </div>
+      ) : (
+        <button type="button" disabled={busy} onClick={() => void issue()} className="mt-2 h-9 w-full rounded-lg bg-violet-600 text-[11px] font-bold text-white disabled:opacity-50">웹훅 URL 발급</button>
+      )}
+    </div>
+  );
+}
 
 function ScheduleEditor({ config, onChange }: { config: Record<string, string | number | boolean>; onChange: (config: Record<string, string | number | boolean>) => void }) {
   const kind = String(config.scheduleKind || "daily");

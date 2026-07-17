@@ -8,6 +8,8 @@ export type AutomationRunStep = {
   order: number;
   status: "success" | "approval_required" | "failed" | "skipped";
   detail: string;
+  /** Config with {{...}} mappings already resolved at execution time. */
+  resolvedConfig?: Record<string, string | number | boolean>;
 };
 
 export type AutomationRun = {
@@ -15,7 +17,7 @@ export type AutomationRun = {
   ownerId: string;
   scenarioId: string;
   scenarioName: string;
-  trigger: "manual" | "schedule";
+  trigger: "manual" | "schedule" | "webhook";
   status: "success" | "partial" | "failed";
   steps: AutomationRunStep[];
   error: string | null;

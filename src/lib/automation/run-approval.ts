@@ -60,7 +60,7 @@ export async function buildRunApprovalPreview(
     .filter((step) => step.status === "approval_required")
     .map((step) => {
       const node = scenario?.nodes.find((candidate) => candidate.id === step.nodeId) || null;
-      return planExternalAction(step.nodeId, step.label, node);
+      return planExternalAction(step.nodeId, step.label, node, step.resolvedConfig);
     });
   return { runId: run.id, scenarioName: run.scenarioName, actions };
 }
@@ -85,7 +85,7 @@ export async function approveAndExecuteRun(
   for (const step of run.steps) {
     if (step.status !== "approval_required") continue;
     const node = scenario?.nodes.find((candidate) => candidate.id === step.nodeId) || null;
-    const plan = planExternalAction(step.nodeId, step.label, node);
+    const plan = planExternalAction(step.nodeId, step.label, node, step.resolvedConfig);
 
     if (plan.missing.length > 0) {
       outcomes.set(step.nodeId, {
@@ -103,7 +103,7 @@ export async function approveAndExecuteRun(
     }
 
     let result: OutboundSendResult;
-    const config = node?.config || {};
+    const config = step.resolvedConfig || node?.config || {};
     if (plan.kind === "gmail_send") {
       result = await sendGmail(ownerId, {
         to: String(config.to || ""),
@@ -179,9 +179,10 @@ export async function approveAndExecuteRun(
 function planExternalAction(
   nodeId: string,
   label: string,
-  node: ScenarioNode | null
+  node: ScenarioNode | null,
+  resolvedConfig?: Record<string, string | number | boolean>
 ): PlannedExternalAction {
-  const config = node?.config || {};
+  const config = resolvedConfig || node?.config || {};
   const app = node?.appId || "unknown";
 
   if (app === "gmail") {
