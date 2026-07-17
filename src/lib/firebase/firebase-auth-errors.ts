@@ -21,7 +21,7 @@ const FIREBASE_AUTH_MESSAGES: Record<string, string> = {
 
 const DEFAULT_AUTH_MESSAGE = "인증 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.";
 
-export type FirebaseAuthMethod = "password" | "google" | "github" | "generic";
+export type FirebaseAuthMethod = "password" | "generic";
 
 export function getFirebaseAuthErrorMessage(
   error: unknown,
@@ -29,12 +29,6 @@ export function getFirebaseAuthErrorMessage(
 ): string {
   const code = getFirebaseErrorCode(error);
   if (code === "auth/invalid-credential") {
-    if (method === "google") {
-      return "Google 로그인 정보가 유효하지 않습니다. Google 계정을 다시 선택해주세요.";
-    }
-    if (method === "github") {
-      return "GitHub 로그인 정보가 유효하지 않습니다. GitHub 로그인을 다시 시도해주세요.";
-    }
     if (method === "password") {
       return "이메일 또는 비밀번호가 올바르지 않습니다.";
     }

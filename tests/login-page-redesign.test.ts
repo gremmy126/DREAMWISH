@@ -163,15 +163,16 @@ test("login dialog provides the approved responsive accessible SaaS layout", () 
     /autoComplete=\{props\.creatingAccount \? "new-password" : "current-password"\}/u,
     /aria-invalid/u,
     /role="alert"/u,
-    /Google로 계속하기/u,
-    /GitHub로 계속하기/u,
+    /카카오로 계속하기/u,
+    /네이버로 계속하기/u,
+    /쿠폰 코드/u,
     /const decision = decideLoginSubmission\(/u,
     /const decision = decidePasswordReset\(/u
   ]) {
     assert.match(source, contract);
   }
 
-  for (const icon of ["Mail", "LockKeyhole", "Chrome", "Github", "UserRound"]) {
+  for (const icon of ["Mail", "LockKeyhole", "TicketPercent", "UserRound"]) {
     assert.match(source, new RegExp(`\\b${icon}\\b`, "u"));
   }
 
@@ -296,14 +297,13 @@ test("AuthGate delegates modal presentation and keeps Firebase auth effects", ()
   assert.match(source, /function changeAuthMode/u);
   assert.doesNotMatch(source, /export function LoginDialog/u);
   assert.doesNotMatch(source, /class AuthSessionError/u);
-  assert.doesNotMatch(source, /response\.json\(\)\.catch/u);
-  assert.equal(source.match(/readAuthSessionAccess\(response(?:, fallback)?\)/gu)?.length, 2);
+  assert.doesNotMatch(source, /response\.json\(\)\.catch\(.*access/u);
+  assert.equal(source.match(/readAuthSessionAccess\(response(?:, fallback|, t\("auth\.sessionFailed"\))?\)/gu)?.length, 3);
   assert.match(source, /readAuthSessionAccess\(response, fallback\)/u);
   for (const preserved of [
     "signInWithFirebasePassword",
     "createFirebasePasswordAccount",
-    "signInWithFirebaseGoogle",
-    "signInWithFirebaseGithub",
+    "startSocialLogin",
     "sendFirebasePasswordReset",
     'fetch("/api/auth/login"',
     'fetch("/api/auth/session"'
@@ -314,9 +314,8 @@ test("AuthGate delegates modal presentation and keeps Firebase auth effects", ()
     /onSubmit=\{login\}/u,
     /onSignup=\{signup\}/u,
     /onResetPassword=\{resetPassword\}/u,
-    /onGoogle=\{loginWithGoogle\}/u,
-    /githubEnabled=\{canEnableFirebaseGitHubLogin\(\)\}/u,
-    /onGithub=\{loginWithGithub\}/u,
+    /onKakao=\{\(\) => void startSocialLogin\("kakao"\)\}/u,
+    /onNaver=\{\(\) => void startSocialLogin\("naver"\)\}/u,
     /onModeChange=\{changeAuthMode\}/u
   ]) {
     assert.match(source, wiring);

@@ -3,7 +3,6 @@ import {
   getFirebaseAuthClientConfig,
   isFirebaseAuthConfigured
 } from "../src/lib/firebase/firebase-client-config";
-import { canEnableFirebaseGitHubLogin } from "../src/lib/firebase/firebase-auth-providers";
 import { NAVER_SITE_VERIFICATION } from "../src/lib/site/metadata";
 import { upsertOptimisticChatSession } from "../src/lib/chat/session-list";
 import fs from "node:fs";
@@ -72,16 +71,17 @@ test("Firebase ID token renewal refreshes the server session without navigation"
   assert.doesNotMatch(topbarSource, /window\.location/u);
 });
 
-test("login UI exposes account creation, Google login, reset, and password change", () => {
+test("login UI exposes account creation, Kakao and Naver login, reset, coupon, and password change", () => {
   const authSource = fs.readFileSync("components/auth/AuthGate.tsx", "utf8");
   const loginShellSource = fs.readFileSync("components/auth/LoginDialog.tsx", "utf8");
   assert.match(authSource, /createFirebasePasswordAccount/u);
-  assert.match(authSource, /signInWithFirebaseGoogle/u);
+  assert.match(authSource, /startSocialLogin/u);
   assert.match(authSource, /sendFirebasePasswordReset/u);
   assert.match(authSource, /changeFirebasePassword/u);
   assert.match(loginShellSource, /나만의 기억과 업무 데이터를 AI가 안전하게 이어갑니다/u);
-  assert.match(loginShellSource, /Google로 계속하기/u);
-  assert.match(loginShellSource, /GitHub로 계속하기/u);
+  assert.match(loginShellSource, /카카오로 계속하기/u);
+  assert.match(loginShellSource, /네이버로 계속하기/u);
+  assert.match(loginShellSource, /쿠폰 코드/u);
   assert.match(loginShellSource, /비밀번호 찾기/u);
 });
 
@@ -91,7 +91,7 @@ test("login UI uses safe auth errors and an explicit reauthenticated password fo
   assert.match(authSource, /getFirebaseAuthErrorMessage/u);
   assert.match(authSource, /validatePasswordChange/u);
   assert.match(authSource, /firebaseUserHasPasswordProvider/u);
-  assert.match(authSource, /canEnableFirebaseGitHubLogin/u);
+  assert.match(authSource, /serverOnlySessionRef/u);
   assert.match(authSource, /currentPassword/u);
   assert.match(authSource, /newPassword/u);
   assert.match(authSource, /confirmPassword/u);
@@ -103,8 +103,8 @@ test("login UI uses safe auth errors and an explicit reauthenticated password fo
     loginShellSource,
     /autoComplete=\{props\.creatingAccount \? "new-password" : "current-password"\}/u
   );
-  assert.match(loginShellSource, /Google로 계속하기/u);
-  assert.match(loginShellSource, /GitHub로 계속하기/u);
+  assert.match(loginShellSource, /카카오로 계속하기/u);
+  assert.match(loginShellSource, /네이버로 계속하기/u);
   assert.doesNotMatch(authSource, /window\.prompt/u);
   assert.doesNotMatch(authSource, /process\.env\.NEXT_PUBLIC_ENABLE_FIREBASE_GITHUB_LOGIN/u);
 });
@@ -149,35 +149,13 @@ test("chat archive routes resolve and pass the authenticated owner", () => {
   assert.match(contextRoute, /searchChatMessages\(owner\.uid, query, 8\)/u);
 });
 
-test("Firebase GitHub login is exposed only when explicitly enabled and client id exists", () => {
-  withEnv(
-    {
-      NEXT_PUBLIC_ENABLE_FIREBASE_GITHUB_LOGIN: "true",
-      GITHUB_CLIENT_ID: "github-client"
-    },
-    () => {
-      assert.equal(canEnableFirebaseGitHubLogin(), true);
-    }
-  );
-
-  withEnv(
-    {
-      NEXT_PUBLIC_ENABLE_FIREBASE_GITHUB_LOGIN: undefined,
-      GITHUB_CLIENT_ID: "github-client"
-    },
-    () => {
-      assert.equal(canEnableFirebaseGitHubLogin(), false);
-    }
-  );
-});
-
 test("Firebase auth errors map to safe actionable Korean messages", () => {
   const modulePath = "../src/lib/firebase/firebase-auth-errors";
   assert.equal(fs.existsSync("src/lib/firebase/firebase-auth-errors.ts"), true);
   const { getFirebaseAuthErrorMessage } = require(modulePath) as {
     getFirebaseAuthErrorMessage: (
       error: unknown,
-      method?: "password" | "google" | "github" | "generic"
+      method?: "password" | "generic"
     ) => string;
   };
 
@@ -196,18 +174,6 @@ test("Firebase auth errors map to safe actionable Korean messages", () => {
     getFirebaseAuthErrorMessage({ code: "auth/invalid-credential" }, "password"),
     /이메일 또는 비밀번호/u
   );
-  assert.match(
-    getFirebaseAuthErrorMessage({ code: "auth/invalid-credential" }, "google"),
-    /Google 로그인 정보/u
-  );
-  assert.doesNotMatch(
-    getFirebaseAuthErrorMessage({ code: "auth/invalid-credential" }, "google"),
-    /비밀번호/u
-  );
-  assert.match(
-    getFirebaseAuthErrorMessage({ code: "auth/invalid-credential" }, "github"),
-    /GitHub 로그인 정보/u
-  );
   assert.doesNotMatch(
     getFirebaseAuthErrorMessage({ code: "auth/invalid-credential" }, "generic"),
     /비밀번호/u
@@ -218,12 +184,12 @@ test("Firebase auth errors map to safe actionable Korean messages", () => {
   );
 });
 
-test("auth actions preserve the Firebase provider when mapping failures", () => {
+test("password auth actions preserve the Firebase password method when mapping failures", () => {
   const source = fs.readFileSync("components/auth/AuthGate.tsx", "utf8");
 
   assert.match(source, /getAuthActionError\(caught, "password"\)/u);
-  assert.match(source, /getAuthActionError\(caught, "google"\)/u);
-  assert.match(source, /getAuthActionError\(caught, "github"\)/u);
+  assert.doesNotMatch(source, /getAuthActionError\(caught, "google"\)/u);
+  assert.doesNotMatch(source, /getAuthActionError\(caught, "github"\)/u);
 });
 
 test("password change policy requires reauthentication inputs and a password provider", () => {
@@ -258,18 +224,6 @@ test("password change policy requires reauthentication inputs and a password pro
   assert.equal(hasPasswordProvider([{ providerId: "google.com" }, { providerId: "github.com" }]), false);
 });
 
-test("Firebase GitHub browser visibility depends only on its public enable flag", () => {
-  withEnv(
-    {
-      NEXT_PUBLIC_ENABLE_FIREBASE_GITHUB_LOGIN: "true",
-      GITHUB_CLIENT_ID: undefined
-    },
-    () => {
-      assert.equal(canEnableFirebaseGitHubLogin(), true);
-    }
-  );
-});
-
 test("authentication configuration documents the server session secret and provider consoles", () => {
   const exampleEnv = fs.readFileSync(".env.example", "utf8");
   assert.match(exampleEnv, /# Auth Session - Server Only[\s\S]*AUTH_SESSION_SECRET=""/u);
@@ -279,12 +233,12 @@ test("authentication configuration documents the server session secret and provi
   const guide = fs.readFileSync("docs/authentication.md", "utf8");
   for (const requirement of [
     "Email/Password",
-    "Google",
-    "GitHub",
+    "Kakao",
+    "Naver",
     "localhost",
     "dreamwish.co.kr",
-    "Authorized domains",
-    "Authorization callback URL",
+    "KAKAO_REDIRECT_URI",
+    "NAVER_REDIRECT_URI",
     "AUTH_SESSION_SECRET",
     "Railway"
   ]) {

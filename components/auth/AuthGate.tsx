@@ -18,8 +18,6 @@ import {
   firebaseUserHasPasswordProvider,
   getFirebaseClientAuth,
   sendFirebasePasswordReset,
-  signInWithFirebaseGithub,
-  signInWithFirebaseGoogle,
   signInWithFirebasePassword,
   subscribeToFirebaseIdToken,
   waitForFirebaseUser
@@ -28,7 +26,7 @@ import {
   getFirebaseAuthErrorMessage,
   type FirebaseAuthMethod
 } from "@/src/lib/firebase/firebase-auth-errors";
-import { canEnableFirebaseGitHubLogin } from "@/src/lib/firebase/firebase-auth-providers";
+import type { SocialProvider } from "@/src/lib/auth/social-oauth.types";
 import { validatePasswordChange } from "@/src/lib/firebase/firebase-password-policy";
 import { useAppLanguage } from "@/src/lib/i18n/use-app-language";
 import { AccessProvider } from "@/src/lib/auth/access-context";
@@ -43,6 +41,7 @@ export function AuthGate({ children, hasServerSession }: AuthGateProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [couponCode, setCouponCode] = useState("");
   const [loading, setLoading] = useState(true);
   const [loginOpen, setLoginOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -57,11 +56,19 @@ export function AuthGate({ children, hasServerSession }: AuthGateProps) {
   const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
   const authenticatingRef = useRef(false);
   const lastFirebaseTokenRef = useRef<string | null>(null);
+  const serverOnlySessionRef = useRef(false);
   const { t } = useAppLanguage();
 
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search);
     if (searchParams.get("login") === "1") setLoginOpen(true);
+    const oauthError = searchParams.get("oauth_error");
+    if (oauthError) {
+      setLoginOpen(true);
+      setError(oauthError === "email_consent_required"
+        ? "소셜 계정의 이메일 제공 동의가 필요합니다. 이메일 제공에 동의한 뒤 다시 시도해주세요."
+        : "소셜 로그인을 완료하지 못했습니다. 잠시 후 다시 시도해주세요.");
+    }
     let active = true;
     let unsubscribeFromTokens: () => void = () => undefined;
 
@@ -80,6 +87,7 @@ export function AuthGate({ children, hasServerSession }: AuthGateProps) {
       if (!active) return;
       unsubscribeFromTokens = subscribeToFirebaseIdToken((firebaseUser) => {
         if (!active || authenticatingRef.current) return;
+        if (!firebaseUser && serverOnlySessionRef.current) return;
         void refreshFirebaseSession(firebaseUser);
       });
     })();
@@ -94,6 +102,7 @@ export function AuthGate({ children, hasServerSession }: AuthGateProps) {
 
   function clearAuthenticatedClientState() {
     lastFirebaseTokenRef.current = null;
+    serverOnlySessionRef.current = false;
     window.localStorage.removeItem(AUTH_SESSION_KEY);
     setAccess(null);
     setEmail("");
@@ -102,11 +111,11 @@ export function AuthGate({ children, hasServerSession }: AuthGateProps) {
     setLoading(false);
   }
 
-  function applyAuthenticatedAccess(nextAccess: AccessState, idToken: string) {
+  function applyAuthenticatedAccess(nextAccess: AccessState, idToken: string, passwordLogin = firebaseUserHasPasswordProvider()) {
     lastFirebaseTokenRef.current = idToken;
     setAccess(nextAccess);
     setEmail(nextAccess.email);
-    setCanChangePassword(firebaseUserHasPasswordProvider());
+    setCanChangePassword(passwordLogin);
     setError(null);
     setLoading(false);
     window.localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify({ email: nextAccess.email }));
@@ -116,6 +125,20 @@ export function AuthGate({ children, hasServerSession }: AuthGateProps) {
     setLoading(true);
     setError(null);
     try {
+      if (hasServerSession) {
+        const response = await fetch("/api/auth/me", { cache: "no-store" });
+        const nextAccess = await readAuthSessionAccess(response, t("auth.sessionFailed"));
+        const firebaseUser = await waitForFirebaseUser();
+        if (!firebaseUser) {
+          serverOnlySessionRef.current = true;
+          applyAuthenticatedAccess(nextAccess, "", false);
+          return;
+        }
+        const idToken = await firebaseUser.getIdToken();
+        serverOnlySessionRef.current = false;
+        applyAuthenticatedAccess(nextAccess, idToken, firebaseUserHasPasswordProvider());
+        return;
+      }
       const firebaseUser = await waitForFirebaseUser();
       if (!firebaseUser) {
         window.localStorage.removeItem(AUTH_SESSION_KEY);
@@ -141,6 +164,7 @@ export function AuthGate({ children, hasServerSession }: AuthGateProps) {
     forceRefresh = false
   ) {
     if (!firebaseUser) {
+      if (serverOnlySessionRef.current) return;
       clearAuthenticatedClientState();
       await logoutServerSession();
       return;
@@ -207,33 +231,30 @@ export function AuthGate({ children, hasServerSession }: AuthGateProps) {
     }
   }
 
-  async function loginWithGoogle() {
+  async function startSocialLogin(provider: SocialProvider) {
     setSubmitting(true);
-    authenticatingRef.current = true;
     clearMessages();
     try {
-      const credential = await signInWithFirebaseGoogle();
-      await completeFirebaseLogin(await credential.user.getIdToken());
+      const response = await fetch(`/api/auth/oauth/${provider}/start`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ couponCode })
+      });
+      const body = await response.json().catch(() => null) as { authorizationUrl?: unknown; error?: unknown } | null;
+      if (!response.ok || typeof body?.authorizationUrl !== "string") {
+        throw new AuthSessionError(typeof body?.error === "string" ? body.error : "소셜 로그인을 시작하지 못했습니다.");
+      }
+      const authorizationUrl = new URL(body.authorizationUrl);
+      const expectedOrigin = provider === "kakao" ? "https://kauth.kakao.com" : "https://nid.naver.com";
+      if (authorizationUrl.protocol !== "https:" || authorizationUrl.origin !== expectedOrigin) {
+        throw new AuthSessionError("안전하지 않은 소셜 로그인 주소가 차단되었습니다.");
+      }
+      window.location.assign(authorizationUrl.toString());
     } catch (caught) {
-      setError(getAuthActionError(caught, "google"));
-    } finally {
-      authenticatingRef.current = false;
+      setError(getAuthActionError(caught));
       setSubmitting(false);
-    }
-  }
-
-  async function loginWithGithub() {
-    setSubmitting(true);
-    authenticatingRef.current = true;
-    clearMessages();
-    try {
-      const credential = await signInWithFirebaseGithub();
-      await completeFirebaseLogin(await credential.user.getIdToken());
-    } catch (caught) {
-      setError(getAuthActionError(caught, "github"));
     } finally {
-      authenticatingRef.current = false;
-      setSubmitting(false);
+      // A successful request leaves the page, so the loading state stays visible.
     }
   }
 
@@ -241,11 +262,12 @@ export function AuthGate({ children, hasServerSession }: AuthGateProps) {
     const response = await fetch("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ idToken })
+      body: JSON.stringify({ idToken, couponCode })
     });
     const nextAccess = await readAuthSessionAccess(response);
     applyAuthenticatedAccess(nextAccess, idToken);
     setPassword("");
+    setCouponCode("");
     setLoginOpen(false);
     clearLoginQuery();
   }
@@ -341,21 +363,22 @@ export function AuthGate({ children, hasServerSession }: AuthGateProps) {
           email={email}
           name={name}
           password={password}
+          couponCode={couponCode}
           error={error}
           resetMessage={resetMessage}
           submitting={submitting}
           creatingAccount={creatingAccount}
-          githubEnabled={canEnableFirebaseGitHubLogin()}
           onClose={closeLogin}
           onEmailChange={setEmail}
           onPasswordChange={setPassword}
+          onCouponCodeChange={setCouponCode}
           onNameChange={setName}
           onSubmit={login}
           onSignup={signup}
           onModeChange={changeAuthMode}
           onResetPassword={resetPassword}
-          onGoogle={loginWithGoogle}
-          onGithub={loginWithGithub}
+          onKakao={() => void startSocialLogin("kakao")}
+          onNaver={() => void startSocialLogin("naver")}
         />
       </>
     );

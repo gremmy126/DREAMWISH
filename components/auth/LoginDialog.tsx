@@ -1,6 +1,6 @@
 "use client";
 
-import { Chrome, Github, Loader2, LockKeyhole, Mail, UserRound, X } from "lucide-react";
+import { Loader2, LockKeyhole, Mail, TicketPercent, UserRound, X } from "lucide-react";
 import { BrainLogo } from "@/components/brand/BrainLogo";
 import { useEffect, useRef, useState, type FormEvent, type ReactNode, type Ref } from "react";
 import {
@@ -14,21 +14,22 @@ type LoginDialogProps = {
   email: string;
   name: string;
   password: string;
+  couponCode: string;
   error: string | null;
   resetMessage: string | null;
   submitting: boolean;
   creatingAccount: boolean;
-  githubEnabled: boolean;
   onClose: () => void;
   onEmailChange: (value: string) => void;
   onPasswordChange: (value: string) => void;
+  onCouponCodeChange: (value: string) => void;
   onNameChange: (value: string) => void;
   onSubmit: () => void;
   onSignup: () => void;
   onModeChange: (value: boolean) => void;
   onResetPassword: () => void;
-  onGoogle: () => void;
-  onGithub: () => void;
+  onKakao: () => void;
+  onNaver: () => void;
 };
 
 export function LoginDialog(props: LoginDialogProps) {
@@ -182,6 +183,16 @@ export function LoginDialog(props: LoginDialogProps) {
               onChange={props.onNameChange}
             />
           ) : null}
+          <Field
+            id="auth-coupon"
+            label="쿠폰 코드 (선택)"
+            type="text"
+            autoComplete="off"
+            value={props.couponCode}
+            placeholder="보유한 쿠폰 코드를 입력하세요"
+            icon={<TicketPercent size={17} />}
+            onChange={props.onCouponCodeChange}
+          />
 
           {!props.creatingAccount ? (
             <div className="flex justify-end">
@@ -207,8 +218,8 @@ export function LoginDialog(props: LoginDialogProps) {
         </div>
 
         <div className="space-y-3">
-          <ProviderButton icon={<Chrome size={18} />} label="Google로 계속하기" disabled={props.submitting} onClick={props.onGoogle} />
-          <ProviderButton icon={<Github size={18} />} label="GitHub로 계속하기" disabled={props.submitting || !props.githubEnabled} onClick={props.onGithub} title={props.githubEnabled ? undefined : "GitHub 로그인이 준비되지 않았습니다."} />
+          <ProviderButton icon={<span aria-hidden="true" className="font-black">K</span>} label="카카오로 계속하기" disabled={props.submitting} onClick={props.onKakao} variant="kakao" />
+          <ProviderButton icon={<span aria-hidden="true" className="font-black">N</span>} label="네이버로 계속하기" disabled={props.submitting} onClick={props.onNaver} variant="naver" />
         </div>
 
         <p className="mt-6 text-center text-sm text-slate-500">
@@ -255,15 +266,18 @@ function getFocusableElements(container: HTMLElement | null) {
   ).filter((element) => element.getAttribute("aria-hidden") !== "true");
 }
 
-function ProviderButton({ icon, label, disabled, onClick, title }: {
+function ProviderButton({ icon, label, disabled, onClick, variant }: {
   icon: ReactNode;
   label: string;
   disabled: boolean;
   onClick: () => void;
-  title?: string;
+  variant: "kakao" | "naver";
 }) {
+  const colors = variant === "kakao"
+    ? "border-[#FEE500] bg-[#FEE500] text-[#191919] hover:bg-[#f4dc00]"
+    : "border-[#03C75A] bg-[#03C75A] text-white hover:bg-[#02b351]";
   return (
-    <button type="button" onClick={onClick} disabled={disabled} title={title} className="inline-flex h-12 w-full items-center justify-center gap-2.5 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400">
+    <button type="button" onClick={onClick} disabled={disabled} className={`inline-flex h-12 w-full items-center justify-center gap-2.5 rounded-xl border px-4 text-sm font-bold transition disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400 ${colors}`}>
       {icon}
       {label}
     </button>

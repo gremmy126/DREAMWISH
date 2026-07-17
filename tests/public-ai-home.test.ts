@@ -27,7 +27,7 @@ test("root renders a crawlable guest AI chat instead of a login or marketing pag
   assert.doesNotMatch(guestHome, /fetch\s*\(/u);
 });
 
-test("guest interactions open an in-place Email Google and GitHub login dialog", () => {
+test("guest interactions open an in-place Email Kakao and Naver login dialog", () => {
   const authGate = read("components/auth/AuthGate.tsx");
   const dialog = read("components/auth/LoginDialog.tsx");
 
@@ -41,8 +41,9 @@ test("guest interactions open an in-place Email Google and GitHub login dialog",
   assert.match(dialog, /role="dialog"/u);
   assert.match(dialog, /aria-modal="true"/u);
   assert.match(dialog, /autoComplete="email"/u);
-  assert.match(dialog, /Google로 계속하기/u);
-  assert.match(dialog, /GitHub로 계속하기/u);
+  assert.match(dialog, /카카오로 계속하기/u);
+  assert.match(dialog, /네이버로 계속하기/u);
+  assert.match(dialog, /쿠폰 코드/u);
   assert.match(dialog, /회원가입/u);
   assert.match(dialog, /비밀번호 찾기/u);
 });

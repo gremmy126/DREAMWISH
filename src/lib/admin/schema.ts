@@ -26,6 +26,15 @@ CREATE TABLE IF NOT EXISTS auth_identities (
   PRIMARY KEY (provider, provider_subject)
 );
 
+CREATE TABLE IF NOT EXISTS oauth_login_states (
+  state_hash TEXT PRIMARY KEY,
+  provider TEXT NOT NULL CHECK (provider IN ('kakao', 'naver')),
+  pending_coupon_hash TEXT,
+  expires_at TIMESTAMPTZ NOT NULL,
+  used_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE INDEX IF NOT EXISTS auth_identities_account_id
   ON auth_identities(account_id);
 

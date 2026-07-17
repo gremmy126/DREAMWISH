@@ -5,14 +5,11 @@ import {
   createUserWithEmailAndPassword,
   EmailAuthProvider,
   getAuth,
-  GithubAuthProvider,
-  GoogleAuthProvider,
   onAuthStateChanged,
   onIdTokenChanged,
   reauthenticateWithCredential,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
-  signInWithPopup,
   signOut,
   updatePassword,
   updateProfile,
@@ -73,20 +70,6 @@ export async function reauthenticateFirebasePassword(currentPassword: string) {
 export function firebaseUserHasPasswordProvider() {
   const auth = getFirebaseClientAuth();
   return hasPasswordProvider(auth?.currentUser?.providerData || []);
-}
-
-export async function signInWithFirebaseGoogle() {
-  const auth = requireAuth();
-  const provider = new GoogleAuthProvider();
-  provider.setCustomParameters({ prompt: "select_account" });
-  return signInWithPopup(auth, provider);
-}
-
-export async function signInWithFirebaseGithub() {
-  const auth = requireAuth();
-  const provider = new GithubAuthProvider();
-  provider.addScope("read:user");
-  return signInWithPopup(auth, provider);
 }
 
 export async function sendFirebasePasswordReset(email: string) {

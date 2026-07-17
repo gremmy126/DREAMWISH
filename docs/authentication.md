@@ -1,10 +1,10 @@
-# Firebase authentication setup
+# DREAMWISH authentication setup
 
-DREAMWISH uses Firebase Authentication in the browser and exchanges the Firebase ID token at `/api/auth/login` for an application session cookie. Email addresses or local storage values sent by the browser never establish server identity.
+DREAMWISH supports Firebase Email/Password plus server-side Kakao and Naver OAuth login. Every successful method is exchanged for the same signed, HttpOnly DREAMWISH session. Browser email values, OAuth access tokens, and local storage never establish server identity.
 
-## Required environment variables
+## Required Railway variables
 
-Set the following browser-safe Firebase values in local development and Railway:
+Keep the Firebase web values public only because the Firebase browser SDK requires them:
 
 ```text
 NEXT_PUBLIC_FIREBASE_API_KEY
@@ -13,57 +13,66 @@ NEXT_PUBLIC_FIREBASE_PROJECT_ID
 NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
 NEXT_PUBLIC_FIREBASE_APP_ID
-NEXT_PUBLIC_ENABLE_FIREBASE_GITHUB_LOGIN
 ```
 
-Set this server-only value to at least 32 random bytes:
+Configure these values as server-only Railway variables. Never add `NEXT_PUBLIC_` to a client secret:
 
 ```text
 AUTH_SESSION_SECRET
+AUTH_OAUTH_STATE_SECRET
+KAKAO_CLIENT_ID
+KAKAO_CLIENT_SECRET
+KAKAO_REDIRECT_URI=https://dreamwish.co.kr/api/auth/oauth/kakao/callback
+NAVER_CLIENT_ID
+NAVER_CLIENT_SECRET
+NAVER_REDIRECT_URI=https://dreamwish.co.kr/api/auth/oauth/naver/callback
+APP_URL=https://dreamwish.co.kr
+NEXT_PUBLIC_APP_URL=https://dreamwish.co.kr
 ```
 
-Generate independent values for local and production environments. For example, run `openssl rand -hex 32` and paste the result into `.env.local` or the Railway variable editor. Never prefix this variable with `NEXT_PUBLIC_`, commit it, or reuse the development value in production.
+`AUTH_SESSION_SECRET` and `AUTH_OAUTH_STATE_SECRET` must each contain at least 32 random characters and must be different values. Generate separate values for local and production environments, for example with `openssl rand -hex 32`. Redeploy Railway after changing any variable.
 
-Restart the Next.js server after changing any environment variable. Railway must redeploy after a variable is added or changed.
+## Firebase Email/Password
 
-## Firebase Console
+Open Firebase Console for `NEXT_PUBLIC_FIREBASE_PROJECT_ID`.
 
-Open Firebase Console, select the project matching `NEXT_PUBLIC_FIREBASE_PROJECT_ID`, and go to Authentication.
+1. In Authentication > Sign-in method, enable **Email/Password**.
+2. Do not enable Google or GitHub for the DREAMWISH login page; those providers are intentionally not exposed.
+3. In Authentication > Settings > Authorized domains, add `localhost` for development and `dreamwish.co.kr` for production.
+4. Keep password reset email templates and the production action URL configured in Firebase.
 
-1. Under **Sign-in method**, enable **Email/Password**.
-2. Enable **Google**, choose a support email, and save.
-3. Enable **GitHub** only after configuring its OAuth app as described below.
-4. Under **Settings > Authorized domains**, include:
-   - `localhost` for local development.
-   - `dreamwish.co.kr` for production.
-   - `www.dreamwish.co.kr` only if the application is actually served from that host.
+Kakao and Naver accounts do not use a Firebase user and therefore do not show the Firebase password-change control.
 
-Do not add URL schemes or paths to Authorized domains. Production must never use a localhost redirect.
+## Kakao login
 
-## Google login
+In Kakao Developers, create an application and enable Kakao Login.
 
-Firebase's Google provider uses the web app configuration above. Confirm that the Google provider is enabled and that every host where sign-in is started appears in Firebase Authorized domains. If the generated Google Cloud OAuth client has been manually restricted, its authorized JavaScript origins must include the production origin `https://dreamwish.co.kr` and the local origin in use, such as `http://localhost:3100`.
+- Register the web site domain `https://dreamwish.co.kr`.
+- Register the Redirect URI exactly as `https://dreamwish.co.kr/api/auth/oauth/kakao/callback`.
+- Enable consent for Kakao Account email and profile nickname. The email must be supplied and verified; otherwise DREAMWISH rejects the login instead of creating an ambiguous account.
+- Put the REST API key in `KAKAO_CLIENT_ID` and the client secret in `KAKAO_CLIENT_SECRET`.
 
-## GitHub login
+For local testing, register and use the exact local callback separately, such as `http://localhost:3000/api/auth/oauth/kakao/callback`. Production always requires HTTPS.
 
-Create or edit a GitHub OAuth App and copy its Client ID and Client Secret into the GitHub provider page in Firebase Authentication. Do not place the Client Secret in browser code or a `NEXT_PUBLIC_` variable.
+## Naver login
 
-Set the GitHub OAuth App fields as follows:
+In Naver Developers, register a web application using Naver Login.
 
-- **Homepage URL:** `https://dreamwish.co.kr`
-- **Authorization callback URL:** use the exact callback shown by Firebase, normally `https://<FIREBASE_PROJECT_ID>.firebaseapp.com/__/auth/handler`
+- Set the service URL to `https://dreamwish.co.kr`.
+- Register the Callback URL exactly as `https://dreamwish.co.kr/api/auth/oauth/naver/callback`.
+- Request the email and name profile fields. Email is required for DREAMWISH account linking.
+- Put the Client ID in `NAVER_CLIENT_ID` and the Client Secret in `NAVER_CLIENT_SECRET`.
 
-The Authorization callback URL is a Firebase handler. It is not `/api/integrations/github/callback`, which belongs to the separate integration connector flow. After saving the provider in Firebase, set `NEXT_PUBLIC_ENABLE_FIREBASE_GITHUB_LOGIN=true` in Railway and redeploy.
+If Naver does not return an email because the user denied consent, DREAMWISH displays a safe consent-required message and does not create an account.
 
-GitHub users with private email addresses are accepted only when Firebase returns a verified email for the account. If Firebase reports that the email already belongs to another provider, sign in with the existing provider first rather than creating a duplicate account.
+## Identity and security behavior
 
-## Railway checklist
+- OAuth state is provider-bound, expires after 10 minutes, is stored durably, and can be consumed only once.
+- Provider access tokens are used only for the profile request and are never stored in cookies, URLs, local storage, or account records.
+- Social identities merge into an existing account only when the provider returns the same normalized verified email.
+- Coupon codes travel through signed server state; raw coupon codes are not retained in OAuth state.
+- Suspended, deleted, or session-invalidated accounts cannot restore a session.
 
-Configure the following on the Next.js web service:
+## Deployment verification
 
-- All `NEXT_PUBLIC_FIREBASE_*` variables from the Firebase web app.
-- `NEXT_PUBLIC_ENABLE_FIREBASE_GITHUB_LOGIN=true` after GitHub is enabled.
-- A production-only `AUTH_SESSION_SECRET` containing at least 32 random bytes.
-- `APP_URL=https://dreamwish.co.kr` and `NEXT_PUBLIC_APP_URL=https://dreamwish.co.kr`.
-
-After deployment, verify Email/Password registration, Email/Password login, Google login, GitHub login, password-reset email, logout, and password change for a password-based account. OAuth-only accounts intentionally do not show the authenticated password-change action.
+After deploying, verify Email/Password registration and login, password reset, Kakao login, Naver login, logout, a denied email-consent flow, a tampered/expired state rejection, and coupon entry with each login path. Confirm the callback host and path character-for-character and inspect browser storage to ensure that no provider token or secret is present.

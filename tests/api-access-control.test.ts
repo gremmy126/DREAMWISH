@@ -490,7 +490,7 @@ test("middleware enforces signed session access and ignores forged admin headers
   });
 });
 
-test("auth UI restores only from Firebase and logs out server sessions", () => {
+test("auth UI restores server OAuth sessions before falling back to Firebase", () => {
   const authGate = fs.readFileSync("components/auth/AuthGate.tsx", "utf8");
   const restoreSource = authGate.slice(
     authGate.indexOf("async function restoreSession"),
@@ -499,21 +499,22 @@ test("auth UI restores only from Firebase and logs out server sessions", () => {
 
   assert.doesNotMatch(restoreSource, /localStorage\.getItem\(AUTH_SESSION_KEY\)/u);
   assert.doesNotMatch(restoreSource, /fetchAccess\(session\.email/u);
+  assert.match(restoreSource, /fetch\("\/api\/auth\/me"/u);
+  assert.match(restoreSource, /serverOnlySessionRef\.current = true/u);
   assert.match(restoreSource, /waitForFirebaseUser/u);
-  assert.match(restoreSource, /localStorage\.removeItem\(AUTH_SESSION_KEY\)/u);
   assert.match(authGate, /fetch\("\/api\/auth\/logout"/u);
   assert.doesNotMatch(authGate, /let idToken: string \| undefined/u);
   assert.match(authGate, /if \(!firebaseAuth\)/u);
 });
 
-test("the sidebar performs no access refresh and AuthGate sends only a Firebase ID token", () => {
+test("the sidebar performs no access refresh and AuthGate sends Firebase ID token with an optional coupon", () => {
   const sidebar = fs.readFileSync("components/layout/Sidebar.tsx", "utf8");
   const authGate = fs.readFileSync("components/auth/AuthGate.tsx", "utf8");
 
   assert.doesNotMatch(sidebar, /\/api\/auth\/session/u);
   assert.match(authGate, /waitForFirebaseUser/u);
   assert.match(authGate, /getIdToken\(\)/u);
-  assert.match(authGate, /body: JSON\.stringify\(\{ idToken \}\)/u);
+  assert.match(authGate, /body: JSON\.stringify\(\{ idToken, couponCode \}\)/u);
   assert.doesNotMatch(authGate, /body: JSON\.stringify\(\{ email:/u);
 });
 
