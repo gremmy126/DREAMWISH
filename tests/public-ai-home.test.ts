@@ -139,7 +139,8 @@ test("policy pages have their own canonical and social metadata", () => {
   for (const [file, canonical] of [
     ["app/privacy/page.tsx", "/privacy"],
     ["app/cookies/page.tsx", "/cookies"],
-    ["app/terms/page.tsx", "/terms"]
+    ["app/terms/page.tsx", "/terms"],
+    ["app/refunds/page.tsx", "/refunds"]
   ]) {
     const source = read(file);
     assert.match(source, new RegExp(`canonical: "${canonical}"`, "u"), file);

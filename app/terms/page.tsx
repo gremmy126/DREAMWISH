@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { PolicyLayout, PolicySection } from "@/components/legal/PolicyLayout";
+import { OPERATOR_INFO } from "@/src/lib/legal/policy";
 import { SITE_NAME } from "@/src/lib/site/metadata";
 
-const description = "DREAMWISH 개인두뇌 AI 서비스 이용약관입니다.";
+const description = "DREAMWISH 계정, AI 기능, 외부 연동, 자동화 및 월간 구독의 이용 조건을 안내합니다.";
 
 export const metadata: Metadata = {
-  title: "Terms",
+  title: "서비스 이용약관",
   description,
   alternates: { canonical: "/terms" },
   openGraph: {
@@ -13,69 +15,174 @@ export const metadata: Metadata = {
     locale: "ko_KR",
     url: "/terms",
     siteName: SITE_NAME,
-    title: "Terms | DREAMWISH",
+    title: "서비스 이용약관 | DREAMWISH",
     description
   },
-  twitter: { card: "summary", title: "Terms | DREAMWISH", description }
+  twitter: { card: "summary", title: "서비스 이용약관 | DREAMWISH", description }
 };
 
 export default function TermsPage() {
   return (
-    <main className="min-h-screen bg-app-bg px-4 py-10 text-app-text sm:px-6">
-      <article className="mx-auto max-w-3xl rounded-app border border-app-border bg-app-card p-6 shadow-app sm:p-8">
-        <Link className="text-sm font-semibold text-app-primary" href="/">
-          DREAMWISH
-        </Link>
-        <h1 className="mt-5 text-3xl font-semibold tracking-normal">서비스 이용약관</h1>
-        <p className="mt-2 text-sm text-app-muted">최종 업데이트: 2026년 7월 13일</p>
+    <PolicyLayout title="서비스 이용약관" description={description}>
+      <PolicySection id="purpose" title="제1조 목적">
+        <p>
+          이 약관은 {OPERATOR_INFO.businessName}(이하 “회사”)이 제공하는 DREAMWISH 서비스와 관련하여 회사와
+          회원의 권리·의무, 책임 및 이용 조건을 정하는 것을 목적으로 합니다.
+        </p>
+      </PolicySection>
 
-        <div className="mt-8 space-y-7 text-sm leading-7 text-app-muted">
-          <TermsSection title="1. 목적">
-            본 약관은 DREAMWISH 개인두뇌 AI 서비스의 이용 조건, 사용자와 운영자의 권리와
-            의무, 책임 범위를 정합니다.
-          </TermsSection>
-          <TermsSection title="2. 계정과 보안">
-            사용자는 본인의 계정 정보를 안전하게 관리해야 합니다. 외부 앱 연결, API 토큰,
-            파일 업로드와 자동화 기능은 사용자가 직접 승인한 범위에서만 사용해야 합니다.
-          </TermsSection>
-          <TermsSection title="3. AI 결과물">
-            AI가 생성한 답변은 참고 자료이며 정확성, 완전성, 최신성이 항상 보장되지는
-            않습니다. 법률, 의료, 금융 등 중요한 결정에는 전문가 검토가 필요합니다.
-          </TermsSection>
-          <TermsSection title="4. 금지 행위">
-            불법 콘텐츠 생성, 타인의 권리 침해, 보안 우회, 서비스 장애 유발, 승인되지 않은
-            데이터 수집 또는 외부 앱 권한 오남용을 금지합니다.
-          </TermsSection>
-          <TermsSection title="5. 서비스 변경">
-            운영자는 보안, 법령 준수, 기능 개선을 위해 서비스 기능과 정책을 변경할 수
-            있습니다. 중요한 변경은 합리적인 방식으로 안내합니다.
-          </TermsSection>
-          <TermsSection title="6. 개인정보와 쿠키">
-            개인정보 처리와 쿠키 사용은 Privacy Policy와 Cookie Policy를 따릅니다.
-          </TermsSection>
-        </div>
+      <PolicySection id="definitions" title="제2조 정의">
+        <ul>
+          <li>“서비스”란 AI 대화·분석, 메모리, 파일, 일정, CRM·ERP, 외부 연동, 자동화 등 DREAMWISH 기능을 말합니다.</li>
+          <li>“회원”이란 계정을 만들고 이 약관에 동의하여 서비스를 이용하는 개인 또는 사업자를 말합니다.</li>
+          <li>“회원 콘텐츠”란 회원이 입력·업로드·연결하거나 서비스에서 생성·저장한 데이터와 파일을 말합니다.</li>
+          <li>“외부 서비스”란 Google, Microsoft, Notion, Slack, GitHub 등 회원이 연결하는 제3자 서비스를 말합니다.</li>
+          <li>“유료 구독”이란 결제일부터 매월 자동 갱신되는 DREAMWISH 이용 계약을 말합니다.</li>
+        </ul>
+      </PolicySection>
 
-        <nav className="mt-10 flex flex-wrap gap-3 border-t border-app-border pt-5 text-sm">
-          <Link className="font-semibold text-app-primary" href="/privacy">
-            Privacy Policy
-          </Link>
-          <Link className="font-semibold text-app-primary" href="/cookies">
-            Cookie Policy
-          </Link>
-          <Link className="font-semibold text-app-primary" href="/terms">
-            Terms
-          </Link>
-        </nav>
-      </article>
-    </main>
-  );
-}
+      <PolicySection id="agreement" title="제3조 약관 동의와 계약 성립">
+        <p>
+          회원이 가입 또는 결제 화면에서 약관에 동의하고 회사가 가입이나 결제를 승인하면 이용계약이 성립합니다.
+          결제 화면에는 가격, 결제 주기, 제공 내용, 자동 갱신 및 해지 조건이 표시됩니다. 회원은 정확한 정보를
+          제공해야 하며 타인의 명의나 결제수단을 무단으로 사용할 수 없습니다.
+        </p>
+        <p>
+          만 14세 미만은 가입할 수 없습니다. 미성년자가 유료 구독을 체결할 때에는 법정대리인의 동의를 받아야
+          하며, 동의가 없으면 관계 법령에 따라 계약이 취소될 수 있습니다.
+        </p>
+      </PolicySection>
 
-function TermsSection({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section>
-      <h2 className="text-lg font-semibold text-app-text">{title}</h2>
-      <p className="mt-3">{children}</p>
-    </section>
+      <PolicySection id="account" title="제4조 계정과 보안">
+        <ul>
+          <li>회원은 로그인 수단, 연결 계정 및 기기를 안전하게 관리해야 합니다.</li>
+          <li>계정 공유, 자격증명 판매, 무단 대여 및 보안 우회는 금지됩니다.</li>
+          <li>도용 또는 비정상 접근을 발견하면 즉시 회사에 알리고 비밀번호 변경과 연결 해제를 해야 합니다.</li>
+          <li>회사는 보안을 위해 재인증, 세션 종료 또는 위험한 연결의 일시 제한을 요청할 수 있습니다.</li>
+        </ul>
+      </PolicySection>
+
+      <PolicySection id="service" title="제5조 서비스의 내용과 변경">
+        <p>
+          서비스는 AI 대화·분석, 파일·메모리 관리, 업무 데이터 관리, 외부 계정 연결 및 워크플로 자동화를
+          포함합니다. 회사는 보안, 법령 준수, 성능 개선 또는 공급자 변경을 위해 기능을 수정할 수 있습니다.
+          회원에게 중대한 불이익이 있는 변경은 적용 전에 서비스 화면 또는 이메일로 알립니다.
+        </p>
+      </PolicySection>
+
+      <PolicySection id="ai-results" title="제6조 AI 결과와 이용자 확인">
+        <p>
+          AI 결과는 확률적으로 생성되므로 정확성, 완전성, 최신성 또는 특정 목적 적합성을 항상 보장하지 않습니다.
+          회원은 사실관계와 권리를 직접 확인해야 하며 법률·의료·세무·금융·채용·안전 등 중대한 결정에는 자격을
+          갖춘 전문가의 검토를 받아야 합니다.
+        </p>
+        <p>
+          회원은 개인정보, 영업비밀 또는 제3자의 권리 대상 정보를 AI 제공자에게 전송할 권한이 있는지 확인해야
+          합니다. 회사는 고의 또는 중대한 과실이 없는 한 회원이 검증하지 않은 AI 결과만을 신뢰하여 발생한 손해에
+          대해 관계 법령이 허용하는 범위에서 책임이 제한될 수 있습니다.
+        </p>
+      </PolicySection>
+
+      <PolicySection id="content" title="제7조 회원 콘텐츠">
+        <p>
+          회원 콘텐츠의 권리는 회원 또는 정당한 권리자에게 유지됩니다. 회원은 회사가 서비스를 제공·보호·백업하고
+          요청한 AI 처리와 자동화를 수행하는 데 필요한 범위에서 콘텐츠를 저장, 복제, 변환 및 전송할 수 있도록
+          회사에 비독점적 이용 권한을 부여합니다. 이 권한은 서비스 제공 목적에 한정되며 계정 또는 콘텐츠 삭제 시
+          법정 보관분을 제외하고 종료됩니다.
+        </p>
+      </PolicySection>
+
+      <PolicySection id="integrations" title="제8조 외부 서비스와 자동화">
+        <ul>
+          <li>회원은 본인이 사용할 권한이 있는 외부 계정만 연결해야 합니다.</li>
+          <li>외부 서비스의 장애, 정책, API 제한, 요금 및 데이터 처리에는 해당 제공자의 조건이 적용됩니다.</li>
+          <li>회원은 자동화의 대상 계정, 리소스, 입력값, 실행 시각과 결과를 검토할 책임이 있습니다.</li>
+          <li>테스트·수동 실행 또는 정책상 승인이 필요한 작업은 Preview와 승인 이후에 실행됩니다.</li>
+          <li>삭제, 환불, 배포, 권한 변경, 대량 작업 등 고위험 작업에는 1차 경고와 최종 승인이 요구됩니다.</li>
+          <li>회사는 승인 내용과 실행 내용의 해시가 다르거나 권한·자격증명·Scope가 유효하지 않으면 실행을 차단할 수 있습니다.</li>
+        </ul>
+      </PolicySection>
+
+      <PolicySection id="prohibited" title="제9조 금지행위">
+        <ul>
+          <li>불법, 사기, 스팸, 괴롭힘, 차별, 권리 침해 또는 유해한 콘텐츠의 생성·배포</li>
+          <li>악성코드, 피싱, 자격증명 탈취, 보안 우회 또는 서비스·외부 시스템의 무단 접근</li>
+          <li>타인의 개인정보를 적법한 근거 없이 수집·분석·판매 또는 대량 전송하는 행위</li>
+          <li>Rate Limit, 승인 절차, 사용량 제한 또는 과금 구조를 회피하는 행위</li>
+          <li>서비스를 역설계하거나 회사 또는 제3자의 지식재산권을 침해하는 행위</li>
+        </ul>
+      </PolicySection>
+
+      <PolicySection id="subscription" title="제10조 유료 구독과 자동 결제">
+        <p>
+          DREAMWISH는 무료 플랜이나 무료 체험 없이 월간 유료 구독으로 제공됩니다. 첫 결제 완료 즉시 유료 기능이
+          활성화되고, 회원이 해지하지 않으면 매 결제 주기마다 같은 결제수단으로 자동 갱신됩니다. 실제 가격, 세금,
+          통화와 결제일은 결제 화면 및 Polar 영수증에 표시됩니다.
+        </p>
+        <p>
+          결제수단 정보는 Polar 및 결제 처리 사업자가 관리합니다. 결제 실패 시 유예·재시도 후 서비스가 제한될 수
+          있으며, 회원은 Polar 고객 포털에서 결제수단과 영수증을 관리할 수 있습니다.
+        </p>
+      </PolicySection>
+
+      <PolicySection id="cancellation" title="제11조 구독 및 계약 해지">
+        <p>
+          회원은 설정의 “구독 해지”를 통해 언제든 다음 자동 갱신을 중단할 수 있습니다. 일반적인 구독 해지는 현재
+          결제 기간이 끝날 때 효력이 발생하며 그때까지 유료 기능을 이용할 수 있습니다. 구독 해지는 이미 완료된
+          결제의 환불을 의미하지 않습니다.
+        </p>
+        <p>
+          계정 삭제 또는 서비스 이용계약 종료를 원하면 회사에 요청할 수 있습니다. 다만 진행 중인 결제 분쟁,
+          법정 보관 기록 또는 미결제 채무가 있으면 필요한 범위에서 처리가 유보될 수 있습니다.
+        </p>
+      </PolicySection>
+
+      <PolicySection id="refunds" title="제12조 환불과 청약철회">
+        <p>
+          회사의 임의 환불, 플랫폼 오류, 중복·오결제 및 관계 법령상 권리는 <Link href="/refunds">환불 및 구독 해지
+          정책</Link>을 따릅니다. 정책 또는 약관의 내용이 강행 법규상 소비자 권리와 충돌하면 해당 법령이 우선합니다.
+        </p>
+      </PolicySection>
+
+      <PolicySection id="availability" title="제13조 서비스 중단과 유지보수">
+        <p>
+          회사는 점검, 보안 사고, 통신·클라우드·AI 제공자의 장애, 천재지변 또는 법적 요청으로 서비스를 일시
+          중단할 수 있습니다. 예측 가능한 점검은 가능한 범위에서 사전에 알리고, 회사 책임으로 중대한 장애가
+          지속되면 관계 법령과 <Link href="/refunds">환불 정책</Link>에 따라 기간 연장, 이용료 조정 또는 환불을 검토합니다.
+        </p>
+      </PolicySection>
+
+      <PolicySection id="suspension" title="제14조 이용 제한과 종료">
+        <p>
+          회원이 법령·약관을 위반하거나 보안과 타인의 권리를 위협하면 회사는 사전 통지 후 이용을 제한하거나
+          계약을 종료할 수 있습니다. 긴급한 보안 위험, 불법행위 또는 피해 확산 우려가 있으면 먼저 제한한 뒤
+          사유와 이의제기 방법을 알릴 수 있습니다.
+        </p>
+      </PolicySection>
+
+      <PolicySection id="liability" title="제15조 책임의 범위">
+        <p>
+          회사는 합리적인 주의로 서비스를 운영합니다. 회사의 고의 또는 과실로 회원에게 손해가 발생하면 관계
+          법령에 따라 책임을 부담합니다. 회사에 책임이 없는 외부 서비스 장애, 회원의 설정·승인·자격증명 관리,
+          불가항력 또는 검증하지 않은 AI 결과로 발생한 손해는 관계 법령이 허용하는 범위에서 책임이 제한됩니다.
+          이 조항은 소비자에게 인정되는 법정 권리나 회사의 고의·중대한 과실 책임을 배제하지 않습니다.
+        </p>
+      </PolicySection>
+
+      <PolicySection id="changes" title="제16조 약관 변경과 통지">
+        <p>
+          회사는 관계 법령을 위반하지 않는 범위에서 약관을 변경할 수 있습니다. 불리하거나 중요한 변경은 적용일과
+          사유를 명시하여 합리적인 기간 전에 서비스 화면 또는 이메일로 알립니다. 관계 법령상 별도 동의가 필요한
+          변경은 적법한 방법으로 동의를 받습니다.
+        </p>
+      </PolicySection>
+
+      <PolicySection id="law" title="제17조 준거법과 분쟁 해결">
+        <p>
+          이 약관은 대한민국 법률을 따릅니다. 분쟁이 생기면 회사와 회원은 성실히 협의하며, 해결되지 않으면
+          소비자분쟁조정기구를 이용하거나 민사소송법 등 관계 법령에 따른 관할 법원에 제기할 수 있습니다.
+        </p>
+      </PolicySection>
+    </PolicyLayout>
   );
 }

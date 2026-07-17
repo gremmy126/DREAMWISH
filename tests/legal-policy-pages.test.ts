@@ -29,3 +29,42 @@ test("refund policy is linked from public navigation and sitemap", () => {
     assert.match(read(file), /\/refunds/u, file);
   }
 });
+
+test("Korean policy pages publish complete readable content", () => {
+  const required = new Map<string, string[]>([
+    [
+      "app/privacy/page.tsx",
+      ["개인정보 처리방침", "처리 목적", "처리하는 개인정보", "국외 이전", "이용자의 권리"]
+    ],
+    [
+      "app/terms/page.tsx",
+      ["서비스 이용약관", "AI 결과", "외부 서비스와 자동화", "유료 구독", "계약 해지"]
+    ],
+    [
+      "app/refunds/page.tsx",
+      ["환불 및 구독 해지 정책", "임의 환불", "구독 해지", "법정 권리", "플랫폼 오류"]
+    ],
+    [
+      "app/cookies/page.tsx",
+      ["쿠키 정책", "필수 쿠키", "분석 쿠키", "Google Consent Mode", "설정 변경"]
+    ]
+  ]);
+
+  for (const [file, headings] of required) {
+    const source = read(file);
+    assert.match(source, /<PolicyLayout/u, file);
+    assert.doesNotMatch(source, /�|媛쒖|泥섎━|쒕퉬/u, file);
+    for (const heading of headings) {
+      assert.match(source, new RegExp(heading, "u"), `${file}: ${heading}`);
+    }
+  }
+});
+
+test("refund policy preserves mandatory consumer rights", () => {
+  const source = read("app/refunds/page.tsx");
+  assert.match(source, /단순 변심 또는 미사용을 이유로 회사가 별도로 제공하는 임의 환불/u);
+  assert.match(source, /관계 법령에 따른 청약철회·계약 해지·환급 권리/u);
+  assert.match(source, /중복 결제|오결제/u);
+  assert.match(source, /중대한 플랫폼 오류/u);
+  assert.doesNotMatch(source, /어떠한 경우에도 환불|결제 즉시 사용한 것으로 간주|법정 청약철회 불가/u);
+});

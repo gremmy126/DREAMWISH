@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { PolicyLayout, PolicySection } from "@/components/legal/PolicyLayout";
 import { SITE_NAME } from "@/src/lib/site/metadata";
 
-const description = "DREAMWISH 개인두뇌 AI의 쿠키 정책과 Google Consent Mode 안내입니다.";
+const description = "DREAMWISH의 필수·기능·분석·광고 쿠키와 Google Consent Mode 설정을 안내합니다.";
 
 export const metadata: Metadata = {
-  title: "Cookie Policy",
+  title: "쿠키 정책",
   description,
   alternates: { canonical: "/cookies" },
   openGraph: {
@@ -13,109 +13,85 @@ export const metadata: Metadata = {
     locale: "ko_KR",
     url: "/cookies",
     siteName: SITE_NAME,
-    title: "Cookie Policy | DREAMWISH",
+    title: "쿠키 정책 | DREAMWISH",
     description
   },
-  twitter: { card: "summary", title: "Cookie Policy | DREAMWISH", description }
+  twitter: { card: "summary", title: "쿠키 정책 | DREAMWISH", description }
 };
 
 export default function CookiePolicyPage() {
   return (
-    <main className="min-h-screen bg-app-bg px-4 py-10 text-app-text sm:px-6">
-      <article className="mx-auto max-w-3xl rounded-app border border-app-border bg-app-card p-6 shadow-app sm:p-8">
-        <Link className="text-sm font-semibold text-app-primary" href="/">
-          DREAMWISH
-        </Link>
-        <h1 className="mt-5 text-3xl font-semibold tracking-normal">Cookie Policy</h1>
-        <p className="mt-2 text-sm text-app-muted">최종 업데이트: 2026년 7월 13일</p>
+    <PolicyLayout title="쿠키 정책" description={description}>
+      <PolicySection id="meaning" title="1. 쿠키와 브라우저 저장소">
+        <p>
+          쿠키는 웹사이트가 브라우저에 저장하는 작은 정보입니다. DREAMWISH는 쿠키와 localStorage를 로그인·보안,
+          이용자 설정, 동의 선택, 서비스 분석 및 광고 측정에 사용합니다. 브라우저 설정에 따라 쿠키를 삭제하거나
+          차단할 수 있지만 필수 저장소를 차단하면 로그인과 핵심 기능이 정상 동작하지 않을 수 있습니다.
+        </p>
+      </PolicySection>
 
-        <div className="mt-8 space-y-7 text-sm leading-7 text-app-muted">
-          <section>
-            <h2 className="text-lg font-semibold text-app-text">1. 쿠키 사용 목적</h2>
-            <p className="mt-3">
-              DREAMWISH는 로그인 유지, 보안, 언어 및 화면 설정, 서비스 분석과 공개
-              화면의 광고 제공을 위해 쿠키와 localStorage를 사용합니다.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-lg font-semibold text-app-text">2. 쿠키 유형</h2>
-            <div className="mt-3 overflow-hidden rounded-app border border-app-border">
-              <table className="w-full border-collapse text-left text-sm">
-                <thead className="bg-app-bg text-app-text">
-                  <tr>
-                    <th className="p-3 font-semibold">유형</th>
-                    <th className="p-3 font-semibold">용도</th>
-                    <th className="p-3 font-semibold">기본 상태</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="border-t border-app-border">
-                    <td className="p-3 font-semibold text-app-text">필수 쿠키</td>
-                    <td className="p-3">인증, 보안, 세션 유지</td>
-                    <td className="p-3">항상 활성</td>
-                  </tr>
-                  <tr className="border-t border-app-border">
-                    <td className="p-3 font-semibold text-app-text">분석 쿠키</td>
-                    <td className="p-3">Google Analytics를 통한 사용 흐름 분석</td>
-                    <td className="p-3">거부</td>
-                  </tr>
-                  <tr className="border-t border-app-border">
-                    <td className="p-3 font-semibold text-app-text">광고 쿠키</td>
-                    <td className="p-3">Google AdSense 광고 제공 및 개인화 동의</td>
-                    <td className="p-3">거부</td>
-                  </tr>
-                  <tr className="border-t border-app-border">
-                    <td className="p-3 font-semibold text-app-text">기능 쿠키</td>
-                    <td className="p-3">언어, 테마, 편의 설정 저장</td>
-                    <td className="p-3">허용</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          <section>
-            <h2 className="text-lg font-semibold text-app-text">3. Google Consent Mode v2</h2>
-            <p className="mt-3">
-              최초 로드 시 ad_storage, analytics_storage, ad_user_data,
-              ad_personalization은 denied로 설정됩니다. functionality_storage와
-              security_storage는 서비스 동작을 위해 granted로 설정됩니다. 사용자가
-              선택을 저장하면 gtag consent update가 실행되고 GTM, GA4, Google Ads가
-              해당 동의 상태를 따릅니다.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-lg font-semibold text-app-text">4. 저장 방식</h2>
-            <p className="mt-3">
-              동의 선택은 cookieConsent 이름으로 localStorage와 cookie에 모두 저장됩니다.
-              쿠키 보관 기간은 180일이며, 브라우저 설정에서 직접 삭제할 수 있습니다.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-lg font-semibold text-app-text">5. 설정 변경</h2>
-            <p className="mt-3">
-              Footer 또는 Settings 화면의 Cookie settings 버튼을 통해 언제든지 동의
-              선택을 변경할 수 있습니다. 선택을 변경하면 즉시 Google Consent Mode
-              update가 실행됩니다.
-            </p>
-          </section>
+      <PolicySection id="categories" title="2. 사용하는 저장소 유형">
+        <div className="overflow-x-auto">
+          <table>
+            <thead><tr><th>유형</th><th>목적</th><th>기본 상태</th></tr></thead>
+            <tbody>
+              <tr><td>필수 쿠키</td><td>로그인 세션, 인증, 보안, 요청 위조 방지와 핵심 서비스 운영</td><td>항상 활성</td></tr>
+              <tr><td>기능 저장소</td><td>언어, 테마, 화면 설정, 쿠키 선택 등 편의 기능 유지</td><td>활성, 설정에서 변경 가능</td></tr>
+              <tr><td>분석 쿠키</td><td>Google Analytics를 통한 이용 흐름, 방문과 성능 측정</td><td>동의 전 거부</td></tr>
+              <tr><td>광고 쿠키</td><td>Google Ads·AdSense 광고 제공, 전환 측정과 개인 맞춤 동의</td><td>동의 전 거부</td></tr>
+            </tbody>
+          </table>
         </div>
+      </PolicySection>
 
-        <nav className="mt-10 flex flex-wrap gap-3 border-t border-app-border pt-5 text-sm">
-          <Link className="font-semibold text-app-primary" href="/privacy">
-            Privacy Policy
-          </Link>
-          <Link className="font-semibold text-app-primary" href="/cookies">
-            Cookie Policy
-          </Link>
-          <Link className="font-semibold text-app-primary" href="/terms">
-            Terms
-          </Link>
-        </nav>
-      </article>
-    </main>
+      <PolicySection id="consent-mode" title="3. Google Consent Mode v2">
+        <p>
+          첫 방문 시 분석과 광고 관련 저장소는 거부 상태로 시작합니다. 선택을 저장하면 Google 태그에 다음 동의
+          신호가 전달됩니다.
+        </p>
+        <ul>
+          <li><code>analytics_storage</code>: 분석 목적 저장 허용 여부</li>
+          <li><code>ad_storage</code>: 광고 목적 저장 허용 여부</li>
+          <li><code>ad_user_data</code>: 광고 관련 이용자 데이터 사용 동의</li>
+          <li><code>ad_personalization</code>: 맞춤 광고 동의</li>
+          <li><code>functionality_storage</code>: 편의 기능 저장 허용 여부</li>
+          <li><code>security_storage</code>: 보안상 필요한 저장으로 항상 활성</li>
+        </ul>
+        <p>
+          동의 전에도 Google 스크립트가 제한된 신호를 전송할 수 있으나, 분석·광고 저장과 맞춤 광고는 저장된 동의
+          상태에 따라 제어됩니다. IP 익명화 등 제공되는 보호 설정을 적용합니다.
+        </p>
+      </PolicySection>
+
+      <PolicySection id="consent-record" title="4. 동의 선택의 저장 기간">
+        <p>
+          쿠키 선택은 <code>cookieConsent</code>라는 이름으로 cookie와 localStorage에 저장되며, 선택 시각과 버전을
+          포함합니다. 보유 기간은 180일이고, 그 전에 이용자가 삭제하거나 설정을 변경하면 즉시 새 선택이 적용됩니다.
+        </p>
+      </PolicySection>
+
+      <PolicySection id="change" title="5. 설정 변경 및 거부 방법">
+        <p>
+          Footer 또는 DREAMWISH 설정 화면의 “쿠키 설정”을 눌러 언제든 분석·광고·기능 저장소의 선택을 변경할 수
+          있습니다. 브라우저 설정에서도 전체 쿠키와 사이트 데이터를 삭제할 수 있습니다. 분석 또는 광고를 거부해도
+          로그인과 유료 핵심 기능은 이용할 수 있으나, 일부 맞춤 기능이나 광고 측정은 제한될 수 있습니다.
+        </p>
+      </PolicySection>
+
+      <PolicySection id="third-parties" title="6. 외부 제공자">
+        <p>
+          선택한 동의에 따라 Google Analytics, Google Tag Manager, Google Ads 및 Google AdSense가 브라우저·기기,
+          페이지 방문, 광고 상호작용과 유사한 정보를 처리할 수 있습니다. 구체적인 국외 처리와 이용자 권리는
+          개인정보 처리방침 및 Google의 관련 정책을 따릅니다.
+        </p>
+      </PolicySection>
+
+      <PolicySection id="changes" title="7. 정책 변경">
+        <p>
+          사용 기술, 제공자 또는 법령이 변경되면 이 정책을 개정할 수 있습니다. 쿠키의 목적이나 선택 범위가
+          중요하게 변경되면 배너 또는 서비스 화면에서 다시 안내하거나 필요한 동의를 받습니다.
+        </p>
+      </PolicySection>
+    </PolicyLayout>
   );
 }
