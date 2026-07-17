@@ -1,4 +1,4 @@
-export type AutomationTab = "scenario" | "templates" | "runs" | "approvals" | "connections" | "audit" | "dlq" | "guide";
+export type AutomationTab = "scenario" | "templates" | "runs" | "approvals" | "connections" | "guide";
 
 const tabs: Array<{ id: AutomationTab; label: string }> = [
   { id: "scenario", label: "시나리오" },
@@ -6,8 +6,6 @@ const tabs: Array<{ id: AutomationTab; label: string }> = [
   { id: "runs", label: "실행 내역" },
   { id: "approvals", label: "승인 센터" },
   { id: "connections", label: "연결 관리" },
-  { id: "audit", label: "감사 로그" },
-  { id: "dlq", label: "관리자 DLQ" },
   { id: "guide", label: "사용 가이드" }
 ];
 

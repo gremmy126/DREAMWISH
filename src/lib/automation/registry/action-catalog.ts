@@ -57,6 +57,13 @@ const action = (
     appId,
     name,
     description: `${name} 작업을 실행합니다.`,
+    guide: {
+      summary: "",
+      useWhen: "",
+      setupSteps: [],
+      inputNotes: [],
+      outputMappings: []
+    },
     kind,
     inputSchema: { fields },
     outputSchema: { fields: options.output || outputFor(id, kind) },

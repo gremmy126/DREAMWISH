@@ -50,7 +50,7 @@ import { ActionPicker } from "@/components/Automation/ActionPicker";
 import { ActionInputForm } from "@/components/Automation/ActionInputForm";
 import { ActionPreviewCard } from "@/components/Automation/ActionPreviewCard";
 import { AutomationTabs, type AutomationTab } from "@/components/Automation/AutomationTabs";
-import { AutomationGuide, ConnectionManager, TemplateGallery } from "@/components/Automation/AutomationSecondaryViews";
+import { ConnectionManager, TemplateGallery } from "@/components/Automation/AutomationSecondaryViews";
 import { getAutomationApp } from "@/src/lib/automation/app-registry";
 import { readStoredTimezonePreference } from "@/src/lib/settings/app-preferences";
 import { changeScenarioAction } from "@/src/lib/automation/action-ui-model";
@@ -58,8 +58,7 @@ import { getActionDefinition } from "@/src/lib/automation/registry/action-regist
 import { ApprovalCenter } from "@/components/Automation/ApprovalCenter";
 import { DurableRunHistory } from "@/components/Automation/DurableRunHistory";
 import { DurableConnectionPanel } from "@/components/Automation/DurableConnectionPanel";
-import { AdminDlqView } from "@/components/Automation/AdminDlqView";
-import { AuditLogView } from "@/components/Automation/AuditLogView";
+import { AutomationActionGuide } from "@/components/Automation/AutomationActionGuide";
 import { ResponsiveAutomationPanel } from "@/components/Automation/ResponsiveAutomationPanel";
 
 type CanvasData = { scenarioNode: ScenarioNode; order: number; oauthConnected?: boolean };
@@ -340,7 +339,7 @@ export function AutomationView() {
 
   return (
     <div className="space-y-5 pb-3">
-      <AutomationHeader busy={busy} onCreate={openCreateForm} />
+      <AutomationHeader busy={busy} onCreate={openCreateForm} onGuide={() => setActiveTab("guide")} />
       <AutomationTabs value={activeTab} onChange={setActiveTab} />
 
       {activeTab === "scenario" ? <>
@@ -504,9 +503,7 @@ export function AutomationView() {
       {activeTab === "runs" ? <DurableRunHistory /> : null}
       {activeTab === "approvals" ? <ApprovalCenter /> : null}
       {activeTab === "connections" ? <div><DurableConnectionPanel /><ConnectionManager credentials={credentials} onSave={addStructuredCredential} /></div> : null}
-      {activeTab === "audit" ? <AuditLogView /> : null}
-      {activeTab === "dlq" ? <AdminDlqView /> : null}
-      {activeTab === "guide" ? <AutomationGuide /> : null}
+      {activeTab === "guide" ? <AutomationActionGuide /> : null}
       {notice ? <p className="fixed bottom-5 right-6 z-50 max-w-sm rounded-2xl bg-slate-950 px-4 py-3 text-xs font-semibold leading-5 text-white shadow-xl">{notice}</p> : null}
     </div>
   );
@@ -616,8 +613,8 @@ function formatAiResultOutput(output: Record<string, unknown>) {
   return JSON.stringify(output, null, 2);
 }
 
-function AutomationHeader({ busy, onCreate }: { busy: boolean; onCreate: () => void }) {
-  return <header className="flex flex-wrap items-center justify-between gap-4 pt-1"><div className="flex items-center gap-3"><div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-50 text-violet-600"><Zap size={23} /></div><div><h1 className="text-2xl font-bold text-slate-950">Automation</h1><p className="mt-1 text-sm text-slate-500">앱을 연결하고 반복 업무를 자동화하세요</p></div></div><div className="flex gap-2"><button type="button" className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700">가이드 보기</button><button type="button" onClick={onCreate} disabled={busy} className="flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-violet-200"><Plus size={15} />새 시나리오</button></div></header>;
+function AutomationHeader({ busy, onCreate, onGuide }: { busy: boolean; onCreate: () => void; onGuide: () => void }) {
+  return <header className="flex flex-wrap items-center justify-between gap-4 pt-1"><div className="flex items-center gap-3"><div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-50 text-violet-600"><Zap size={23} /></div><div><h1 className="text-2xl font-bold text-slate-950">Automation</h1><p className="mt-1 text-sm text-slate-500">앱을 연결하고 반복 업무를 자동화하세요</p></div></div><div className="flex gap-2"><button type="button" onClick={onGuide} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700">가이드 보기</button><button type="button" onClick={onCreate} disabled={busy} className="flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-violet-200"><Plus size={15} />새 시나리오</button></div></header>;
 }
 
 function ScenarioPicker({ scenarios, active, onSelect }: { scenarios: AutomationScenario[]; active: AutomationScenario | null; onSelect: (scenario: AutomationScenario) => void }) {
@@ -650,6 +647,10 @@ function ScenarioInspector({ scenario, selectedNode, credentials, connectedOauth
     }
     onOpenConnections();
   }
+  async function copyNodeId() {
+    if (!selectedNode || !navigator.clipboard) return;
+    await navigator.clipboard.writeText(selectedNode.id);
+  }
   return <aside className="min-w-0 overflow-hidden bg-white p-4">
 <div className="flex items-center justify-between">
 <h2 className="truncate text-sm font-bold text-slate-950">{selectedNode ? "모듈 설정" : "시나리오 정보"}</h2>
@@ -662,6 +663,7 @@ function ScenarioInspector({ scenario, selectedNode, credentials, connectedOauth
 <p className="truncate text-xs text-slate-400">{selectedNode.operation}</p>
 </div>
 </div>
+<div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><div className="flex items-center justify-between gap-2"><div className="min-w-0"><p className="text-[10px] font-bold text-slate-500">노드 ID</p><p className="mt-1 truncate font-mono text-[10px] text-slate-700" title={selectedNode.id}>{selectedNode.id}</p></div><button type="button" onClick={() => void copyNodeId()} className="min-h-9 shrink-0 rounded-lg border border-slate-200 bg-white px-2.5 text-[10px] font-bold text-violet-600">복사</button></div><p className="mt-2 text-[10px] leading-4 text-slate-400">출력 매핑에서 steps.노드ID.필드 형식으로 사용합니다.</p></div>
 <InspectorField label="모듈 이름" value={selectedNode.label} onChange={(label) => onNodeChange({ label })} />
 {selectedNode.appId !== "filter" ? (
   <ActionPicker
@@ -672,7 +674,7 @@ function ScenarioInspector({ scenario, selectedNode, credentials, connectedOauth
   />
 ) : null}
 {selectedAction && selectedNode.appId !== "schedule" ? (
-  <ActionInputForm definition={selectedAction} value={selectedNode.config} onChange={(config) => onNodeChange({ config })} />
+  <ActionInputForm definition={selectedAction} value={selectedNode.config} scenario={scenario} nodeId={selectedNode.id} onChange={(config) => onNodeChange({ config })} />
 ) : null}
 {selectedAction ? <ActionPreviewCard appId={selectedNode.appId} actionId={selectedAction.id} actionVersion={selectedAction.version} input={selectedNode.config} /> : null}
 {selectedNode.appId === "schedule" ? <ScheduleEditor config={selectedNode.config} onChange={(config) => onNodeChange({ config })} /> : null}

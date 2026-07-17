@@ -42,6 +42,9 @@ export type ActionFieldDefinition = {
   required: boolean;
   placeholder?: string;
   help?: string;
+  example?: ActionValue;
+  valueSource?: string;
+  mappingExample?: string;
   advanced?: boolean;
   mappable?: boolean;
   secret?: boolean;
@@ -50,6 +53,14 @@ export type ActionFieldDefinition = {
   min?: number;
   max?: number;
   visibleWhen?: { field: string; equals: ActionScalar };
+};
+
+export type ActionGuideDefinition = {
+  summary: string;
+  useWhen: string;
+  setupSteps: string[];
+  inputNotes: string[];
+  outputMappings: Array<{ label: string; template: string }>;
 };
 
 export type ActionInputSchema = {
@@ -97,6 +108,7 @@ export type ActionDefinition = {
   appId: string;
   name: string;
   description: string;
+  guide: ActionGuideDefinition;
   kind: ActionKind;
   inputSchema: ActionInputSchema;
   outputSchema: ActionOutputSchema;

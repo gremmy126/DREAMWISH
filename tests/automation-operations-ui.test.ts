@@ -66,11 +66,14 @@ test("durable automation API routes derive owner from the signed session", () =>
   }
 });
 
-test("automation workspace exposes approval audit and administrator operations tabs", () => {
+test("automation workspace keeps approval but moves audit and DLQ to the administrator workspace", () => {
   const tabs = fs.readFileSync("components/Automation/AutomationTabs.tsx", "utf8");
   assert.match(tabs, /승인 센터/u);
-  assert.match(tabs, /감사 로그/u);
-  assert.match(tabs, /관리자 DLQ/u);
+  assert.doesNotMatch(tabs, /감사 로그/u);
+  assert.doesNotMatch(tabs, /관리자 DLQ/u);
+  const admin = fs.readFileSync("components/admin/AdminOperations.tsx", "utf8");
+  assert.match(admin, /감사 로그/u);
+  assert.match(admin, /DLQ|Dead Letter Queue/u);
 });
 
 test("every branded automation surface consumes the shared AppLogo", () => {

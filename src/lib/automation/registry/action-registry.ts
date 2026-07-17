@@ -1,9 +1,10 @@
 import { ACTION_CATALOG } from "./action-catalog";
 import type { ActionDefinition } from "./action.types";
 import { isAdapterImplementationAvailable } from "../adapters/adapter-availability";
+import { enrichActionDefinitionGuide } from "./action-guide";
 
 export const ACTION_DEFINITIONS: readonly ActionDefinition[] = Object.freeze(
-  ACTION_CATALOG.map((definition) => Object.freeze(definition))
+  ACTION_CATALOG.map((definition) => Object.freeze(enrichActionDefinitionGuide(definition)))
 );
 
 const byIdentity = new Map(
