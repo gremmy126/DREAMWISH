@@ -121,6 +121,42 @@ export function verifyWebhookSecret(
   return false;
 }
 
+/**
+ * GitHub webhook signature: X-Hub-Signature-256 = "sha256=" + HMAC-SHA256 of
+ * the raw body with the shared secret (set our webhook secret in GitHub).
+ */
+export function verifyGitHubSignature(
+  webhook: Pick<AutomationWebhook, "secret">,
+  signatureHeader: string | null | undefined,
+  rawBody: string
+): boolean {
+  if (!signatureHeader) return false;
+  const expected = `sha256=${createHmac("sha256", webhook.secret).update(rawBody).digest("hex")}`;
+  return safeEqual(signatureHeader, expected);
+}
+
+/**
+ * Slack request signature: v0 = HMAC-SHA256 of "v0:{timestamp}:{body}" with
+ * the signing secret; timestamps older than 5 minutes are rejected to stop
+ * replay attacks. Use our webhook secret as the Slack signing secret.
+ */
+export function verifySlackSignature(
+  webhook: Pick<AutomationWebhook, "secret">,
+  signatureHeader: string | null | undefined,
+  timestampHeader: string | null | undefined,
+  rawBody: string,
+  now: Date = new Date()
+): boolean {
+  if (!signatureHeader || !timestampHeader) return false;
+  const timestamp = Number(timestampHeader);
+  if (!Number.isFinite(timestamp)) return false;
+  if (Math.abs(now.getTime() / 1000 - timestamp) > 300) return false;
+  const expected = `v0=${createHmac("sha256", webhook.secret)
+    .update(`v0:${timestampHeader}:${rawBody}`)
+    .digest("hex")}`;
+  return safeEqual(signatureHeader, expected);
+}
+
 function safeEqual(left: string, right: string): boolean {
   const leftBuffer = Buffer.from(left);
   const rightBuffer = Buffer.from(right);

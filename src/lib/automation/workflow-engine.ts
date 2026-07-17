@@ -11,9 +11,12 @@ import type { AutomationScenario, ScenarioNode } from "./scenario-designer";
 export type WorkflowContext = {
   trigger: Record<string, unknown>;
   steps: Record<string, Record<string, unknown>>;
+  /** Current iterator item, referenced as {{item.*}} inside an iteration. */
+  item?: unknown;
 };
 
 const TEMPLATE_PATTERN = /\{\{\s*([a-zA-Z0-9_.[\]-]{1,200})\s*\}\}/gu;
+const MAX_ITERATOR_ITEMS = 20;
 
 /** Resolves a dotted/indexed path like "email.from" or "items[0].name". */
 export function resolvePath(root: unknown, path: string): unknown {
@@ -43,7 +46,11 @@ export function resolveTemplate(value: string, context: WorkflowContext): string
         ? context.trigger
         : path.startsWith("steps.")
           ? resolvePath(context.steps, path.slice("steps.".length))
-          : undefined;
+          : path.startsWith("item.")
+            ? resolvePath(context.item, path.slice("item.".length))
+            : path === "item"
+              ? context.item
+              : undefined;
     if (resolved === undefined || resolved === null) return "";
     return typeof resolved === "string" ? resolved : JSON.stringify(resolved);
   });
@@ -142,8 +149,10 @@ const EXTERNAL_SEND_APPS = new Set([
 
 export type GraphExecutionResult = {
   steps: AutomationRunStep[];
-  status: "success" | "partial" | "failed";
+  status: "success" | "partial" | "failed" | "waiting";
   context: WorkflowContext;
+  /** Set when a delay node paused the run; the scheduler resumes it. */
+  waiting?: { nodeId: string; resumeAt: string; completedNodeIds: string[] };
 };
 
 export function executeScenarioGraph(
@@ -151,10 +160,15 @@ export function executeScenarioGraph(
   options: {
     triggerData?: Record<string, unknown>;
     connectedApps?: Set<string>;
+    /** Resume data from a waiting run: nodes already executed are skipped. */
+    resume?: { context?: WorkflowContext; completedNodeIds?: string[] };
   } = {}
 ): GraphExecutionResult {
   const connected = options.connectedApps || new Set<string>();
-  const context: WorkflowContext = { trigger: options.triggerData || {}, steps: {} };
+  const context: WorkflowContext = options.resume?.context
+    ? structuredClone(options.resume.context)
+    : { trigger: options.triggerData || {}, steps: {} };
+  const completed = new Set(options.resume?.completedNodeIds || []);
   const order = buildExecutionOrder(scenario);
   const skipped = new Set<string>();
   const outgoing = new Map<string, Array<{ target: string; label?: string }>>();
@@ -177,7 +191,11 @@ export function executeScenarioGraph(
   };
 
   const steps: AutomationRunStep[] = [];
-  order.forEach((node, index) => {
+  const expandedByIterator = new Set<string>();
+  let waiting: GraphExecutionResult["waiting"];
+
+  for (let index = 0; index < order.length; index += 1) {
+    const node = order[index];
     const base = {
       nodeId: node.id,
       label: node.label,
@@ -185,12 +203,111 @@ export function executeScenarioGraph(
       order: index + 1
     };
 
+    if (waiting) break;
+    if (completed.has(node.id) || expandedByIterator.has(node.id)) continue;
+
     if (skipped.has(node.id)) {
       steps.push({ ...base, status: "skipped", detail: "조건에 의해 건너뛰었습니다." });
-      return;
+      continue;
     }
 
     const resolved = resolveNodeConfig(node, context);
+
+    if (node.appId === "delay") {
+      const minutes = Math.max(0, Math.min(7 * 24 * 60, Number(resolved.delayMinutes) || 0));
+      if (minutes > 0) {
+        const resumeAt = new Date(Date.now() + minutes * 60_000).toISOString();
+        steps.push({
+          ...base,
+          status: "success",
+          detail: `${minutes}분 대기를 예약했습니다. ${resumeAt.slice(11, 16)} UTC에 이어서 실행됩니다.`
+        });
+        context.steps[node.id] = { resumeAt };
+        waiting = {
+          nodeId: node.id,
+          resumeAt,
+          completedNodeIds: [
+            ...completed,
+            ...steps.filter((step) => step.status !== "skipped").map((step) => step.nodeId),
+            node.id
+          ]
+        };
+        break;
+      }
+      steps.push({ ...base, status: "success", detail: "대기 시간이 0이라 바로 진행합니다." });
+      continue;
+    }
+
+    if (node.appId === "iterator") {
+      const rawItems = resolved.path
+        ? resolvePath(
+            { trigger: context.trigger, steps: context.steps, item: context.item },
+            String(resolved.path)
+          )
+        : undefined;
+      const items = Array.isArray(rawItems)
+        ? rawItems.slice(0, Math.max(1, Math.min(MAX_ITERATOR_ITEMS, Number(resolved.maxItems) || 10)))
+        : [];
+      const nextEdge = (outgoing.get(node.id) || [])[0];
+      const nextNode = nextEdge ? order.find((candidate) => candidate.id === nextEdge.target) : undefined;
+      context.steps[node.id] = { itemCount: items.length };
+      if (items.length === 0 || !nextNode) {
+        steps.push({
+          ...base,
+          status: items.length === 0 ? "skipped" : "success",
+          detail: items.length === 0 ? "반복할 항목이 없습니다." : "다음 노드가 없어 반복을 건너뜁니다."
+        });
+        continue;
+      }
+      steps.push({ ...base, status: "success", detail: `${items.length}개 항목을 반복 실행합니다.` });
+      items.forEach((item, itemIndex) => {
+        const itemContext: WorkflowContext = { ...context, item };
+        const itemResolved = resolveNodeConfig(nextNode, itemContext);
+        const itemBase = {
+          nodeId: `${nextNode.id}#${itemIndex + 1}`,
+          label: `${nextNode.label} (${itemIndex + 1}/${items.length})`,
+          operation: nextNode.operation,
+          order: index + 1
+        };
+        if (nextNode.requiresCredential && !nextNode.credentialId && !connected.has(nextNode.appId)) {
+          steps.push({ ...itemBase, status: "failed", detail: "연결된 계정이 없어 실행할 수 없습니다." });
+        } else if (EXTERNAL_SEND_APPS.has(nextNode.appId) && nextNode.kind === "action") {
+          steps.push({
+            ...itemBase,
+            status: "approval_required",
+            detail: "외부 전송 작업은 사용자 승인 후 실행됩니다.",
+            resolvedConfig: itemResolved
+          });
+        } else {
+          steps.push({ ...itemBase, status: "success", detail: "항목 단계가 실행되었습니다." });
+        }
+      });
+      expandedByIterator.add(nextNode.id);
+      continue;
+    }
+
+    if (node.appId === "aggregator" || node.appId.includes("aggregator")) {
+      const summary = {
+        total: 0,
+        success: 0,
+        failed: 0,
+        pendingApproval: 0
+      };
+      for (const step of steps) {
+        if (!step.nodeId.includes("#")) continue;
+        summary.total += 1;
+        if (step.status === "success") summary.success += 1;
+        else if (step.status === "failed") summary.failed += 1;
+        else if (step.status === "approval_required") summary.pendingApproval += 1;
+      }
+      context.steps[node.id] = { ...summary };
+      steps.push({
+        ...base,
+        status: "success",
+        detail: `집계: 총 ${summary.total}건 (성공 ${summary.success}, 승인 대기 ${summary.pendingApproval}, 실패 ${summary.failed})`
+      });
+      continue;
+    }
 
     if (node.appId === "filter") {
       const passed = evaluateCondition(resolved, context);
@@ -198,10 +315,10 @@ export function executeScenarioGraph(
       if (!passed) {
         markDownstreamSkipped(node.id);
         steps.push({ ...base, status: "skipped", detail: "필터 조건이 충족되지 않아 이후 경로를 건너뜁니다." });
-        return;
+        continue;
       }
       steps.push({ ...base, status: "success", detail: "필터 조건을 통과했습니다." });
-      return;
+      continue;
     }
 
     if (node.appId === "router") {
@@ -220,13 +337,13 @@ export function executeScenarioGraph(
           ? `"${value}" → ${matched.label || "기본 경로"} 분기를 선택했습니다.`
           : "일치하는 분기가 없어 모든 경로를 건너뜁니다."
       });
-      return;
+      continue;
     }
 
     if (node.requiresCredential && !node.credentialId && !connected.has(node.appId)) {
       steps.push({ ...base, status: "failed", detail: "연결된 계정이 없어 실행할 수 없습니다." });
       context.steps[node.id] = { config: resolved, failed: true };
-      return;
+      continue;
     }
     if (EXTERNAL_SEND_APPS.has(node.appId) && node.kind === "action") {
       steps.push({
@@ -236,18 +353,19 @@ export function executeScenarioGraph(
         resolvedConfig: resolved
       });
       context.steps[node.id] = { config: resolved, pendingApproval: true };
-      return;
+      continue;
     }
     steps.push({ ...base, status: "success", detail: "내부 단계가 실행되었습니다." });
     context.steps[node.id] = { config: resolved, output: resolved };
-  });
+  }
 
   const failed = steps.some((step) => step.status === "failed");
   const needsApproval = steps.some((step) => step.status === "approval_required");
   return {
     steps,
-    status: failed ? "failed" : needsApproval ? "partial" : "success",
-    context
+    status: waiting ? "waiting" : failed ? "failed" : needsApproval ? "partial" : "success",
+    context,
+    waiting
   };
 }
 

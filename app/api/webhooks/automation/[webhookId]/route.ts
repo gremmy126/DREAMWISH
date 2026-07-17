@@ -4,6 +4,8 @@ import { getScenario } from "@/src/lib/automation/scenario.repository";
 import {
   findAutomationWebhookById,
   recordWebhookDelivery,
+  verifyGitHubSignature,
+  verifySlackSignature,
   verifyWebhookSecret
 } from "@/src/lib/automation/webhook.repository";
 import { executeScenarioGraph } from "@/src/lib/automation/workflow-engine";
@@ -43,11 +45,19 @@ export async function POST(request: Request, context: Context) {
     return NextResponse.json({ accepted: false, error: "payload_too_large" }, { status: 413 });
   }
 
-  const authorized = verifyWebhookSecret(webhook, {
-    secretHeader: request.headers.get("x-webhook-secret"),
-    signatureHeader: request.headers.get("x-signature-256"),
-    rawBody
-  });
+  const authorized =
+    verifyWebhookSecret(webhook, {
+      secretHeader: request.headers.get("x-webhook-secret"),
+      signatureHeader: request.headers.get("x-signature-256"),
+      rawBody
+    }) ||
+    verifyGitHubSignature(webhook, request.headers.get("x-hub-signature-256"), rawBody) ||
+    verifySlackSignature(
+      webhook,
+      request.headers.get("x-slack-signature"),
+      request.headers.get("x-slack-request-timestamp"),
+      rawBody
+    );
   if (!authorized) {
     return NextResponse.json({ accepted: false, error: "invalid_signature" }, { status: 401 });
   }
@@ -62,8 +72,15 @@ export async function POST(request: Request, context: Context) {
     }
   }
 
+  // Slack Events API URL verification handshake.
+  if (payload.type === "url_verification" && typeof payload.challenge === "string") {
+    return NextResponse.json({ challenge: payload.challenge });
+  }
+
   const externalEventId =
+    request.headers.get("x-github-delivery") ||
     request.headers.get("x-event-id") ||
+    (typeof payload.event_id === "string" ? payload.event_id : null) ||
     (typeof payload.eventId === "string" ? payload.eventId : null);
   const fresh = await recordWebhookDelivery(webhookId, externalEventId);
   if (!fresh) {
@@ -96,6 +113,8 @@ export async function POST(request: Request, context: Context) {
     trigger: "webhook",
     status: result.status,
     steps: result.steps,
+    triggerData: payload,
+    waiting: result.waiting ? { ...result.waiting, context: result.context } : null,
     error: null,
     startedAt,
     finishedAt: new Date().toISOString()

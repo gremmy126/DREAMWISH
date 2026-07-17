@@ -56,6 +56,23 @@ export function RunHistory({ scenarios, onOpen }: { scenarios: AutomationScenari
     }
   }
 
+  async function retryRun(runId: string) {
+    setBusyRunId(runId);
+    setNotice(null);
+    try {
+      const response = await fetch(`/api/automation/runs/${runId}/retry`, { method: "POST" });
+      const data = (await response.json().catch(() => ({}))) as { run?: AutomationRun; error?: string };
+      if (!response.ok || !data.run) throw new Error(data.error || "재실행에 실패했습니다.");
+      setNotice("원본 트리거 데이터로 다시 실행했습니다.");
+      setExpandedId(data.run.id);
+      await loadRuns();
+    } catch (caught) {
+      setNotice(caught instanceof Error ? caught.message : "재실행에 실패했습니다.");
+    } finally {
+      setBusyRunId(null);
+    }
+  }
+
   async function confirmApproval(runId: string) {
     setBusyRunId(runId);
     setNotice(null);
@@ -88,11 +105,12 @@ export function RunHistory({ scenarios, onOpen }: { scenarios: AutomationScenari
         const expanded = expandedId === run.id;
         return <div key={run.id} className="px-5 py-3">
           <div className="flex flex-wrap items-center gap-2">
-            <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${run.status === "success" ? "bg-emerald-100 text-emerald-700" : run.status === "partial" ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700"}`}>{run.status === "success" ? "성공" : run.status === "partial" ? "부분 완료" : "실패"}</span>
+            <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${run.status === "success" ? "bg-emerald-100 text-emerald-700" : run.status === "partial" ? "bg-amber-100 text-amber-700" : run.status === "waiting" ? "bg-blue-100 text-blue-700" : "bg-red-100 text-red-700"}`}>{run.status === "success" ? "성공" : run.status === "partial" ? "부분 완료" : run.status === "waiting" ? "대기 중" : "실패"}</span>
             <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">{run.trigger === "schedule" ? "예약" : "수동"}</span>
             <p className="min-w-0 flex-1 truncate text-xs font-bold text-slate-900">{run.scenarioName}</p>
             <span className="text-[10px] text-slate-500">{new Date(run.startedAt).toLocaleString("ko-KR")}</span>
             {pendingApproval ? <button type="button" disabled={busyRunId === run.id} onClick={() => void openApprovalPreview(run.id)} className="inline-flex items-center gap-1 rounded-lg bg-violet-600 px-2.5 py-1.5 text-[10px] font-bold text-white disabled:opacity-50">{busyRunId === run.id ? <Loader2 size={11} className="animate-spin" /> : <ShieldCheck size={11} />}승인 후 실행</button> : null}
+            {run.status === "failed" ? <button type="button" disabled={busyRunId === run.id} onClick={() => void retryRun(run.id)} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[10px] font-bold text-slate-600 disabled:opacity-50"><PlayCircle size={11} />재실행</button> : null}
             <button type="button" aria-label={expanded ? "접기" : "자세히"} onClick={() => setExpandedId(expanded ? null : run.id)} className="rounded-lg border border-slate-200 p-1 text-slate-500">{expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}</button>
           </div>
           {expanded ? <ul className="mt-2 space-y-1">

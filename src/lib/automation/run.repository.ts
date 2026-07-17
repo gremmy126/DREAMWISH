@@ -18,12 +18,22 @@ export type AutomationRun = {
   scenarioId: string;
   scenarioName: string;
   trigger: "manual" | "schedule" | "webhook";
-  status: "success" | "partial" | "failed";
+  status: "success" | "partial" | "failed" | "waiting";
   steps: AutomationRunStep[];
   error: string | null;
   startedAt: string;
   finishedAt: string;
   createdAt: string;
+  /** Trigger payload, kept (bounded) so failed runs can be re-executed. */
+  triggerData?: Record<string, unknown>;
+  /** Present while a delay node holds the run; the scheduler resumes it. */
+  waiting?: {
+    nodeId: string;
+    resumeAt: string;
+    completedNodeIds: string[];
+    context: unknown;
+  } | null;
+  retryOfRunId?: string;
 };
 
 type RunDb = { runs: AutomationRun[] };
@@ -32,12 +42,19 @@ const FILE_NAME = "automation-runs.json";
 const EMPTY_DB: RunDb = { runs: [] };
 const MAX_RUNS = 500;
 
+const MAX_TRIGGER_DATA_CHARS = 50_000;
+
 export async function recordAutomationRun(
   input: Omit<AutomationRun, "id" | "createdAt">
 ): Promise<AutomationRun> {
   return accessDb((db) => {
+    const triggerData =
+      input.triggerData && JSON.stringify(input.triggerData).length <= MAX_TRIGGER_DATA_CHARS
+        ? input.triggerData
+        : undefined;
     const run: AutomationRun = {
       ...input,
+      triggerData,
       id: randomUUID(),
       createdAt: new Date().toISOString()
     };
@@ -68,6 +85,20 @@ export async function updateAutomationRun(
     mutate(run);
     return structuredClone(run);
   });
+}
+
+/** Waiting runs whose resumeAt has passed — global scan for the scheduler. */
+export async function listDueWaitingRuns(now: Date = new Date()): Promise<AutomationRun[]> {
+  return accessDb((db) =>
+    db.runs
+      .filter(
+        (run) =>
+          run.status === "waiting" &&
+          run.waiting &&
+          new Date(run.waiting.resumeAt).getTime() <= now.getTime()
+      )
+      .map((run) => structuredClone(run))
+  );
 }
 
 export async function listAutomationRuns(

@@ -1,9 +1,15 @@
 import { listLatestOwnerDocuments } from "../db/owner-document-store";
 import { readJsonStore } from "../local-db/json-store";
-import { recordAutomationRun, type AutomationRunStep } from "./run.repository";
+import {
+  listDueWaitingRuns,
+  recordAutomationRun,
+  updateAutomationRun,
+  type AutomationRunStep
+} from "./run.repository";
+import { isGmailWatchNode, pollGmailForScenario } from "./gmail-trigger";
 import { computeNextRunAt, parseScheduleConfig } from "./schedule";
-import { listScenarios, saveScenario } from "./scenario.repository";
-import { executeScenarioGraph } from "./workflow-engine";
+import { getScenario, listScenarios, saveScenario } from "./scenario.repository";
+import { executeScenarioGraph, type WorkflowContext } from "./workflow-engine";
 import type { AutomationScenario } from "./scenario-designer";
 
 /** Refreshes a scenario's nextRunAt from its schedule trigger node. */
@@ -27,12 +33,51 @@ export function resolveScenarioNextRun(
 export function executeScenarioSteps(
   scenario: AutomationScenario,
   options: { connectedApps?: Set<string>; triggerData?: Record<string, unknown> } = {}
-): { steps: AutomationRunStep[]; status: "success" | "partial" | "failed" } {
+): {
+  steps: AutomationRunStep[];
+  status: "success" | "partial" | "failed" | "waiting";
+  waiting?: { nodeId: string; resumeAt: string; completedNodeIds: string[]; context: unknown };
+} {
   const result = executeScenarioGraph(scenario, {
     connectedApps: options.connectedApps,
     triggerData: options.triggerData
   });
-  return { steps: result.steps, status: result.status };
+  return {
+    steps: result.steps,
+    status: result.status,
+    waiting: result.waiting ? { ...result.waiting, context: result.context } : undefined
+  };
+}
+
+/** Continues waiting runs whose delay has elapsed; scheduler-driven, no sleeps. */
+export async function resumeDueWaitingRuns(now: Date = new Date()): Promise<number> {
+  const dueRuns = await listDueWaitingRuns(now);
+  let resumed = 0;
+  for (const run of dueRuns) {
+    const scenario = await getScenario(run.ownerId, run.scenarioId);
+    if (!scenario || !run.waiting) {
+      await updateAutomationRun(run.ownerId, run.id, (record) => {
+        record.status = "failed";
+        record.error = "재개할 시나리오를 찾을 수 없습니다.";
+        record.waiting = null;
+      });
+      continue;
+    }
+    const result = executeScenarioGraph(scenario, {
+      resume: {
+        context: run.waiting.context as WorkflowContext,
+        completedNodeIds: run.waiting.completedNodeIds
+      }
+    });
+    await updateAutomationRun(run.ownerId, run.id, (record) => {
+      record.steps = [...record.steps, ...result.steps];
+      record.status = result.status;
+      record.waiting = result.waiting ? { ...result.waiting, context: result.context } : null;
+      record.finishedAt = new Date().toISOString();
+    });
+    resumed += 1;
+  }
+  return resumed;
 }
 
 export type DueScenarioSummary = {
@@ -48,6 +93,7 @@ export type DueScenarioSummary = {
  */
 export async function runDueScenarios(now: Date = new Date()): Promise<DueScenarioSummary> {
   const summary: DueScenarioSummary = { checked: 0, executed: 0, failures: 0 };
+  await resumeDueWaitingRuns(now).catch(() => 0);
   const ownerIds = await listScenarioOwnerIds();
 
   for (const ownerId of ownerIds) {
@@ -63,6 +109,21 @@ export async function runDueScenarios(now: Date = new Date()): Promise<DueScenar
 
       const startedAt = now.toISOString();
       try {
+        // A schedule node in Gmail-watch mode polls for new mail instead of
+        // running unconditionally: no new mail means no run this pass.
+        if (scenario.nodes.some(isGmailWatchNode)) {
+          const poll = await pollGmailForScenario(scenario);
+          if (poll.newMessages > 0) {
+            await saveScenario(ownerId, {
+              ...claimed,
+              runs: claimed.runs + poll.newMessages,
+              successfulRuns: claimed.successfulRuns + poll.newMessages,
+              lastRunAt: new Date().toISOString()
+            });
+            summary.executed += poll.newMessages;
+          }
+          continue;
+        }
         const result = executeScenarioSteps(scenario);
         const finishedAt = new Date().toISOString();
         await recordAutomationRun({
@@ -72,6 +133,7 @@ export async function runDueScenarios(now: Date = new Date()): Promise<DueScenar
           trigger: "schedule",
           status: result.status,
           steps: result.steps,
+          waiting: result.waiting || null,
           error: null,
           startedAt,
           finishedAt

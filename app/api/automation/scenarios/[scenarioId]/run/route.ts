@@ -39,6 +39,7 @@ export async function POST(request: Request, context: Context) {
     trigger: "manual",
     status: result.status,
     steps: result.steps,
+    waiting: result.waiting || null,
     error: null,
     startedAt,
     finishedAt

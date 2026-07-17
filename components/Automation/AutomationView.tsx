@@ -606,6 +606,23 @@ function ScheduleEditor({ config, onChange }: { config: Record<string, string | 
       <label className="mt-2 block text-[10px] font-semibold text-slate-500">시간대 (IANA)
         <input value={timezone} placeholder="예: Asia/Seoul (비우면 시스템)" onChange={(event) => patch({ scheduleTimezone: event.target.value })} className={select} />
       </label>
+      <div className="mt-3 border-t border-slate-100 pt-3">
+        <label className="flex items-center gap-2 text-[10px] font-semibold text-slate-600">
+          <input type="checkbox" checked={config.watchGmail === true} onChange={(event) => patch({ watchGmail: event.target.checked })} className="h-3.5 w-3.5 accent-[#7c3aed]" />
+          Gmail 새 메일 감지 (예약 주기마다 폴링)
+        </label>
+        {config.watchGmail === true ? (
+          <>
+            <label className="mt-2 block text-[10px] font-semibold text-slate-500">발신자 필터 (선택)
+              <input value={String(config.gmailFrom || "")} placeholder="예: client@acme.com" onChange={(event) => patch({ gmailFrom: event.target.value })} className={select} />
+            </label>
+            <label className="mt-2 block text-[10px] font-semibold text-slate-500">제목 포함 (선택)
+              <input value={String(config.gmailSubject || "")} placeholder="예: 견적" onChange={(event) => patch({ gmailSubject: event.target.value })} className={select} />
+            </label>
+            <p className="mt-2 text-[10px] leading-4 text-slate-500">새 메일이 있을 때만 실행되며, 메일 데이터는 {"{{trigger.email.from}}"} · {"{{trigger.email.subject}}"} · {"{{trigger.email.snippet}}"} 으로 다음 노드에서 사용할 수 있습니다. Gmail 읽기 권한 OAuth 연결이 필요합니다.</p>
+          </>
+        ) : null}
+      </div>
       <p className="mt-2 text-[10px] leading-4 text-slate-500">저장하면 다음 실행 시각이 계산되고 5분 주기 스케줄러가 해당 시각에 자동으로 실행합니다. 외부 전송 단계는 승인 후에만 실제 발송됩니다.</p>
     </div>
   );
