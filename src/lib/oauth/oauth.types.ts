@@ -10,7 +10,7 @@ export type OAuthProviderId =
 
 export type ConnectableOAuthProviderId = Exclude<OAuthProviderId, "firebase">;
 
-export type GoogleOAuthService = "drive" | "gmail" | "calendar";
+export type GoogleOAuthService = "drive" | "gmail" | "calendar" | "sheets" | "youtube";
 
 export type OAuthServiceId =
   | GoogleOAuthService

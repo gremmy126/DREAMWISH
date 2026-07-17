@@ -40,7 +40,10 @@ test("automation apps declare truthful supported auth modes and verification con
   assert.deepEqual(getAutomationApp("discord")?.supportedAuthModes, ["oauth", "multi_field"]);
   assert.equal(getAutomationApp("openai")?.verificationKind, "openai");
   assert.equal(getAutomationApp("jira")?.verificationKind, "jira");
-  assert.equal(getAutomationApp("google-sheets")?.oauthTarget, undefined);
+  assert.deepEqual(getAutomationApp("google-sheets")?.oauthTarget, { provider: "google", service: "sheets" });
+  assert.deepEqual(getAutomationApp("google-sheets")?.supportedAuthModes, ["oauth", "token"]);
+  assert.deepEqual(getAutomationApp("google-sheets")?.credentialFields.map((field) => field.id), ["serviceAccountJson"]);
+  assert.deepEqual(getAutomationApp("youtube")?.oauthTarget, { provider: "google", service: "youtube" });
 });
 
 test("Automation tabs are interactive and module letters are replaced by app logos", () => {

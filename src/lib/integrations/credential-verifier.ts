@@ -1,6 +1,11 @@
 import { createHmac, randomBytes } from "node:crypto";
 import { isIP } from "node:net";
 import { getAutomationApp } from "../automation/app-registry";
+import {
+  exchangeGoogleServiceAccountToken,
+  GoogleServiceAccountError,
+  parseGoogleServiceAccountJson
+} from "./google-service-account";
 
 export type CredentialVerificationResult = {
   accountLabel: string;
@@ -47,6 +52,20 @@ export function isIntegrationCredentialError(error: unknown): error is Integrati
 }
 
 const VERIFY: Record<string, CredentialVerifier> = {
+  "google-sheets": async (values, fetcher) => {
+    try {
+      const account = parseGoogleServiceAccountJson(values.serviceAccountJson);
+      await exchangeGoogleServiceAccountToken(account, ["https://www.googleapis.com/auth/spreadsheets"], fetcher as typeof fetch);
+      return identity(`${account.clientEmail} · ${account.projectId}`, account.clientEmail);
+    } catch (error) {
+      if (error instanceof GoogleServiceAccountError) {
+        if (error.status === 401 || error.status === 403) throw coded("PROVIDER_AUTH_FAILED", error.message, 401);
+        if (error.status >= 500) throw coded("PROVIDER_UNAVAILABLE", error.message, 503);
+        throw coded("PROVIDER_REJECTED", error.message, error.status);
+      }
+      throw coded("PROVIDER_UNAVAILABLE", "Google 서비스 계정을 확인하지 못했습니다.", 503);
+    }
+  },
   notion: async (values, fetcher) => {
     const data = await requestJson(fetcher, "https://api.notion.com/v1/users/me", {
       headers: { Authorization: `Bearer ${values.integrationToken}`, "Notion-Version": "2026-03-11" },

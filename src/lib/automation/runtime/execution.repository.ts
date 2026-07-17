@@ -28,6 +28,19 @@ export type CreateExecutionInput = {
   status?: ExecutionStatus;
 };
 
+export type AutomationAiResult = {
+  id: string;
+  executionId: string;
+  workflowId: string;
+  workflowName: string;
+  workflowVersion: number;
+  nodeId: string;
+  appId: "ai" | "openai";
+  actionId: string;
+  output: Record<string, ActionValue>;
+  completedAt: string;
+};
+
 export async function createExecution(input: CreateExecutionInput): Promise<AutomationExecution> {
   await ensureAutomationRuntimeSchema();
   const sql = getPostgres();
@@ -298,6 +311,47 @@ export async function listExecutions(ownerId: string, limit = 100): Promise<Auto
     LIMIT ${Math.max(1, Math.min(500, Math.trunc(limit)))}
   `;
   return rows.map(mapExecution);
+}
+
+export async function listAutomationAiResults(
+  ownerId: string,
+  limit = 20
+): Promise<AutomationAiResult[]> {
+  await ensureAutomationRuntimeSchema();
+  const sql = getPostgres();
+  const rows = await sql`
+    SELECT step.id, step.execution_id, execution.workflow_id, workflow.name AS workflow_name,
+      execution.workflow_version, step.node_id, node.app_id, step.action_id,
+      step.masked_output, step.completed_at
+    FROM automation_step_runs AS step
+    JOIN automation_executions AS execution
+      ON execution.id = step.execution_id AND execution.owner_id = step.owner_id
+    JOIN automation_workflows AS workflow
+      ON workflow.id = execution.workflow_id AND workflow.owner_id = execution.owner_id
+    JOIN automation_nodes AS node
+      ON node.owner_id = step.owner_id
+      AND node.workflow_id = execution.workflow_id
+      AND node.workflow_version = execution.workflow_version
+      AND node.node_id = step.node_id
+    WHERE step.owner_id = ${ownerId}
+      AND step.status = 'completed'
+      AND step.masked_output IS NOT NULL
+      AND node.app_id IN ('ai', 'openai')
+    ORDER BY step.completed_at DESC, step.id DESC
+    LIMIT ${Math.max(1, Math.min(100, Math.trunc(limit)))}
+  `;
+  return rows.map((row) => ({
+    id: String(row.id),
+    executionId: String(row.execution_id),
+    workflowId: String(row.workflow_id),
+    workflowName: String(row.workflow_name),
+    workflowVersion: Number(row.workflow_version),
+    nodeId: String(row.node_id),
+    appId: String(row.app_id) as "ai" | "openai",
+    actionId: String(row.action_id),
+    output: structuredClone((row.masked_output || {}) as Record<string, ActionValue>),
+    completedAt: toIso(row.completed_at) || new Date(0).toISOString()
+  }));
 }
 
 export async function listExecutionsWaitingForConnection(ownerId: string, connectionId: string) {

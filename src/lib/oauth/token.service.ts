@@ -155,8 +155,10 @@ function durableAppIds(provider: Exclude<OAuthProviderId, "firebase">, service?:
   if (provider === "google") {
     if (service === "gmail") return ["gmail"];
     if (service === "calendar") return ["calendar"];
-    if (service === "drive") return ["drive", "google-sheets"];
-    return ["gmail", "drive", "google-sheets", "calendar"];
+    if (service === "sheets") return ["google-sheets"];
+    if (service === "youtube") return ["youtube"];
+    if (service === "drive") return ["drive"];
+    return ["gmail", "drive", "google-sheets", "calendar", "youtube"];
   }
   if (provider === "microsoft") {
     if (service === "outlook") return ["outlook"];

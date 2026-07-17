@@ -3,7 +3,7 @@ import { createHmac } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { pollGmailForScenario } from "../src/lib/automation/gmail-trigger";
+import { isGmailWatchNode, pollGmailForScenario } from "../src/lib/automation/gmail-trigger";
 import {
   listAutomationRuns,
   listDueWaitingRuns,
@@ -42,6 +42,19 @@ test("iterator expands the next node per item with mapped configs and aggregator
   const aggStep = result.steps.find((step) => step.nodeId === "agg");
   assert.match(aggStep!.detail, /총 2건/u);
   assert.match(aggStep!.detail, /승인 대기 2/u);
+});
+
+test("legacy graph execution uses exact ActionDefinition kind instead of app-level approval", () => {
+  const scenario = graphScenario([
+    { ...node("g", "gmail", "action", true, "cred"), actionId: "watch-new-email", actionVersion: 1 },
+    { ...node("n", "notion", "action", true, "cred"), actionId: "get-page", actionVersion: 1 },
+    { ...node("s", "gmail", "action", true, "cred"), actionId: "send-email", actionVersion: 1 }
+  ], [edge("g", "n"), edge("n", "s")]);
+
+  const result = executeScenarioGraph(scenario);
+  assert.equal(result.steps.find((step) => step.nodeId === "g")?.status, "success");
+  assert.equal(result.steps.find((step) => step.nodeId === "n")?.status, "success");
+  assert.equal(result.steps.find((step) => step.nodeId === "s")?.status, "approval_required");
 });
 
 test("delay node parks the run as waiting and resume executes only remaining nodes", () => {
@@ -140,10 +153,14 @@ test("Gmail polling runs the workflow per new message and dedupes across passes"
           id,
           snippet: "본문 요약",
           internalDate: id === "m1" ? "1700000001000" : "1700000002000",
-          payload: { headers: [
-            { name: "From", value: `${id}@acme.com` },
-            { name: "Subject", value: "견적 요청" }
-          ] }
+          payload: {
+            mimeType: "text/plain",
+            body: { data: Buffer.from(`${id}의 실제 이메일 본문`, "utf8").toString("base64url") },
+            headers: [
+              { name: "From", value: `${id}@acme.com` },
+              { name: "Subject", value: "견적 요청" }
+            ]
+          }
         }),
         { status: 200 }
       );
@@ -160,6 +177,10 @@ test("Gmail polling runs the workflow per new message and dedupes across passes"
     assert.equal(
       (runs[1].triggerData as { email?: { from?: string } })?.email?.from,
       "m1@acme.com"
+    );
+    assert.equal(
+      (runs[1].triggerData as { email?: { body?: string } })?.email?.body,
+      "m1의 실제 이메일 본문"
     );
     const gmailStep = runs[0].steps.find((step) => step.nodeId === "g");
     assert.equal(gmailStep?.status, "approval_required");
@@ -178,6 +199,14 @@ test("Gmail polling runs the workflow per new message and dedupes across passes"
     });
     assert.equal(noToken.skippedReason, "no_token");
   });
+});
+
+test("exact Gmail watch ActionDefinition is recognized as a polling trigger", () => {
+  assert.equal(isGmailWatchNode({
+    ...node("gmail-trigger", "gmail", "trigger", true, "connection"),
+    actionId: "watch-new-email",
+    actionVersion: 1
+  }), true);
 });
 
 function node(

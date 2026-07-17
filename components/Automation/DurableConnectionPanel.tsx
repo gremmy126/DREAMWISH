@@ -2,9 +2,10 @@
 
 import { RefreshCw, ShieldCheck, Unplug } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { AUTOMATION_APPS } from "@/src/lib/automation/app-registry";
 
 type Connection = { id: string; appId: string; provider: string; accountLabel: string | null; accountEmail: string | null; grantedScopes: string[]; status: string; credentialStatus: string; expiresAt: string | null; validatedAt: string | null };
-const oauthApps = ["gmail", "drive", "google-sheets", "calendar", "slack", "github", "notion", "discord", "outlook", "microsoft-teams", "onedrive", "dropbox"];
+const oauthApps = AUTOMATION_APPS.filter((app) => app.oauthTarget).map((app) => app.id);
 export function DurableConnectionPanel() {
   const [connections, setConnections] = useState<Connection[]>([]); const [busy, setBusy] = useState<string | null>(null); const [error, setError] = useState<string | null>(null);
   const load = useCallback(async () => { const response = await fetch("/api/integrations/connections", { cache: "no-store" }); const data = await response.json().catch(() => ({})) as { connections?: Connection[]; error?: string }; if (!response.ok) throw new Error(data.error || "연결 계정을 불러오지 못했습니다."); setConnections(data.connections || []); }, []);

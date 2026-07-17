@@ -2,10 +2,12 @@ import assert from "node:assert/strict";
 import {
   ACTION_DEFINITIONS,
   getActionDefinition,
+  isActionExecutable,
   listActionDefinitions
 } from "../src/lib/automation/registry/action-registry";
 import { listAutomationActions } from "../src/lib/automation/action-registry";
 import { validateActionInput } from "../src/lib/automation/registry/schema-runtime";
+import fs from "node:fs";
 
 test("action registry is serializable, versioned, and unique", () => {
   assert.ok(ACTION_DEFINITIONS.length >= 180);
@@ -67,6 +69,34 @@ test("Notion actions do not reuse one generic form", () => {
     ),
     ["pageId", "properties", "content"]
   );
+});
+
+test("AI analysis actions are executable and expose text output for downstream mappings", () => {
+  const summarize = getActionDefinition("ai", "summarize");
+  assert.ok(summarize);
+  assert.equal(isActionExecutable("ai", "summarize"), true);
+  assert.ok(summarize!.outputSchema.fields.some((field) => field.id === "text"));
+});
+
+test("OpenAI automation uses the selected verified user credential", () => {
+  const source = fs.readFileSync("src/lib/automation/adapters/ai.adapter.ts", "utf8");
+  assert.match(source, /resolveStructuredActionCredential/u);
+  assert.match(source, /OpenAICompatibleProvider/u);
+  assert.match(source, /input\.connectionId/u);
+});
+
+test("newly supported messaging and YouTube actions are executable", () => {
+  for (const [appId, actionId] of [
+    ["gmail", "reply-email"],
+    ["discord", "send-channel-message"],
+    ["discord", "send-direct-message"],
+    ["telegram", "send-message"],
+    ["telegram", "send-photo"],
+    ["youtube", "update-video"],
+    ["youtube", "add-playlist-item"]
+  ] as const) {
+    assert.equal(isActionExecutable(appId, actionId), true, `${appId}.${actionId} should be executable`);
+  }
 });
 
 test("Filter has no actions and generic fallbacks are removed", () => {

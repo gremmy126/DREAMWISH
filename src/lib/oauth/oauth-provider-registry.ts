@@ -27,6 +27,11 @@ export const GOOGLE_IDENTITY_SCOPES = [
 
 export const GOOGLE_SERVICE_SCOPES: Record<GoogleOAuthService, OAuthTokenScope[]> = {
   drive: ["https://www.googleapis.com/auth/drive.file"],
+  sheets: ["https://www.googleapis.com/auth/spreadsheets"],
+  youtube: [
+    "https://www.googleapis.com/auth/youtube",
+    "https://www.googleapis.com/auth/youtube.upload"
+  ],
   gmail: [
     "https://www.googleapis.com/auth/gmail.readonly",
     "https://www.googleapis.com/auth/gmail.compose"
@@ -173,7 +178,7 @@ export function assertConnectableOAuthProvider(provider: string): ConnectableOAu
 }
 
 export function assertGoogleOAuthService(service: string | null | undefined): GoogleOAuthService {
-  if (service === "drive" || service === "gmail" || service === "calendar") return service;
+  if (service === "drive" || service === "gmail" || service === "calendar" || service === "sheets" || service === "youtube") return service;
   throw new Error(`Unsupported Google OAuth service: ${service || "missing"}`);
 }
 

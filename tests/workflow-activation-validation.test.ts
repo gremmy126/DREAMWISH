@@ -23,10 +23,9 @@ test("workflow structural validation blocks cycles and unimplemented adapters", 
 
 test("activation validation checks connection ownership status scopes and inputs", () => {
   const source = fs.readFileSync("src/lib/automation/runtime/workflow-validator.ts", "utf8");
-  assert.match(source, /getIntegrationConnection/u);
-  assert.match(source, /missingOAuthScopes/u);
+  assert.match(source, /validateActionConnection/u);
   assert.match(source, /validateActionInput/u);
-  assert.match(source, /connection\.appId !== node\.appId/u);
+  assert.match(source, /CONNECTION_APP_MISMATCH/u);
 });
 
 test("canonical activation route validates before pinning and activating a version", () => {

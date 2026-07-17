@@ -6,7 +6,7 @@ import { executeRegisteredActionAdapter } from "../adapters/action-adapter.regis
 import { createApprovalRequest, rebuildCurrentApprovalSnapshotInput } from "../approval/approval.service";
 import { getApprovalRequest } from "../approval/approval.repository";
 import { buildApprovalSnapshot, verifyApprovalSnapshot } from "../approval/approval-hash";
-import { validateConnectionForAction } from "../../oauth/oauth-connection.service";
+import { validateActionConnection } from "../action-credential.service";
 import { maskAutomationSecrets } from "./secret-masker";
 import { executeActionStep } from "./execution-pipeline";
 import {
@@ -325,10 +325,7 @@ async function loadPinnedWorkflow(execution: AutomationExecution) {
 }
 
 async function validateRuntimeConnection(ownerId: string, definition: ActionDefinition, connectionId: string | null) {
-  if (!connectionId && definition.requiredScopes.length === 0) {
-    return { accountLabel: null, scopes: [], credentialStatus: "valid", rateLimitRemaining: null };
-  }
-  return validateConnectionForAction({ ownerId, connectionId, appId: definition.appId, requiredScopes: definition.requiredScopes });
+  return validateActionConnection({ ownerId, connectionId, appId: definition.appId, requiredScopes: definition.requiredScopes });
 }
 
 async function createNodeStep(

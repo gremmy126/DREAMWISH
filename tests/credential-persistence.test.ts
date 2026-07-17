@@ -5,8 +5,21 @@ import path from "node:path";
 import {
   isCredentialPersistenceError,
   revealCredential,
-  saveCredentialValues
+  saveCredentialValues,
+  saveVerifiedCredential
 } from "../src/lib/automation/credential.repository";
+import { resolveStructuredActionCredential, validateActionConnection } from "../src/lib/automation/action-credential.service";
+
+test("credential-backed apps require a selected connection even when the provider has no OAuth scopes", async () => {
+  await assert.rejects(
+    () => validateActionConnection({ ownerId: "owner-a", connectionId: null, appId: "telegram", requiredScopes: [] }),
+    (error: unknown) => (error as { code?: string }).code === "CONNECTION_REQUIRED"
+  );
+  assert.equal(
+    (await validateActionConnection({ ownerId: "owner-a", connectionId: null, appId: "ai", requiredScopes: [] })).credentialStatus,
+    "valid"
+  );
+});
 
 test("production credentials fall back to the integration key and retain their key identity", async () => {
   await withCredentialEnvironment(async () => {
@@ -56,6 +69,25 @@ test("credential API maps persistence failures without returning encrypted mater
   assert.match(source, /isCredentialPersistenceError/u);
   assert.match(source, /error\.code/u);
   assert.doesNotMatch(source, /ciphertext|authTag|\.secret\b/u);
+});
+
+test("verified structured credentials resolve for the same owner and app only", async () => {
+  await withCredentialEnvironment(async () => {
+    const saved = await saveVerifiedCredential({
+      ownerId: "owner-a",
+      appId: "notion",
+      label: "Notion key",
+      values: { integrationToken: "secret-notion-token" },
+      accountLabel: "DREAMWISH Notion"
+    });
+    const resolved = await resolveStructuredActionCredential("owner-a", saved.id, "notion");
+    assert.equal(resolved.accountLabel, "DREAMWISH Notion");
+    assert.equal(resolved.values.integrationToken, "secret-notion-token");
+    await assert.rejects(
+      () => resolveStructuredActionCredential("owner-a", saved.id, "github"),
+      /선택한 키를 이 앱에서 사용할 수 없습니다/u
+    );
+  });
 });
 
 async function withCredentialEnvironment(run: () => Promise<void>) {

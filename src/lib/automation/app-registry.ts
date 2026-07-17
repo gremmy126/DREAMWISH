@@ -57,10 +57,10 @@ const token = (
 
 export const AUTOMATION_APPS: AutomationAppDefinition[] = [
   oauth("gmail", "Gmail", "/images/gmail.jpg", "#EA4335", "Google OAuth 계정 연결 · 운영자 Client ID/Secret 필요", { provider: "google", service: "gmail" }),
-  oauth("google-sheets", "Google Sheets", "/images/googlesheet.png", "#0F9D58", "Google OAuth 계정 연결"),
+  token("google-sheets", "Google Sheets", "/images/googlesheet.png", "#0F9D58", [field("serviceAccountJson", "Service Account JSON")], "Google OAuth 또는 공유한 시트에 접근 가능한 Service Account JSON", { provider: "google", service: "sheets" }),
   oauth("calendar", "Google Calendar", "/images/googlecalendar.png", "#4285F4", "Google OAuth 계정 연결", { provider: "google", service: "calendar" }),
   oauth("drive", "Google Drive", "/images/googledrive.png", "#F9AB00", "Google OAuth 계정 연결", { provider: "google", service: "drive" }),
-  oauth("youtube", "YouTube", "/images/youtube.jpg", "#FF0000", "Google OAuth 계정 연결"),
+  oauth("youtube", "YouTube", "/images/youtube.jpg", "#FF0000", "Google OAuth 계정 연결", { provider: "google", service: "youtube" }),
   oauth("slack", "Slack", "/images/slack.png", "#4A154B", "Slack OAuth 계정 연결 · 운영자 Client ID/Secret/Signing Secret 필요", { provider: "slack", service: "slack" }),
   token("notion", "Notion", "/images/notion.png", "#111111", [field("integrationToken", "Integration Token")], "Notion Internal Integration에서 발급", { provider: "notion", service: "notion" }),
   token("github", "GitHub", "/images/github.png", "#181717", [field("personalAccessToken", "Fine-grained Personal Access Token")], "GitHub Settings > Developer settings에서 발급", { provider: "github", service: "github" }),

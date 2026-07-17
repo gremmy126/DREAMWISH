@@ -410,7 +410,16 @@ function aiActions(appId: string, names: string[]) {
   const ids = ["chat", "summarize", "translate", "generate-json", "analyze-email", "analyze-document", "extract-keywords", "analyze-sentiment", "draft-reply"];
   return names.map((name, index) => {
     const id = ids[index] || `analysis-${index + 1}`;
-    return action(appId, id, name, "tool", [optional("model", "Model", "resource"), field("input", "Input", "mapping"), optional("prompt", "Prompt", "textarea"), optional("systemPrompt", "System prompt", "textarea", { advanced: true }), optional("temperature", "Temperature", "number", { min: 0, max: 2, advanced: true }), optional("maxTokens", "Max tokens", "integer", { min: 1, max: 100000, advanced: true }), optional("outputFormat", "Output format", "select", { options: [{ label: "Text", value: "text" }, { label: "JSON", value: "json" }] })], { risk: "low", defaults: { temperature: 0.2, outputFormat: id.includes("json") ? "json" : "text" } });
+    const definition = action(appId, id, name, "tool", [optional("model", "Model", "resource"), field("input", "Input", "mapping"), optional("prompt", "Prompt", "textarea"), optional("systemPrompt", "System prompt", "textarea", { advanced: true }), optional("temperature", "Temperature", "number", { min: 0, max: 2, advanced: true }), optional("maxTokens", "Max tokens", "integer", { min: 1, max: 100000, advanced: true }), optional("outputFormat", "Output format", "select", { options: [{ label: "Text", value: "text" }, { label: "JSON", value: "json" }] })], { risk: "low", defaults: { temperature: 0.2, outputFormat: id.includes("json") ? "json" : "text" } });
+    return {
+      ...definition,
+      outputSchema: {
+        fields: [
+          { id: "text", label: "Text", type: "string" as const },
+          { id: "data", label: "Structured data", type: "object" as const, nullable: true }
+        ]
+      }
+    };
   });
 }
 

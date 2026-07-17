@@ -1,8 +1,7 @@
 import type { AutomationScenario, ScenarioNode } from "../scenario-designer";
 import { getActionDefinition, isActionExecutable } from "../registry/action-registry";
 import { validateActionInput } from "../registry/schema-runtime";
-import { getIntegrationConnection } from "../../repositories/integration-connection.repository";
-import { missingOAuthScopes } from "../../oauth/scope-matcher";
+import { validateActionConnection } from "../action-credential.service";
 
 export type WorkflowValidationCode =
   | "EMPTY_WORKFLOW"
@@ -44,26 +43,34 @@ export async function validateWorkflowForActivation(ownerId: string, scenario: A
   for (const node of scenario.nodes) {
     if (node.appId === "filter") continue;
     const definition = node.actionId ? getActionDefinition(node.appId, node.actionId, node.actionVersion || undefined) : null;
-    if (!definition || definition.requiredScopes.length === 0) continue;
+    if (!definition || (!node.requiresCredential && definition.requiredScopes.length === 0)) continue;
     if (!node.credentialId || node.credentialId.startsWith("pending-")) {
       issues.push({ code: "CONNECTION_REQUIRED", nodeId: node.id, message: `${node.label}에서 사용할 연결 계정을 선택하세요.` });
       continue;
     }
-    const connection = await getIntegrationConnection(ownerId, node.credentialId);
-    if (!connection) {
-      issues.push({ code: "CONNECTION_NOT_FOUND", nodeId: node.id, message: `${node.label} 연결 계정을 찾을 수 없습니다.` });
-      continue;
+    try {
+      await validateActionConnection({
+        ownerId,
+        connectionId: node.credentialId,
+        appId: node.appId,
+        requiredScopes: definition.requiredScopes
+      });
+    } catch (error) {
+      const candidate = error as { code?: string; missingScopes?: string[] };
+      const allowedCodes: WorkflowValidationCode[] = [
+        "CONNECTION_REQUIRED", "CONNECTION_NOT_FOUND", "CONNECTION_APP_MISMATCH",
+        "CREDENTIAL_INVALID", "SCOPE_INSUFFICIENT"
+      ];
+      const code = allowedCodes.includes(candidate.code as WorkflowValidationCode)
+        ? candidate.code as WorkflowValidationCode
+        : "CREDENTIAL_INVALID";
+      issues.push({
+        code,
+        nodeId: node.id,
+        fields: candidate.missingScopes,
+        message: error instanceof Error ? error.message : `${node.label} 연결을 확인하세요.`
+      });
     }
-    if (connection.appId !== node.appId) {
-      issues.push({ code: "CONNECTION_APP_MISMATCH", nodeId: node.id, message: `${node.label}에 다른 앱의 연결 계정이 선택되었습니다.` });
-      continue;
-    }
-    if (connection.status !== "connected" || !connection.accessTokenCiphertext || (connection.expiresAt && new Date(connection.expiresAt).getTime() <= Date.now())) {
-      issues.push({ code: "CREDENTIAL_INVALID", nodeId: node.id, message: `${node.label} 연결을 테스트하거나 다시 인증하세요.` });
-      continue;
-    }
-    const missing = missingOAuthScopes(connection.grantedScopes, definition.requiredScopes, node.appId);
-    if (missing.length > 0) issues.push({ code: "SCOPE_INSUFFICIENT", nodeId: node.id, fields: missing, message: `${node.label} 연결에 필요한 Scope가 없습니다: ${missing.join(", ")}` });
   }
   return { valid: issues.length === 0, issues };
 }

@@ -20,6 +20,32 @@ test("execution detail exposes preview retries provider request and adapter tele
   assert.match(repository, /node\.app_id/u);
 });
 
+test("legacy approval records are labelled as approval waiting instead of partial completion", () => {
+  const source = fs.readFileSync("components/Automation/AutomationSecondaryViews.tsx", "utf8");
+  assert.doesNotMatch(source, /부분 완료/u);
+  assert.match(source, /승인 대기/u);
+});
+
+test("automation runs page no longer mounts the deprecated legacy run approval UI", () => {
+  const source = fs.readFileSync("components/Automation/AutomationView.tsx", "utf8");
+  assert.doesNotMatch(source, /<RunHistory\b/u);
+  assert.match(source, /<DurableRunHistory\s*\/>/u);
+});
+
+test("AI automation analysis lists persisted AI module outputs instead of generic statistics", () => {
+  const view = fs.readFileSync("components/Automation/AutomationView.tsx", "utf8");
+  const repository = fs.readFileSync("src/lib/automation/runtime/execution.repository.ts", "utf8");
+  const analysis = fs.readFileSync("src/lib/automation/automation-analysis.ts", "utf8");
+  assert.match(repository, /listAutomationAiResults/u);
+  assert.match(repository, /node\.app_id IN \('ai', 'openai'\)/u);
+  assert.match(repository, /step\.masked_output/u);
+  assert.match(repository, /step\.status = 'completed'/u);
+  assert.match(view, /result\.output/u);
+  assert.match(view, /아직 완료된 AI 모듈 분석 결과가 없습니다/u);
+  assert.doesNotMatch(view, /analysis\.stats/u);
+  assert.doesNotMatch(analysis, /chatWithAI/u);
+});
+
 test("admin DLQ API checks administrator role and masks safe payload again", () => {
   const route = fs.readFileSync("app/api/automation/admin/dlq/route.ts", "utf8");
   const repository = fs.readFileSync("src/lib/automation/queue/dlq.repository.ts", "utf8");

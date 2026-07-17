@@ -195,6 +195,32 @@ test("Google Drive authorization url uses only drive scopes and PKCE", () => {
   );
 });
 
+test("Google Sheets and YouTube use distinct least-privilege OAuth services", () => {
+  withEnv(
+    { GOOGLE_CLIENT_ID: "google-client" },
+    () => {
+      const sheets = createOAuthAuthorizationUrl({
+        provider: "google",
+        service: "sheets",
+        redirectUri: "https://dreamwish.co.kr/api/integrations/google/callback",
+        state: "sheets-state",
+        codeChallenge: "challenge"
+      });
+      const youtube = createOAuthAuthorizationUrl({
+        provider: "google",
+        service: "youtube",
+        redirectUri: "https://dreamwish.co.kr/api/integrations/google/callback",
+        state: "youtube-state",
+        codeChallenge: "challenge"
+      });
+      assert.match(sheets.searchParams.get("scope") || "", /auth\/spreadsheets/u);
+      assert.doesNotMatch(sheets.searchParams.get("scope") || "", /auth\/drive\.file/u);
+      assert.match(youtube.searchParams.get("scope") || "", /auth\/youtube/u);
+      assert.match(youtube.searchParams.get("scope") || "", /auth\/youtube\.upload/u);
+    }
+  );
+});
+
 test("Slack authorization url uses Slack OAuth v2 bot scopes", () => {
   withEnv(
     {

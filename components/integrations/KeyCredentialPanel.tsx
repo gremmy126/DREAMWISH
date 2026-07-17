@@ -106,14 +106,26 @@ export function KeyCredentialPanel({
           {app.credentialFields.map((credentialField) => (
             <label key={credentialField.id} className="block">
               <span className="text-xs font-bold text-app-text">{credentialField.label}{credentialField.required ? " *" : ""}</span>
-              <input
-                type={credentialField.secret ? "password" : "text"}
-                autoComplete="off"
-                value={values[credentialField.id] || ""}
-                onChange={(event) => setValues((current) => ({ ...current, [credentialField.id]: event.target.value }))}
-                placeholder={credentialField.placeholder || credentialField.label}
-                className="mt-2 h-11 w-full rounded-xl border border-app-border bg-white px-3 text-sm outline-none focus:border-app-primary"
-              />
+              {credentialField.id.toLowerCase().endsWith("json") ? (
+                <textarea
+                  autoComplete="off"
+                  spellCheck={false}
+                  rows={8}
+                  value={values[credentialField.id] || ""}
+                  onChange={(event) => setValues((current) => ({ ...current, [credentialField.id]: event.target.value }))}
+                  placeholder={credentialField.placeholder || credentialField.label}
+                  className="mt-2 min-h-44 w-full resize-y rounded-xl border border-app-border bg-white px-3 py-2 font-mono text-xs outline-none focus:border-app-primary"
+                />
+              ) : (
+                <input
+                  type={credentialField.secret ? "password" : "text"}
+                  autoComplete="off"
+                  value={values[credentialField.id] || ""}
+                  onChange={(event) => setValues((current) => ({ ...current, [credentialField.id]: event.target.value }))}
+                  placeholder={credentialField.placeholder || credentialField.label}
+                  className="mt-2 h-11 w-full rounded-xl border border-app-border bg-white px-3 text-sm outline-none focus:border-app-primary"
+                />
+              )}
               {credentialField.help ? <span className="mt-1 block text-[11px] text-app-muted">{credentialField.help}</span> : null}
             </label>
           ))}

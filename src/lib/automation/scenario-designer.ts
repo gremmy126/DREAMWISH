@@ -1,5 +1,5 @@
 import { AUTOMATION_APPS } from "./app-registry";
-import { isActionExecutable, listActionDefinitions } from "./registry/action-registry";
+import { getActionDefinition, isActionExecutable, listActionDefinitions } from "./registry/action-registry";
 import type { ActionValue } from "./registry/action.types";
 import { AUTOMATION_TOOLS } from "./tool-registry";
 
@@ -55,6 +55,11 @@ export type AutomationScenario = {
   updatedAt: string;
 };
 
+export type ScenarioDraftMetadata = {
+  title?: string;
+  description?: string;
+};
+
 export type ScenarioValidationIssue = {
   code: "NO_TRIGGER" | "DISCONNECTED_NODE" | "MISSING_CREDENTIAL" | "EMPTY_SCENARIO";
   nodeId?: string;
@@ -93,8 +98,14 @@ export const AUTOMATION_MODULES: AutomationModule[] = [
   )
 ];
 
-export function buildScenarioFromPrompt(prompt: string, ownerId = "preview-owner") {
+export function buildScenarioFromPrompt(
+  prompt: string,
+  ownerId = "preview-owner",
+  metadata: ScenarioDraftMetadata = {}
+) {
   const normalized = prompt.trim();
+  const knownScenario = buildKnownScenario(normalized, ownerId);
+  if (knownScenario) return applyScenarioMetadata(knownScenario, metadata);
   const moduleIds = detectModules(normalized);
   if (!moduleIds.some((id) => getModule(id).defaultKind === "trigger")) {
     moduleIds.unshift("schedule");
@@ -113,11 +124,11 @@ export function buildScenarioFromPrompt(prompt: string, ownerId = "preview-owner
       kind: index === 0 ? "trigger" : item.defaultKind === "trigger" ? "action" : item.defaultKind,
       position: { x: 90 + index * 230, y: index % 2 === 0 ? 180 : 340 },
       requiresCredential: item.requiresCredential,
-      credentialId: item.requiresCredential ? `pending-${appId}` : null,
+      credentialId: null,
       config: inferConfig(appId, normalized)
     } satisfies ScenarioNode;
   });
-  return {
+  return applyScenarioMetadata({
     id: crypto.randomUUID(),
     ownerId,
     name: buildScenarioName(normalized, moduleIds),
@@ -136,7 +147,98 @@ export function buildScenarioFromPrompt(prompt: string, ownerId = "preview-owner
     nextRunAt: null,
     createdAt: now,
     updatedAt: now
+  } satisfies AutomationScenario, metadata);
+}
+
+function applyScenarioMetadata(scenario: AutomationScenario, metadata: ScenarioDraftMetadata) {
+  const title = metadata.title?.trim();
+  const description = metadata.description?.trim();
+  return {
+    ...scenario,
+    name: title || scenario.name,
+    description: description || scenario.description
   } satisfies AutomationScenario;
+}
+
+function buildKnownScenario(prompt: string, ownerId: string): AutomationScenario | null {
+  if (!/(gmail|지메일|메일)/iu.test(prompt) || !/(ai|요약|분석)/iu.test(prompt) || !/(notion|노션)/iu.test(prompt)) {
+    return null;
+  }
+  const gmail = getActionDefinition("gmail", "watch-new-email");
+  const ai = getActionDefinition("ai", "summarize");
+  const notion = getActionDefinition("notion", "create-page");
+  if (!gmail || !ai || !notion) return null;
+
+  const gmailNodeId = `node-gmail-${crypto.randomUUID().slice(0, 8)}`;
+  const aiNodeId = `node-ai-${crypto.randomUUID().slice(0, 8)}`;
+  const notionNodeId = `node-notion-${crypto.randomUUID().slice(0, 8)}`;
+  const now = new Date().toISOString();
+  const nodes: ScenarioNode[] = [
+    {
+      id: gmailNodeId,
+      appId: "gmail",
+      label: "Gmail",
+      actionId: gmail.id,
+      actionVersion: gmail.version,
+      operation: gmail.name,
+      kind: "trigger",
+      position: { x: 90, y: 220 },
+      requiresCredential: true,
+      credentialId: null,
+      config: structuredClone(gmail.defaultValues)
+    },
+    {
+      id: aiNodeId,
+      appId: "ai",
+      label: "AI 분석",
+      actionId: ai.id,
+      actionVersion: ai.version,
+      operation: ai.name,
+      kind: "action",
+      position: { x: 320, y: 220 },
+      requiresCredential: false,
+      credentialId: null,
+      config: { ...structuredClone(ai.defaultValues), input: "{{trigger.email.body}}" }
+    },
+    {
+      id: notionNodeId,
+      appId: "notion",
+      label: "Notion",
+      actionId: notion.id,
+      actionVersion: notion.version,
+      operation: notion.name,
+      kind: "action",
+      position: { x: 550, y: 220 },
+      requiresCredential: true,
+      credentialId: null,
+      config: {
+        ...structuredClone(notion.defaultValues),
+        parentId: "",
+        title: "{{trigger.email.subject}}",
+        content: `{{steps.${aiNodeId}.text}}`
+      }
+    }
+  ];
+
+  return {
+    id: crypto.randomUUID(),
+    ownerId,
+    name: "이메일을 AI로 분석해 Notion에 저장",
+    description: prompt || "Gmail 새 이메일을 AI로 요약해 Notion 페이지로 저장합니다.",
+    status: "draft",
+    realtime: false,
+    nodes,
+    edges: [
+      { id: `edge-${gmailNodeId}-${aiNodeId}`, source: gmailNodeId, target: aiNodeId },
+      { id: `edge-${aiNodeId}-${notionNodeId}`, source: aiNodeId, target: notionNodeId }
+    ],
+    runs: 0,
+    successfulRuns: 0,
+    lastRunAt: null,
+    nextRunAt: null,
+    createdAt: now,
+    updatedAt: now
+  };
 }
 
 export function validateScenario(scenario: AutomationScenario) {
@@ -151,9 +253,6 @@ export function validateScenario(scenario: AutomationScenario) {
   for (const node of scenario.nodes) {
     if (scenario.nodes.length > 1 && !connected.has(node.id)) {
       issues.push({ code: "DISCONNECTED_NODE", nodeId: node.id, message: `${node.label} 모듈이 연결되지 않았습니다.` });
-    }
-    if (node.requiresCredential && !node.credentialId) {
-      issues.push({ code: "MISSING_CREDENTIAL", nodeId: node.id, message: `${node.label} 계정 또는 API 키를 연결하세요.` });
     }
   }
   return { valid: issues.length === 0, issues };

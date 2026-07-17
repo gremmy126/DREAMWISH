@@ -50,7 +50,7 @@ import { ActionPicker } from "@/components/Automation/ActionPicker";
 import { ActionInputForm } from "@/components/Automation/ActionInputForm";
 import { ActionPreviewCard } from "@/components/Automation/ActionPreviewCard";
 import { AutomationTabs, type AutomationTab } from "@/components/Automation/AutomationTabs";
-import { AutomationGuide, ConnectionManager, RunHistory, TemplateGallery } from "@/components/Automation/AutomationSecondaryViews";
+import { AutomationGuide, ConnectionManager, TemplateGallery } from "@/components/Automation/AutomationSecondaryViews";
 import { getAutomationApp } from "@/src/lib/automation/app-registry";
 import { readStoredTimezonePreference } from "@/src/lib/settings/app-preferences";
 import { changeScenarioAction } from "@/src/lib/automation/action-ui-model";
@@ -84,6 +84,8 @@ export function AutomationView() {
   const [oauthConnections, setOauthConnections] = useState<OAuthConnectionOption[]>([]);
   const [search, setSearch] = useState("");
   const [prompt, setPrompt] = useState("");
+  const [draftTitle, setDraftTitle] = useState("");
+  const [draftDescription, setDraftDescription] = useState("");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<AutomationTab>("scenario");
@@ -97,6 +99,8 @@ export function AutomationView() {
   const canvasRef = useRef<HTMLDivElement>(null);
   const catalogButtonRef = useRef<HTMLButtonElement>(null);
   const inspectorButtonRef = useRef<HTMLButtonElement>(null);
+  const createFormRef = useRef<HTMLFormElement>(null);
+  const titleInputRef = useRef<HTMLInputElement>(null);
   const selectedNode = nodes.find((node) => node.id === selectedNodeId) || null;
 
   const refitCanvas = useCallback(() => {
@@ -192,11 +196,17 @@ export function AutomationView() {
       const response = await fetch("/api/automation/ai-draft", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: value.trim() || "매일 오전 9시에 오늘 일정을 요약해줘" })
+        body: JSON.stringify({
+          prompt: value.trim() || "매일 오전 9시에 오늘 일정을 요약해줘",
+          title: draftTitle.trim() || undefined,
+          description: draftDescription.trim() || undefined
+        })
       });
       const data = (await response.json()) as { scenario?: AutomationScenario; error?: string };
       if (!response.ok || !data.scenario) throw new Error(data.error || "시나리오를 만들지 못했습니다.");
       setPrompt("");
+      setDraftTitle("");
+      setDraftDescription("");
       await loadWorkspace(data.scenario.id);
       setNotice("AI가 편집 가능한 시나리오 초안을 만들었습니다.");
     } catch (caught) {
@@ -299,6 +309,18 @@ export function AutomationView() {
       : node));
   }
 
+  function updateScenarioMetadata(patch: Pick<Partial<AutomationScenario>, "name" | "description">) {
+    if (!active) return;
+    const updated = { ...active, ...patch };
+    setActive(updated);
+    setScenarios((current) => current.map((scenario) => scenario.id === updated.id ? updated : scenario));
+  }
+
+  function openCreateForm() {
+    createFormRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    requestAnimationFrame(() => titleInputRef.current?.focus());
+  }
+
   function deleteSelectedNode() {
     if (!selectedNodeId) return;
     setNodes((current) => current.filter((node) => node.id !== selectedNodeId));
@@ -318,7 +340,7 @@ export function AutomationView() {
 
   return (
     <div className="space-y-5 pb-3">
-      <AutomationHeader busy={busy} onCreate={() => void createFromPrompt("새 자동화 시나리오")} />
+      <AutomationHeader busy={busy} onCreate={openCreateForm} />
       <AutomationTabs value={activeTab} onChange={setActiveTab} />
 
       {activeTab === "scenario" ? <>
@@ -367,6 +389,29 @@ export function AutomationView() {
             </div>
           </div>
 
+          {active ? (
+            <div className="grid gap-3 border-b border-slate-200 bg-slate-50/50 px-4 py-3 md:grid-cols-[minmax(180px,0.8fr)_minmax(260px,1.5fr)]">
+              <label className="grid gap-1 text-[10px] font-bold text-slate-500">
+                시나리오 제목
+                <input
+                  value={active.name}
+                  maxLength={100}
+                  onChange={(event) => updateScenarioMetadata({ name: event.target.value })}
+                  className="h-9 min-w-0 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-900 outline-none focus:border-violet-400"
+                />
+              </label>
+              <label className="grid gap-1 text-[10px] font-bold text-slate-500">
+                시나리오 설명
+                <input
+                  value={active.description}
+                  maxLength={500}
+                  onChange={(event) => updateScenarioMetadata({ description: event.target.value })}
+                  className="h-9 min-w-0 rounded-xl border border-slate-200 bg-white px-3 text-xs text-slate-700 outline-none focus:border-violet-400"
+                />
+              </label>
+            </div>
+          ) : null}
+
           <div className="grid min-h-[610px] min-w-0 grid-cols-1 lg:grid-cols-[clamp(180px,18vw,210px)_minmax(0,1fr)_clamp(260px,24vw,300px)]">
             <div className="hidden min-w-0 overflow-hidden bg-white lg:block">
               <ModuleCatalog search={search} onSearch={setSearch} onAdd={addModule} />
@@ -385,7 +430,7 @@ export function AutomationView() {
                   <Controls showInteractive={false} className="!overflow-hidden !rounded-xl !border-slate-200 !shadow-sm" />
                 </ReactFlow>
               ) : (
-                <EmptyCanvas onCreate={() => void createFromPrompt()} />
+                <EmptyCanvas onCreate={openCreateForm} />
               )}
             </div>
             <div className="hidden min-w-0 overflow-hidden bg-white lg:block">
@@ -433,17 +478,30 @@ export function AutomationView() {
         </section>
 
         <div className="rounded-[18px] border border-violet-100 bg-violet-50/70 p-3">
-          <form onSubmit={(event) => { event.preventDefault(); void createFromPrompt(); }} className="flex min-w-0 items-center gap-3">
-            <WandSparkles className="shrink-0 text-violet-600" size={18} />
-            <input value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="AI Chat처럼 말해보세요. 예: 새 Gmail을 요약해서 Slack에 보내줘" className="min-w-0 flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400" />
-            <button type="submit" disabled={busy} className="shrink-0 rounded-xl bg-violet-600 px-4 py-2 text-xs font-bold text-white disabled:opacity-50">AI로 만들기</button>
+          <form ref={createFormRef} onSubmit={(event) => { event.preventDefault(); void createFromPrompt(); }} className="grid min-w-0 gap-3 md:grid-cols-[minmax(150px,0.7fr)_minmax(180px,1fr)_minmax(240px,1.8fr)_auto] md:items-end">
+            <label className="grid gap-1 text-[10px] font-bold text-violet-700">
+              시나리오 제목
+              <input ref={titleInputRef} value={draftTitle} maxLength={100} onChange={(event) => setDraftTitle(event.target.value)} placeholder="예: 고객 이메일 분석" className="h-10 min-w-0 rounded-xl border border-violet-100 bg-white px-3 text-xs text-slate-900 outline-none focus:border-violet-400" />
+            </label>
+            <label className="grid gap-1 text-[10px] font-bold text-violet-700">
+              시나리오 설명
+              <input value={draftDescription} maxLength={500} onChange={(event) => setDraftDescription(event.target.value)} placeholder="이 자동화의 목적" className="h-10 min-w-0 rounded-xl border border-violet-100 bg-white px-3 text-xs text-slate-900 outline-none focus:border-violet-400" />
+            </label>
+            <label className="grid gap-1 text-[10px] font-bold text-violet-700">
+              자동화 요청
+              <span className="flex h-10 min-w-0 items-center gap-2 rounded-xl border border-violet-100 bg-white px-3">
+                <WandSparkles className="shrink-0 text-violet-600" size={16} />
+                <input value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="예: Gmail을 요약해서 Notion에 저장해줘" className="min-w-0 flex-1 bg-transparent text-xs text-slate-900 outline-none placeholder:text-slate-400" />
+              </span>
+            </label>
+            <button type="submit" disabled={busy} className="min-h-10 shrink-0 rounded-xl bg-violet-600 px-4 py-2 text-xs font-bold text-white disabled:opacity-50">AI로 만들기</button>
           </form>
         </div>
 
         <AiAnalysisCard />
       </> : null}
       {activeTab === "templates" ? <TemplateGallery onUse={(value) => { setActiveTab("scenario"); void createFromPrompt(value); }} /> : null}
-      {activeTab === "runs" ? <div className="space-y-5"><DurableRunHistory /><RunHistory scenarios={scenarios} onOpen={(scenario) => { selectScenario(scenario); setActiveTab("scenario"); }} /></div> : null}
+      {activeTab === "runs" ? <DurableRunHistory /> : null}
       {activeTab === "approvals" ? <ApprovalCenter /> : null}
       {activeTab === "connections" ? <div><DurableConnectionPanel /><ConnectionManager credentials={credentials} onSave={addStructuredCredential} /></div> : null}
       {activeTab === "audit" ? <AuditLogView /> : null}
@@ -456,19 +514,18 @@ export function AutomationView() {
 
 type AnalysisData = {
   generatedAt: string;
-  aiGenerated: boolean;
-  stats: {
-    totalScenarios: number;
-    activeScenarios: number;
-    scheduledScenarios: number;
-    totalRuns: number;
-    successRate: number;
-    pendingApprovals: number;
-    missingConnections: number;
-    failedRuns: number;
-  };
-  findings: string[];
-  recommendations: string[];
+  results: Array<{
+    id: string;
+    executionId: string;
+    workflowId: string;
+    workflowName: string;
+    workflowVersion: number;
+    nodeId: string;
+    appId: "ai" | "openai";
+    actionId: string;
+    output: Record<string, unknown>;
+    completedAt: string;
+  }>;
 };
 
 function AiAnalysisCard() {
@@ -500,8 +557,8 @@ function AiAnalysisCard() {
           <Sparkles size={16} className="text-violet-600" />
           <h2 className="text-sm font-bold text-slate-950">AI 자동화 분석</h2>
           {analysis ? (
-            <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${analysis.aiGenerated ? "bg-violet-100 text-violet-700" : "bg-slate-100 text-slate-600"}`}>
-              {analysis.aiGenerated ? "AI 분석" : "규칙 기반"}
+            <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold text-violet-700">
+              실제 AI 모듈 결과 {analysis.results.length}개
             </span>
           ) : null}
         </div>
@@ -511,7 +568,7 @@ function AiAnalysisCard() {
           disabled={loading}
           className="rounded-xl border border-slate-200 px-3 py-1.5 text-[11px] font-bold text-slate-600 disabled:opacity-50"
         >
-          {loading ? "분석 중..." : "다시 분석"}
+          {loading ? "불러오는 중..." : "새로고침"}
         </button>
       </div>
 
@@ -520,44 +577,43 @@ function AiAnalysisCard() {
         <div className="mt-4 h-24 animate-pulse rounded-2xl bg-slate-50" aria-hidden />
       ) : null}
 
-      {analysis ? (
-        <>
-          <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <AnalysisStat label="시나리오" value={`${analysis.stats.totalScenarios}개 (활성 ${analysis.stats.activeScenarios})`} />
-            <AnalysisStat label="누적 실행 · 성공률" value={`${analysis.stats.totalRuns}회 · ${analysis.stats.successRate}%`} />
-            <AnalysisStat label="승인 대기" value={`${analysis.stats.pendingApprovals}건`} warn={analysis.stats.pendingApprovals > 0} />
-            <AnalysisStat label="연결 누락" value={`${analysis.stats.missingConnections}개`} warn={analysis.stats.missingConnections > 0} />
-          </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
-            <div className="rounded-2xl bg-slate-50 p-3">
-              <p className="text-[11px] font-bold text-slate-500">진단</p>
-              <ul className="mt-1.5 space-y-1 text-xs leading-5 text-slate-700">
-                {analysis.findings.map((finding) => <li key={finding}>• {finding}</li>)}
-              </ul>
-            </div>
-            <div className="rounded-2xl bg-violet-50/60 p-3">
-              <p className="text-[11px] font-bold text-violet-600">개선 추천</p>
-              <ul className="mt-1.5 space-y-1 text-xs leading-5 text-slate-700">
-                {analysis.recommendations.map((recommendation) => <li key={recommendation}>• {recommendation}</li>)}
-              </ul>
-            </div>
-          </div>
-          <p className="mt-2 text-right text-[10px] text-slate-400">
-            {new Date(analysis.generatedAt).toLocaleTimeString("ko-KR")} 기준 실제 실행 데이터 분석
-          </p>
-        </>
+      {analysis && analysis.results.length === 0 ? (
+        <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center">
+          <p className="text-xs font-semibold text-slate-600">아직 완료된 AI 모듈 분석 결과가 없습니다.</p>
+          <p className="mt-1 text-[10px] leading-5 text-slate-400">시나리오에 AI 분석 또는 OpenAI 모듈을 넣고 실행하면 실제 출력이 여기에 표시됩니다.</p>
+        </div>
+      ) : null}
+
+      {analysis && analysis.results.length > 0 ? (
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          {analysis.results.map((result) => (
+            <article key={result.id} className="min-w-0 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+              <div className="flex min-w-0 items-center gap-2.5">
+                <AppLogo appId={result.appId} size={30} color="#6d5dfc" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs font-bold text-slate-900">{result.workflowName}</p>
+                  <p className="mt-0.5 truncate text-[10px] text-slate-500">{result.actionId} · 실행 {result.executionId.slice(0, 8)}</p>
+                </div>
+                <time className="shrink-0 text-[9px] text-slate-400" dateTime={result.completedAt}>
+                  {new Date(result.completedAt).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                </time>
+              </div>
+              <p className="mt-3 max-h-44 overflow-y-auto whitespace-pre-wrap break-words rounded-xl bg-white px-3 py-2.5 text-xs leading-5 text-slate-700">
+                {formatAiResultOutput(result.output)}
+              </p>
+            </article>
+          ))}
+        </div>
       ) : null}
     </section>
   );
 }
 
-function AnalysisStat({ label, value, warn = false }: { label: string; value: string; warn?: boolean }) {
-  return (
-    <div className={`rounded-2xl border p-3 ${warn ? "border-amber-200 bg-amber-50" : "border-slate-200 bg-white"}`}>
-      <p className="text-[10px] font-bold text-slate-500">{label}</p>
-      <p className={`mt-1 truncate text-sm font-bold ${warn ? "text-amber-700" : "text-slate-900"}`}>{value}</p>
-    </div>
-  );
+function formatAiResultOutput(output: Record<string, unknown>) {
+  for (const key of ["text", "summary", "analysis", "result", "content"]) {
+    if (typeof output[key] === "string" && output[key].trim()) return output[key];
+  }
+  return JSON.stringify(output, null, 2);
 }
 
 function AutomationHeader({ busy, onCreate }: { busy: boolean; onCreate: () => void }) {

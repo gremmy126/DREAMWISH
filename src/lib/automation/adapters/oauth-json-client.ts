@@ -1,5 +1,5 @@
-import { getOAuthAccessTokenForConnection } from "../../oauth/oauth-connection.service";
 import type { ActionAdapterExecutionInput, ActionAdapterExecutionResult } from "./action-adapter.types";
+import { getActionAuthorization } from "../action-credential.service";
 
 export async function executeOAuthJson(input: ActionAdapterExecutionInput, request: {
   url: string;
@@ -10,16 +10,15 @@ export async function executeOAuthJson(input: ActionAdapterExecutionInput, reque
 }): Promise<ActionAdapterExecutionResult> {
   if (!input.connectionId) throw Object.assign(new Error("A connection must be selected for this action."), { code: "CONNECTION_REQUIRED" });
   const startedAt = performance.now();
-  const credential = await getOAuthAccessTokenForConnection({
+  const credential = await getActionAuthorization({
     ownerId: input.ownerId,
     connectionId: input.connectionId,
-    appId: input.definition.appId,
-    requiredScopes: input.definition.requiredScopes
+    definition: input.definition
   });
   const response = await fetch(request.url, {
     method: request.method || "GET",
     headers: {
-      Authorization: `Bearer ${credential.accessToken}`,
+      ...credential.headers,
       Accept: "application/json",
       ...(request.body === undefined ? {} : { "Content-Type": "application/json" }),
       ...(request.idempotencyHeader ? { [request.idempotencyHeader]: input.idempotencyKey } : {}),

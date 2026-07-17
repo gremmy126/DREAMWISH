@@ -25,7 +25,8 @@ export function getOAuthAppTarget(appId: string): OAuthAppTarget {
   const targets: Record<string, Omit<OAuthAppTarget, "appId">> = {
     gmail: { provider: "google", service: "gmail", scopes: ["https://www.googleapis.com/auth/gmail.readonly", "https://www.googleapis.com/auth/gmail.compose", "https://www.googleapis.com/auth/gmail.modify", "https://www.googleapis.com/auth/gmail.send"] },
     drive: { provider: "google", service: "drive", scopes: ["https://www.googleapis.com/auth/drive.file"] },
-    "google-sheets": { provider: "google", service: "drive", scopes: ["https://www.googleapis.com/auth/spreadsheets"] },
+    "google-sheets": { provider: "google", service: "sheets", scopes: ["https://www.googleapis.com/auth/spreadsheets"] },
+    youtube: { provider: "google", service: "youtube", scopes: ["https://www.googleapis.com/auth/youtube", "https://www.googleapis.com/auth/youtube.upload"] },
     calendar: { provider: "google", service: "calendar", scopes: ["https://www.googleapis.com/auth/calendar.readonly", "https://www.googleapis.com/auth/calendar.events"] },
     slack: { provider: "slack", service: "slack", scopes: getOAuthProviderConfig("slack").defaultScopes },
     github: { provider: "github", service: "github", scopes: ["read:user", "user:email", "repo", "workflow"] },
@@ -45,6 +46,8 @@ export function getOAuthAppIdForLegacyTarget(provider: ConnectableOAuthProviderI
   if (provider === "google") {
     if (service === "gmail") return "gmail";
     if (service === "calendar") return "calendar";
+    if (service === "sheets") return "google-sheets";
+    if (service === "youtube") return "youtube";
     return "drive";
   }
   if (provider === "microsoft") {

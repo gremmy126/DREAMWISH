@@ -116,7 +116,23 @@ The Gmail Trigger is read-only and never appears as an external-send approval. T
 
 Remove app-ID-based execution classification and stop creating new legacy JSON `AutomationRun` records. Manual, scheduled, Gmail-triggered, webhook, delayed, and retried executions all enqueue the canonical PostgreSQL execution path. Run History reads canonical executions and Approval Center handles approvals. Existing legacy records remain read-only history and are labelled `이전 실행 기록`; their disabled approval endpoint is not presented as executable.
 
-## 7. Adapter Completion
+### 6.4 Partial completion semantics
+
+`부분 완료` is removed as a catch-all status. A canonical execution is `waiting_warning` or `waiting_final_approval` while approval is required, `waiting_connection` when a selected verified connection is unavailable, `failed` when a step permanently fails, and `completed` only when every runnable branch finishes. A deliberately false Filter branch is `skipped` and does not make the execution partial. Legacy records keep their stored status but the UI explains the exact failed, skipped, approval, or connection reason instead of offering an obsolete execution button.
+
+### 6.5 Scenario metadata
+
+Creating a scenario accepts an explicit title and description in addition to the AI instruction. The title is required, trimmed, and length-bounded; the description is optional and length-bounded. Both remain editable in the scenario workspace and are persisted by the existing owner-scoped scenario API. AI prompt compilation never overwrites a title or description supplied by the user.
+
+## 7. AI Module Result Feed
+
+The Automation page's `AI 자동화 분석` section is not a dashboard-wide health recommender. It lists actual completed outputs produced by AI automation nodes (`ai` and `openai`) from canonical `automation_step_runs`.
+
+Each entry contains the scenario name, execution ID, AI Action name, masked input summary, masked output, completion time, and execution status. Results are owner-scoped, newest first, paginated, and never regenerate content merely because the page is opened. Failed AI steps show their safe error separately; non-AI workflow statistics and rule-based recommendations are removed from this card.
+
+When no AI Action has completed, the section states that no AI automation analysis result exists and links the user back to a scenario containing an AI module. Refresh only reloads stored execution results.
+
+## 8. Adapter Completion
 
 The remaining 111 Action definitions are implemented in bounded provider packs. An Adapter is enabled only with request construction, authentication, idempotency behavior where supported, timeout, provider error normalization, output normalization, request/rate-limit telemetry, secret masking, and contract tests.
 
@@ -133,7 +149,7 @@ Provider packs:
 
 For APIs that require provider-side application review, paid access, webhook registration, organization approval, or an isolated worker, the Adapter is still implemented and tested with fixtures, but UI readiness reports the exact external configuration requirement. It does not report a fake success.
 
-## 8. Error Handling and Security
+## 9. Error Handling and Security
 
 - Unsupported authentication mode: `AUTH_MODE_NOT_ALLOWED`.
 - Wrong app connection: `CONNECTION_APP_MISMATCH`.
@@ -145,7 +161,7 @@ For APIs that require provider-side application review, paid access, webhook reg
 - URL-based Adapters reuse the existing public HTTPS/SSRF policy.
 - High and critical Actions retain the mandatory two-stage approval and snapshot hash verification.
 
-## 9. Testing and Completion Criteria
+## 10. Testing and Completion Criteria
 
 - A failing regression test reproduces the current Gmail receive step being classified as Gmail send.
 - Prompt compilation produces Gmail Trigger → AI summarize → Notion create-page in that order with stable mappings.
@@ -156,5 +172,8 @@ For APIs that require provider-side application review, paid access, webhook reg
 - OAuth and key credentials use the same activation and Worker pipeline without exposing secrets.
 - Every one of the 227 Action definitions resolves to an exact Adapter implementation, or is explicitly configuration-blocked by an implemented Adapter rather than `ADAPTER_NOT_IMPLEMENTED`.
 - Legacy app-level approval classification creates no new runs.
+- Connected executions never use `partial` as an alias for approval, skipped branches, or missing fields.
+- Scenario create/edit persists the user-supplied title and description without AI overwrite.
+- `AI 자동화 분석` returns only persisted outputs from completed AI/OpenAI step runs for the authenticated owner.
 - Full test, lint, typecheck, build, and `git diff --check` pass.
 - Live provider verification is reported separately when test accounts or provider approvals are unavailable; fixture success is never described as a live provider success.

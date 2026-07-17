@@ -1,9 +1,9 @@
-import type { ActionAdapter, ActionAdapterExecutionInput } from "./action-adapter.types";
+import type { ActionAdapter, ActionAdapterExecutionInput, ActionAdapterExecutionResult } from "./action-adapter.types";
 import { arrayValue, booleanValue, compactObject, numberValue, objectValue, text } from "./adapter-utils";
 import { executeOAuthJson } from "./oauth-json-client";
 import { isAdapterImplementationAvailable } from "./adapter-availability";
 
-const GOOGLE_APPS = new Set(["gmail", "google-sheets", "calendar", "drive"]);
+const GOOGLE_APPS = new Set(["gmail", "google-sheets", "calendar", "drive", "youtube"]);
 
 export const googleActionAdapter: ActionAdapter = {
   adapterVersion: 1,
@@ -14,11 +14,12 @@ export const googleActionAdapter: ActionAdapter = {
     if (input.definition.appId === "gmail") return executeGmail(input);
     if (input.definition.appId === "google-sheets") return executeSheets(input);
     if (input.definition.appId === "calendar") return executeCalendar(input);
+    if (input.definition.appId === "youtube") return executeYouTube(input);
     return executeDrive(input);
   }
 };
 
-function executeGmail(input: ActionAdapterExecutionInput) {
+async function executeGmail(input: ActionAdapterExecutionInput): Promise<ActionAdapterExecutionResult> {
   const values = input.normalizedInput;
   const messageId = encodeURIComponent(text(values, "messageId"));
   const base = "https://gmail.googleapis.com/gmail/v1/users/me";
@@ -29,6 +30,35 @@ function executeGmail(input: ActionAdapterExecutionInput) {
   if (input.definition.id === "create-draft") {
     if (arrayValue(values, "attachments").length > 0) throw new Error("Gmail attachments are not implemented for this adapter version.");
     return executeOAuthJson(input, { url: `${base}/drafts`, method: "POST", body: { message: { raw: buildRawEmail(values) } } });
+  }
+  if (input.definition.id === "reply-email") {
+    const original = await executeOAuthJson(input, {
+      url: `${base}/messages/${messageId}?format=metadata&metadataHeaders=From&metadataHeaders=Reply-To&metadataHeaders=Subject&metadataHeaders=Message-ID`
+    });
+    const headers = gmailHeaders(original.output);
+    const recipient = headers.get("reply-to") || headers.get("from") || "";
+    const originalMessageId = headers.get("message-id") || "";
+    const threadId = String(original.output.threadId || "");
+    if (!recipient || !threadId) {
+      throw Object.assign(new Error("The original Gmail message has no reply recipient or thread."), {
+        code: "ACTION_FAILED",
+        retryable: false
+      });
+    }
+    const sent = await executeOAuthJson(input, {
+      url: `${base}/messages/send`,
+      method: "POST",
+      body: {
+        threadId,
+        raw: buildReplyEmail({
+          to: recipient,
+          subject: headers.get("subject") || "",
+          messageId: originalMessageId,
+          body: text(values, "body")
+        })
+      }
+    });
+    return combineAdapterResults(original, sent);
   }
   if (input.definition.id === "permanently-delete-email") return executeOAuthJson(input, { url: `${base}/messages/${messageId}`, method: "DELETE" });
   if (["mark-read", "mark-unread", "archive-email", "add-label", "remove-label"].includes(input.definition.id)) {
@@ -44,6 +74,63 @@ function executeGmail(input: ActionAdapterExecutionInput) {
   url.searchParams.set("q", text(values, "query"));
   url.searchParams.set("maxResults", String(numberValue(values, "limit", 25)));
   return executeOAuthJson(input, { url: url.toString() });
+}
+
+async function executeYouTube(input: ActionAdapterExecutionInput): Promise<ActionAdapterExecutionResult> {
+  const values = input.normalizedInput;
+  if (input.definition.id === "add-playlist-item") {
+    return executeOAuthJson(input, {
+      url: "https://www.googleapis.com/youtube/v3/playlistItems?part=snippet",
+      method: "POST",
+      body: {
+        snippet: compactObject({
+          playlistId: text(values, "playlistId"),
+          position: values.position === undefined ? undefined : numberValue(values, "position"),
+          resourceId: { kind: "youtube#video", videoId: text(values, "videoId") }
+        })
+      }
+    });
+  }
+
+  const videoId = text(values, "videoId");
+  const current = await executeOAuthJson(input, {
+    url: `https://www.googleapis.com/youtube/v3/videos?part=snippet,status&id=${encodeURIComponent(videoId)}`
+  });
+  const item = Array.isArray(current.output.items)
+    ? current.output.items[0] as Record<string, unknown> | undefined
+    : undefined;
+  if (!item) {
+    throw Object.assign(new Error("The YouTube video was not found or is not editable by this account."), {
+      code: "ACTION_FAILED",
+      retryable: false
+    });
+  }
+  const currentSnippet = item.snippet && typeof item.snippet === "object"
+    ? item.snippet as Record<string, unknown>
+    : {};
+  const updateSnippet = values.title !== undefined || values.description !== undefined;
+  const updateStatus = values.privacy !== undefined;
+  const parts = [updateSnippet ? "snippet" : null, updateStatus ? "status" : null].filter(Boolean);
+  if (parts.length === 0) {
+    throw Object.assign(new Error("At least one YouTube video field must be changed."), {
+      code: "ACTION_INPUT_INVALID",
+      retryable: false
+    });
+  }
+  const updated = await executeOAuthJson(input, {
+    url: `https://www.googleapis.com/youtube/v3/videos?part=${parts.join(",")}`,
+    method: "PUT",
+    body: compactObject({
+      id: videoId,
+      snippet: updateSnippet ? {
+        ...youtubeSnippetForUpdate(currentSnippet),
+        ...(values.title !== undefined ? { title: text(values, "title") } : {}),
+        ...(values.description !== undefined ? { description: text(values, "description") } : {})
+      } : undefined,
+      status: updateStatus ? { privacyStatus: text(values, "privacy") } : undefined
+    })
+  });
+  return combineAdapterResults(current, updated);
 }
 
 function executeSheets(input: ActionAdapterExecutionInput) {
@@ -107,6 +194,56 @@ function buildRawEmail(input: ActionAdapterExecutionInput["normalizedInput"]) {
   if (input.bcc) headers.push(`Bcc: ${clean(text(input, "bcc"))}`);
   headers.push(`Subject: ${clean(text(input, "subject"))}`, "MIME-Version: 1.0", "Content-Type: text/plain; charset=UTF-8");
   return Buffer.from(`${headers.join("\r\n")}\r\n\r\n${text(input, "body")}`, "utf8").toString("base64url");
+}
+
+function buildReplyEmail(input: { to: string; subject: string; messageId: string; body: string }) {
+  const clean = (value: string) => {
+    if (/\r|\n/u.test(value)) throw new Error("Email headers contain invalid line breaks.");
+    return value;
+  };
+  const subject = /^(re|reply):/iu.test(input.subject) ? input.subject : `Re: ${input.subject}`;
+  const headers = [
+    `To: ${clean(input.to)}`,
+    `Subject: ${clean(subject)}`,
+    ...(input.messageId ? [`In-Reply-To: ${clean(input.messageId)}`, `References: ${clean(input.messageId)}`] : []),
+    "MIME-Version: 1.0",
+    "Content-Type: text/plain; charset=UTF-8"
+  ];
+  return Buffer.from(`${headers.join("\r\n")}\r\n\r\n${input.body}`, "utf8").toString("base64url");
+}
+
+function gmailHeaders(output: Record<string, unknown>) {
+  const payload = output.payload && typeof output.payload === "object"
+    ? output.payload as Record<string, unknown>
+    : {};
+  const rawHeaders = Array.isArray(payload.headers) ? payload.headers : [];
+  return new Map(rawHeaders.flatMap((value) => {
+    if (!value || typeof value !== "object") return [];
+    const header = value as Record<string, unknown>;
+    return typeof header.name === "string" && typeof header.value === "string"
+      ? [[header.name.toLowerCase(), header.value] as const]
+      : [];
+  }));
+}
+
+function combineAdapterResults(first: ActionAdapterExecutionResult, last: ActionAdapterExecutionResult): ActionAdapterExecutionResult {
+  return {
+    ...last,
+    apiRequestId: last.apiRequestId || first.apiRequestId,
+    rateLimitRemaining: last.rateLimitRemaining ?? first.rateLimitRemaining,
+    adapterLatencyMs: (first.adapterLatencyMs || 0) + (last.adapterLatencyMs || 0)
+  };
+}
+
+function youtubeSnippetForUpdate(snippet: Record<string, unknown>) {
+  return compactObject({
+    title: typeof snippet.title === "string" ? snippet.title : undefined,
+    description: typeof snippet.description === "string" ? snippet.description : "",
+    tags: Array.isArray(snippet.tags) ? snippet.tags : undefined,
+    categoryId: typeof snippet.categoryId === "string" ? snippet.categoryId : undefined,
+    defaultLanguage: typeof snippet.defaultLanguage === "string" ? snippet.defaultLanguage : undefined,
+    defaultAudioLanguage: typeof snippet.defaultAudioLanguage === "string" ? snippet.defaultAudioLanguage : undefined
+  });
 }
 
 function rowValues(input: ActionAdapterExecutionInput["normalizedInput"]) { const columns = input.columns; return Array.isArray(columns) ? columns : Object.values(objectValue(input, "columns")); }

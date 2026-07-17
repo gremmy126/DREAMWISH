@@ -1,18 +1,22 @@
 import type { ActionDefinition, ActionValue } from "../registry/action.types";
 import type { ActionAdapter } from "./action-adapter.types";
+import { aiActionAdapter } from "./ai.adapter";
 import { collaborationActionAdapter } from "./collaboration.adapter";
 import { dropboxActionAdapter } from "./dropbox.adapter";
 import { googleActionAdapter } from "./google.adapter";
 import { localToolAdapter } from "./local-tool.adapter";
 import { microsoftActionAdapter } from "./microsoft.adapter";
+import { messagingActionAdapter } from "./messaging.adapter";
 import { publicHttpAdapter } from "./public-http.adapter";
 import { triggerActionAdapter } from "./trigger.adapter";
 
 const ACTION_ADAPTERS: readonly ActionAdapter[] = Object.freeze([
   triggerActionAdapter,
+  aiActionAdapter,
   googleActionAdapter,
   collaborationActionAdapter,
   microsoftActionAdapter,
+  messagingActionAdapter,
   dropboxActionAdapter,
   publicHttpAdapter,
   localToolAdapter

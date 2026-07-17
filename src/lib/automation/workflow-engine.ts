@@ -1,6 +1,7 @@
 import type { AutomationRunStep } from "./run.repository";
 import type { AutomationScenario, ScenarioConfig, ScenarioNode } from "./scenario-designer";
 import type { ActionValue } from "./registry/action.types";
+import { getActionDefinition } from "./registry/action-registry";
 
 /**
  * Graph-aware scenario execution: follows edges from the trigger, resolves
@@ -159,6 +160,13 @@ const EXTERNAL_SEND_APPS = new Set([
   "dropbox"
 ]);
 
+function requiresLegacyApproval(node: ScenarioNode) {
+  if (node.kind !== "action" || !EXTERNAL_SEND_APPS.has(node.appId)) return false;
+  if (!node.actionId) return true;
+  const definition = getActionDefinition(node.appId, node.actionId);
+  return definition ? definition.kind === "write" : true;
+}
+
 export type GraphExecutionResult = {
   steps: AutomationRunStep[];
   status: "success" | "partial" | "failed" | "waiting";
@@ -283,7 +291,7 @@ export function executeScenarioGraph(
         };
         if (nextNode.requiresCredential && !nextNode.credentialId && !connected.has(nextNode.appId)) {
           steps.push({ ...itemBase, status: "failed", detail: "연결된 계정이 없어 실행할 수 없습니다." });
-        } else if (EXTERNAL_SEND_APPS.has(nextNode.appId) && nextNode.kind === "action") {
+        } else if (requiresLegacyApproval(nextNode)) {
           steps.push({
             ...itemBase,
             status: "approval_required",
@@ -357,7 +365,7 @@ export function executeScenarioGraph(
       context.steps[node.id] = { config: resolved, failed: true };
       continue;
     }
-    if (EXTERNAL_SEND_APPS.has(node.appId) && node.kind === "action") {
+    if (requiresLegacyApproval(node)) {
       steps.push({
         ...base,
         status: "approval_required",

@@ -39,7 +39,11 @@ export type GmailPollResult = {
 };
 
 export function isGmailWatchNode(node: ScenarioNode): boolean {
-  return node.appId === "schedule" && node.config?.watchGmail === true;
+  return (
+    node.appId === "gmail" && node.actionId === "watch-new-email"
+  ) || (
+    node.appId === "schedule" && node.config?.watchGmail === true
+  );
 }
 
 export async function pollGmailForScenario(
@@ -57,8 +61,8 @@ export async function pollGmailForScenario(
 
   const cursor = await readCursor(scenario.ownerId, scenario.id);
   const queryParts = ["-in:chats", "newer_than:2d"];
-  const fromFilter = String(watchNode.config.gmailFrom || "").trim();
-  const subjectFilter = String(watchNode.config.gmailSubject || "").trim();
+  const fromFilter = String(watchNode.config.from || watchNode.config.gmailFrom || "").trim();
+  const subjectFilter = String(watchNode.config.subject || watchNode.config.gmailSubject || "").trim();
   if (fromFilter) queryParts.push(`from:${fromFilter}`);
   if (subjectFilter) queryParts.push(`subject:"${subjectFilter.replace(/"/gu, "")}"`);
 
@@ -90,9 +94,7 @@ export async function pollGmailForScenario(
       const getUrl = new URL(
         `https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}`
       );
-      getUrl.searchParams.set("format", "metadata");
-      getUrl.searchParams.append("metadataHeaders", "From");
-      getUrl.searchParams.append("metadataHeaders", "Subject");
+      getUrl.searchParams.set("format", "full");
       const messageResponse = await fetchFn(getUrl.toString(), {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -101,7 +103,7 @@ export async function pollGmailForScenario(
         id: string;
         snippet?: string;
         internalDate?: string;
-        payload?: { headers?: Array<{ name: string; value: string }> };
+        payload?: GmailMessagePart;
       };
       const internalDate = Number(message.internalDate || 0);
       if (internalDate <= cursor.lastInternalDate) {
@@ -117,6 +119,7 @@ export async function pollGmailForScenario(
           from: headers.get("from") || "",
           subject: headers.get("subject") || "",
           snippet: message.snippet || "",
+          body: extractGmailBody(message.payload) || message.snippet || "",
           receivedAt: internalDate ? new Date(internalDate).toISOString() : null
         }
       };
@@ -166,6 +169,34 @@ export async function pollGmailForScenario(
     ]);
   }
   return { checked: true, newMessages };
+}
+
+export type GmailMessagePart = {
+  mimeType?: string;
+  headers?: Array<{ name: string; value: string }>;
+  body?: { data?: string };
+  parts?: GmailMessagePart[];
+};
+
+export function extractGmailBody(payload?: GmailMessagePart): string {
+  if (!payload) return "";
+  const candidates = flattenParts(payload);
+  const preferred = candidates.find((part) => part.mimeType === "text/plain" && part.body?.data)
+    || candidates.find((part) => part.mimeType === "text/html" && part.body?.data)
+    || candidates.find((part) => part.body?.data);
+  if (!preferred?.body?.data) return "";
+  try {
+    const decoded = Buffer.from(preferred.body.data, "base64url").toString("utf8");
+    return preferred.mimeType === "text/html"
+      ? decoded.replace(/<style[\s\S]*?<\/style>/giu, " ").replace(/<script[\s\S]*?<\/script>/giu, " ").replace(/<[^>]+>/gu, " ").replace(/\s+/gu, " ").trim()
+      : decoded.trim();
+  } catch {
+    return "";
+  }
+}
+
+function flattenParts(part: GmailMessagePart): GmailMessagePart[] {
+  return [part, ...(part.parts || []).flatMap(flattenParts)];
 }
 
 async function readCursor(ownerId: string, scenarioId: string) {

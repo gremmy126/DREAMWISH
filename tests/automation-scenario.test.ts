@@ -37,7 +37,62 @@ test("AI chat automation command becomes an editable scenario draft", () => {
   assert.equal(validateScenario(scenario).valid, true);
 });
 
-test("scenario validation rejects unsafe disconnected and unconfigured nodes", () => {
+test("email analysis prompt compiles Gmail trigger then AI summary then Notion page", () => {
+  const scenario = buildScenarioFromPrompt(
+    "Gmail의 중요한 이메일을 AI로 요약해 Notion에 저장해줘",
+    "owner-1"
+  );
+
+  assert.deepEqual(
+    scenario.nodes.map((node) => `${node.appId}.${node.actionId}`),
+    ["gmail.watch-new-email", "ai.summarize", "notion.create-page"]
+  );
+  assert.equal(scenario.nodes[0]?.kind, "trigger");
+  assert.equal(scenario.nodes[1]?.config.input, "{{trigger.email.body}}");
+  assert.equal(scenario.nodes[2]?.config.parentId, "");
+  assert.equal(scenario.nodes[2]?.config.title, "{{trigger.email.subject}}");
+  assert.equal(scenario.nodes[0]?.credentialId, null);
+  assert.equal(scenario.nodes[2]?.credentialId, null);
+  assert.equal(
+    scenario.nodes[2]?.config.content,
+    `{{steps.${scenario.nodes[1]?.id}.text}}`
+  );
+  assert.deepEqual(
+    scenario.edges.map((edge) => [edge.source, edge.target]),
+    [
+      [scenario.nodes[0]?.id, scenario.nodes[1]?.id],
+      [scenario.nodes[1]?.id, scenario.nodes[2]?.id]
+    ]
+  );
+});
+
+test("scenario draft preserves an explicit title and description", () => {
+  const scenario = buildScenarioFromPrompt(
+    "Gmail의 중요한 이메일을 AI로 요약해 Notion에 저장해줘",
+    "owner-1",
+    {
+      title: "  고객 이메일 분석  ",
+      description: "  중요 메일을 요약해서 고객 기록 페이지에 저장합니다.  "
+    }
+  );
+
+  assert.equal(scenario.name, "고객 이메일 분석");
+  assert.equal(scenario.description, "중요 메일을 요약해서 고객 기록 페이지에 저장합니다.");
+});
+
+test("automation scenario UI accepts and edits title and description", () => {
+  const view = read("components/Automation/AutomationView.tsx");
+  const route = read("app/api/automation/ai-draft/route.ts");
+
+  assert.match(view, /시나리오 제목/u);
+  assert.match(view, /시나리오 설명/u);
+  assert.match(view, /title:\s*draftTitle/u);
+  assert.match(view, /description:\s*draftDescription/u);
+  assert.match(route, /title\?: string/u);
+  assert.match(route, /description\?: string/u);
+});
+
+test("draft validation rejects disconnected nodes while connection checks remain activation-time", () => {
   const scenario = buildScenarioFromPrompt("Webhook 데이터를 HTTP API로 보내줘");
   scenario.edges = [];
   scenario.nodes[1]!.requiresCredential = true;
@@ -45,7 +100,7 @@ test("scenario validation rejects unsafe disconnected and unconfigured nodes", (
   const validation = validateScenario(scenario);
   assert.equal(validation.valid, false);
   assert.equal(validation.issues.some((issue) => issue.code === "DISCONNECTED_NODE"), true);
-  assert.equal(validation.issues.some((issue) => issue.code === "MISSING_CREDENTIAL"), true);
+  assert.equal(validation.issues.some((issue) => issue.code === "MISSING_CREDENTIAL"), false);
 });
 
 test("automation workspace exposes canvas lifecycle and encrypted credential APIs", () => {
