@@ -40,7 +40,7 @@ const BILLING_API_PATHS = new Set([
 ]);
 
 const OAUTH_CALLBACK_PATTERN = /^\/api\/(?:oauth\/[^/]+\/callback|integrations\/[^/]+\/(?:oauth\/)?callback)$/u;
-const DEVICE_SECRET_PATTERN = /^\/api\/devices\/(?:pair|[^/]+\/sync)$/u;
+const DEVICE_COMPANION_PATTERN = /^\/api\/devices\/(?:pair|[^/]+\/sync|pairing-challenges\/[^/]+\/(?:register|status))$/u;
 // Custom automation webhooks authenticate with their own per-webhook secret,
 // not a session cookie: external services must be able to call them.
 const AUTOMATION_WEBHOOK_PATTERN = /^\/api\/webhooks\/automation\/[^/]+$/u;
@@ -53,7 +53,7 @@ export function classifyApiAccess(pathname: string): ApiAccessClass {
   if (
     PUBLIC_API_PATHS.has(path) ||
     OAUTH_CALLBACK_PATTERN.test(path) ||
-    DEVICE_SECRET_PATTERN.test(path) ||
+    DEVICE_COMPANION_PATTERN.test(path) ||
     AUTOMATION_WEBHOOK_PATTERN.test(path)
   ) {
     return "public";

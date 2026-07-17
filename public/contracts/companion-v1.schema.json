@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dreamwish.co.kr/contracts/companion-v1.schema.json",
+  "title": "DREAMWISH Companion Protocol v1",
+  "type": "object",
+  "required": ["apiVersion"],
+  "properties": {
+    "apiVersion": { "const": 1 }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "Platform": { "enum": ["android", "ios"] },
+    "CreatePairingResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["apiVersion", "sessionId", "pairingUrl", "fallbackUrl", "expiresAt"],
+      "properties": {
+        "apiVersion": { "const": 1 },
+        "sessionId": { "type": "string", "minLength": 1, "maxLength": 180 },
+        "pairingUrl": { "type": "string", "minLength": 1 },
+        "fallbackUrl": { "type": "string", "format": "uri" },
+        "expiresAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "RegisterDeviceRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["publicToken", "platform", "keyAlgorithm", "publicKeySpki", "appVersion"],
+      "properties": {
+        "publicToken": { "type": "string", "pattern": "^[A-Za-z0-9_-]{43,128}$" },
+        "platform": { "$ref": "#/$defs/Platform" },
+        "keyAlgorithm": { "const": "ES256" },
+        "publicKeySpki": { "type": "string", "minLength": 80, "maxLength": 1024 },
+        "appVersion": { "type": "string", "minLength": 1, "maxLength": 80 }
+      }
+    },
+    "ConfirmPairingRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code"],
+      "properties": {
+        "code": { "type": "string", "pattern": "^[0-9]{6}$" }
+      }
+    },
+    "DeviceSyncPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["apiVersion", "type", "contacts", "calendarEvents", "revenueSignals"],
+      "properties": {
+        "apiVersion": { "const": 1 },
+        "type": { "const": "device.sync" },
+        "contacts": { "type": "array", "maxItems": 500, "items": { "type": "object" } },
+        "calendarEvents": { "type": "array", "maxItems": 500, "items": { "type": "object" } },
+        "revenueSignals": { "type": "array", "maxItems": 100, "items": { "type": "object" } }
+      }
+    },
+    "SignedEnvelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["apiVersion", "deviceId", "eventId", "sequence", "sentAt", "payload", "signature"],
+      "properties": {
+        "apiVersion": { "const": 1 },
+        "deviceId": { "type": "string", "minLength": 1, "maxLength": 180 },
+        "eventId": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "sequence": { "type": "integer", "minimum": 1 },
+        "sentAt": { "type": "string", "format": "date-time" },
+        "payload": { "$ref": "#/$defs/DeviceSyncPayload" },
+        "signature": { "type": "string", "pattern": "^[A-Za-z0-9_-]{64,512}$" }
+      }
+    }
+  }
+}

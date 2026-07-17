@@ -7,6 +7,9 @@ export type PairedDevice = {
   platform: DevicePlatform;
   name: string;
   status: DeviceStatus;
+  keyAlgorithm: "ES256";
+  publicKeySpki: string;
+  appVersion: string;
   lastSequence: number;
   lastSyncAt: string | null;
   createdAt: string;
