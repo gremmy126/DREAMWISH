@@ -2,14 +2,11 @@ import { randomBytes } from "node:crypto";
 import { keyedDigest, safeDigestEqual } from "../security/keyed-digest";
 
 const RECOVERY_CODE_PURPOSE = "dreamwish:recovery-code:v1";
+const RECOVERY_CODE_COUNT = 10;
 
-export function generateRecoveryCodes(count = 10): string[] {
-  if (!Number.isInteger(count) || count <= 0) {
-    throw new Error("Recovery code count must be a positive integer");
-  }
-
+export function generateRecoveryCodes(): string[] {
   const codes = new Set<string>();
-  while (codes.size < count) {
+  while (codes.size < RECOVERY_CODE_COUNT) {
     const value = randomBytes(8).toString("hex").toUpperCase();
     codes.add(value.match(/.{4}/gu)!.join("-"));
   }

@@ -145,6 +145,12 @@ test("recovery-code generation returns ten unique uppercase codes in readable gr
   }
 });
 
+test("recovery-code generation ignores caller-supplied counts and always returns ten", () => {
+  const generateWithIgnoredCount = generateRecoveryCodes as (count: number) => string[];
+
+  assert.equal(generateWithIgnoredCount(1).length, 10);
+});
+
 test("recovery codes use normalized one-way keyed hashes", () => {
   const code = "ABCD-1234-EF56-7890";
   const hash = hashRecoveryCode({ code, keyMaterial: RECOVERY_HASH_KEY });
