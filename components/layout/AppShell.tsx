@@ -110,6 +110,9 @@ function AppFooter() {
         <Link className="font-medium transition hover:text-app-text" href="/terms">
           Terms
         </Link>
+        <Link className="font-medium transition hover:text-app-text" href="/refunds">
+          Refunds
+        </Link>
         <button
           type="button"
           onClick={openCookieSettings}

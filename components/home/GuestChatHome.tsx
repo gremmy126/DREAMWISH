@@ -117,6 +117,7 @@ export function GuestChatHome({ onLoginRequest, restoringSession = false }: Gues
             <Link href="/privacy" className="hover:text-slate-950">Privacy</Link>
             <Link href="/cookies" className="hover:text-slate-950">Cookies</Link>
             <Link href="/terms" className="hover:text-slate-950">Terms</Link>
+            <Link href="/refunds" className="hover:text-slate-950">Refunds</Link>
             <button type="button" onClick={openCookieSettings} className="hover:text-slate-950">쿠키 설정</button>
           </nav>
         </div>
