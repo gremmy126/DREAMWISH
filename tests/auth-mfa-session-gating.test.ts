@@ -221,6 +221,45 @@ test("a valid unused recovery code consumes the challenge and issues the full se
   });
 });
 
+test("concurrent MFA verification consumes only the recovery code paired with the winning challenge request", async () => {
+  await withMfaEnv(async () => {
+    const { recoveryCodes } = await enrollAuthenticator(
+      "mfa-user-atomic",
+      "mfa-user-atomic@example.com"
+    );
+    await withFirebaseUser("mfa-user-atomic", "mfa-user-atomic@example.com", async () => {
+      const loginResponse = await callLoginRoute();
+      const challengeToken = cookieValue(
+        findSetCookie(loginResponse, CHALLENGE_COOKIE) || ""
+      );
+
+      const attempts = await Promise.all(
+        recoveryCodes.slice(0, 2).map((code) =>
+          callMfaVerifyRoute(challengeToken, { method: "recovery", code })
+        )
+      );
+      assert.deepEqual(
+        attempts.map((response) => response.status).sort((left, right) => left - right),
+        [200, 409]
+      );
+
+      const losingIndex = attempts.findIndex((response) => response.status === 409);
+      assert.notEqual(losingIndex, -1);
+      const retryLoginResponse = await callLoginRoute();
+      const retryChallengeToken = cookieValue(
+        findSetCookie(retryLoginResponse, CHALLENGE_COOKIE) || ""
+      );
+      const retry = await callMfaVerifyRoute(retryChallengeToken, {
+        method: "recovery",
+        code: recoveryCodes[losingIndex]
+      });
+
+      assert.equal(retry.status, 200);
+      assert.ok(findSetCookie(retry, SESSION_COOKIE));
+    });
+  });
+});
+
 test("an expired MFA challenge fails closed with a Korean error", async () => {
   await withMfaEnv(async () => {
     const { secret } = await enrollAuthenticator("mfa-user-5", "mfa-user-5@example.com");

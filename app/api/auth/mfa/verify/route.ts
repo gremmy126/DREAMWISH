@@ -1,9 +1,6 @@
 import { NextResponse } from "next/server";
 import { getOperationalAccount } from "@/src/lib/admin/account-admin.repository";
-import {
-  appendAuthSecurityAuditEvent,
-  createAuthSecurityAuditEvent
-} from "@/src/lib/auth/auth-security-audit";
+import { appendAuthSecurityAuditEvent } from "@/src/lib/auth/auth-security-audit";
 import {
   MFA_CHALLENGE_COOKIE_NAME,
   verifyMfaChallengeToken
@@ -14,10 +11,9 @@ import {
   issueFullSession,
   readCookieValue
 } from "@/src/lib/auth/session-issuance.service";
-import { getTotpSecurityRepository } from "@/src/lib/auth/totp.repository";
 import {
   isTotpSecurityError,
-  verifyTotpLogin,
+  verifyAndConsumeMfaLoginChallenge,
   type TotpSecurityErrorCode
 } from "@/src/lib/auth/totp.service";
 
@@ -92,47 +88,14 @@ export async function POST(request: Request) {
     }
 
     const { accountId, challengeHash } = verification;
-    const repository = getTotpSecurityRepository();
-    const challengeState = await repository.peekLoginChallenge({
+    const verified = await verifyAndConsumeMfaLoginChallenge({
       accountId,
       challengeHash,
-      now: new Date().toISOString()
-    });
-    if (challengeState !== "active") {
-      await auditChallengeRejection(accountId, challengeState);
-      return challengeFailure(challengeState);
-    }
-
-    const verified = await verifyTotpLogin({
-      accountId,
       method,
       code,
       networkKey: resolveNetworkKey(request)
     });
-
-    const consumedAt = new Date().toISOString();
-    const consumption = await repository.consumeLoginChallenge({
-      accountId,
-      challengeHash,
-      now: consumedAt,
-      auditEventForResult: (result) =>
-        createAuthSecurityAuditEvent(
-          result === "consumed"
-            ? {
-                accountId,
-                action: "mfa_login_completed",
-                safeMetadata: { method: verified.method },
-                now: consumedAt
-              }
-            : {
-                accountId,
-                action: "mfa_challenge_rejected",
-                safeMetadata: { reason: result },
-                now: consumedAt
-              }
-        )
-    });
-    if (consumption !== "consumed") return challengeFailure(consumption);
+    if (!verified.verified) return challengeFailure(verified.challengeState);
 
     const account = await getOperationalAccount(accountId);
     if (!account || account.status !== "active") {

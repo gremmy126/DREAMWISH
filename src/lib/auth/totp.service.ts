@@ -15,6 +15,7 @@ import {
   type ActiveTotpResult,
   type AuthSecurityRateLimitAction,
   type EnrollmentConfirmationResult,
+  type LoginChallengeVerificationResult,
   type StoredRecoveryCodeInput,
   type TotpSecurityRepository
 } from "./totp.repository";
@@ -263,6 +264,77 @@ export async function verifyTotpLogin(input: {
   return { verified: true as const, method: "totp" as const };
 }
 
+export async function verifyAndConsumeMfaLoginChallenge(input: {
+  accountId: string;
+  challengeHash: string;
+  method: "totp" | "recovery";
+  code: string;
+  networkKey: string;
+  now?: number;
+}) {
+  const accountId = requireIdentifier(input.accountId, "accountId");
+  const challengeHash = requireIdentifier(input.challengeHash, "challengeHash");
+  const nowMs = resolveNow(input.now);
+  const now = new Date(nowMs).toISOString();
+  const repository = getTotpSecurityRepository();
+  await enforceRateLimit(repository, {
+    accountId,
+    networkKey: input.networkKey,
+    action: "login_verification",
+    now
+  });
+
+  let recoveryCodeHash: string | undefined;
+  if (input.method === "recovery") {
+    try {
+      recoveryCodeHash = hashRecoveryCode({ code: input.code, keyMaterial: digestKey() });
+    } catch {
+      await failedVerificationAudit(repository, accountId, "recovery", "invalid", now);
+      throw recoveryInvalidError();
+    }
+  }
+
+  const result = await repository.verifyAndConsumeLoginChallenge({
+    accountId,
+    challengeHash,
+    method: input.method,
+    recoveryCodeHash,
+    now,
+    auditEventsForResult: (verificationResult) =>
+      loginChallengeAuditEvents({
+        accountId,
+        method: input.method,
+        result: verificationResult,
+        now
+      }),
+    verifyTotp: ({ secretEncrypted, lastAcceptedCounter }) =>
+      verifySealedTotp({
+        accountId,
+        secretEncrypted,
+        code: input.code,
+        nowMs,
+        lastAcceptedCounter
+      })
+  });
+
+  if (result.outcome === "accepted") {
+    return { verified: true as const, method: result.method };
+  }
+  if (
+    result.outcome === "expired" ||
+    result.outcome === "already_used" ||
+    result.outcome === "not_found"
+  ) {
+    return { verified: false as const, challengeState: result.outcome };
+  }
+  if (result.outcome === "not_enabled") throw notEnabledError();
+  if (result.outcome === "recovery_invalid") throw recoveryInvalidError();
+  if (result.outcome !== "rejected") {
+    throw new Error("Unsupported MFA login challenge result.");
+  }
+  throw verificationError(result.reason);
+}
+
 export async function regenerateRecoveryCodes(input: {
   accountId: string;
   currentTotpCode: string;
@@ -479,6 +551,62 @@ function securityAuditEvent(input: {
   now: string;
 }) {
   return createAuthSecurityAuditEvent(input);
+}
+
+function loginChallengeAuditEvents(input: {
+  accountId: string;
+  method: "totp" | "recovery";
+  result: LoginChallengeVerificationResult;
+  now: string;
+}) {
+  const { accountId, method, result, now } = input;
+  if (result.outcome === "accepted") {
+    return [
+      securityAuditEvent({
+        accountId,
+        action: result.method === "recovery" ? "recovery_code_used" : "totp_login_verified",
+        safeMetadata: { method: result.method },
+        now
+      }),
+      securityAuditEvent({
+        accountId,
+        action: "mfa_login_completed",
+        safeMetadata: { method: result.method },
+        now
+      })
+    ];
+  }
+  if (
+    result.outcome === "expired" ||
+    result.outcome === "already_used" ||
+    result.outcome === "not_found"
+  ) {
+    return [
+      securityAuditEvent({
+        accountId,
+        action: "mfa_challenge_rejected",
+        safeMetadata: { reason: result.outcome },
+        now
+      })
+    ];
+  }
+  let reason: "not_enabled" | "invalid" | "replayed" | "clock_drift";
+  if (result.outcome === "not_enabled") reason = "not_enabled";
+  else if (result.outcome === "recovery_invalid") reason = "invalid";
+  else if (result.outcome === "rejected") reason = result.reason;
+  else throw new Error("Unsupported MFA login challenge audit result.");
+  return [
+    securityAuditEvent({
+      accountId,
+      action: "totp_login_failed",
+      safeMetadata: {
+        method,
+        reason,
+        operation: "login"
+      },
+      now
+    })
+  ];
 }
 
 async function failedVerificationAudit(

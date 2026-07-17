@@ -110,6 +110,12 @@ export type LoginChallengeConsumption =
   | "already_used"
   | "not_found";
 
+export type LoginChallengeVerificationResult =
+  | { outcome: "accepted"; method: "totp"; counter: number }
+  | { outcome: "accepted"; method: "recovery" }
+  | { outcome: "expired" | "already_used" | "not_found" | "not_enabled" | "recovery_invalid" }
+  | { outcome: "rejected"; reason: Exclude<TotpVerification, { ok: true }>["reason"] };
+
 export interface TotpSecurityRepository {
   createPendingEnrollment(input: {
     factorId: string;
@@ -171,6 +177,20 @@ export interface TotpSecurityRepository {
     now: string;
     auditEventForResult: (result: LoginChallengeConsumption) => AuthSecurityAuditEvent;
   }): Promise<LoginChallengeConsumption>;
+  verifyAndConsumeLoginChallenge(input: {
+    accountId: string;
+    challengeHash: string;
+    method: "totp" | "recovery";
+    recoveryCodeHash?: string;
+    now: string;
+    auditEventsForResult: (
+      result: LoginChallengeVerificationResult
+    ) => AuthSecurityAuditEvent[];
+    verifyTotp: (input: {
+      secretEncrypted: AesGcmField;
+      lastAcceptedCounter: number | null;
+    }) => TotpVerification;
+  }): Promise<LoginChallengeVerificationResult>;
   takeRateLimit(input: {
     accountId: string;
     scopeKeys: string[];
@@ -417,6 +437,62 @@ export class JsonTotpSecurityRepository implements TotpSecurityRepository {
       }
       challenge.consumedAt = input.now;
       return finish("consumed");
+    });
+  }
+
+  async verifyAndConsumeLoginChallenge(
+    input: Parameters<TotpSecurityRepository["verifyAndConsumeLoginChallenge"]>[0]
+  ) {
+    return mutateLocalOwner(input.accountId, async (owner) => {
+      const finish = (result: LoginChallengeVerificationResult) => {
+        for (const event of input.auditEventsForResult(result)) {
+          appendLocalAudit(owner, event, input.accountId);
+        }
+        return result;
+      };
+      const challenge = owner.challenges.find(
+        (item) =>
+          item.accountId === input.accountId &&
+          item.purpose === "mfa_login" &&
+          item.challengeHash === input.challengeHash
+      );
+      const challengeState = classifyLoginChallenge(challenge, input.now);
+      if (challengeState !== "active" || !challenge) {
+        if (challenge && challengeState === "expired") challenge.consumedAt = input.now;
+        return finish({
+          outcome: challengeState === "active" ? "not_found" : challengeState
+        });
+      }
+
+      const factor = owner.factor;
+      if (!factor || factor.accountId !== input.accountId || factor.status !== "active") {
+        return finish({ outcome: "not_enabled" });
+      }
+
+      if (input.method === "recovery") {
+        const recoveryCode = owner.recoveryCodes.find(
+          (item) =>
+            item.accountId === input.accountId &&
+            item.codeHash === input.recoveryCodeHash &&
+            item.usedAt === null
+        );
+        if (!recoveryCode) return finish({ outcome: "recovery_invalid" });
+        recoveryCode.usedAt = input.now;
+        challenge.consumedAt = input.now;
+        return finish({ outcome: "accepted", method: "recovery" });
+      }
+
+      const verification = input.verifyTotp({
+        secretEncrypted: structuredClone(factor.secretEncrypted),
+        lastAcceptedCounter: factor.lastAcceptedCounter
+      });
+      if (!verification.ok) {
+        return finish({ outcome: "rejected", reason: verification.reason });
+      }
+      factor.lastAcceptedCounter = verification.counter;
+      factor.updatedAt = input.now;
+      challenge.consumedAt = input.now;
+      return finish({ outcome: "accepted", method: "totp", counter: verification.counter });
     });
   }
 
@@ -842,6 +918,114 @@ export class PostgresTotpSecurityRepository implements TotpSecurityRepository {
       `;
       return finish("consumed");
     })) as LoginChallengeConsumption;
+  }
+
+  async verifyAndConsumeLoginChallenge(
+    input: Parameters<TotpSecurityRepository["verifyAndConsumeLoginChallenge"]>[0]
+  ) {
+    await ensureAdminSchema();
+    const sql = getPostgres();
+    return (await sql.begin(async (transaction) => {
+      const finish = async (result: LoginChallengeVerificationResult) => {
+        for (const event of input.auditEventsForResult(result)) {
+          assertAuditEventAccount(event, input.accountId);
+          await transaction`
+            INSERT INTO auth_security_audit_events (
+              id, account_id, actor_account_id, action, safe_metadata, created_at
+            ) VALUES (
+              ${event.id}, ${event.accountId}, ${event.actorAccountId}, ${event.action},
+              ${transaction.json(event.safeMetadata as never)}, ${event.createdAt}
+            )
+          `;
+        }
+        return result;
+      };
+      const challengeRows = await transaction`
+        SELECT id, consumed_at, expires_at
+        FROM account_totp_challenges
+        WHERE account_id = ${input.accountId}
+          AND purpose = 'mfa_login'
+          AND challenge_hash = ${input.challengeHash}
+        LIMIT 1
+        FOR UPDATE
+      `;
+      const challenge = challengeRows[0];
+      const challengeState = classifyLoginChallenge(
+        challenge
+          ? {
+              consumedAt: challenge.consumed_at ? toIso(challenge.consumed_at) : null,
+              expiresAt: toIso(challenge.expires_at)
+            }
+          : undefined,
+        input.now
+      );
+      if (challengeState !== "active" || !challenge) {
+        if (challenge && challengeState === "expired") {
+          await transaction`
+            UPDATE account_totp_challenges
+            SET consumed_at = ${input.now}
+            WHERE id = ${challenge.id}
+          `;
+        }
+        return finish({
+          outcome: challengeState === "active" ? "not_found" : challengeState
+        });
+      }
+
+      const factorRows = await transaction`
+        SELECT secret_encrypted, last_accepted_counter, status
+        FROM account_totp_factors
+        WHERE account_id = ${input.accountId}
+        LIMIT 1
+        FOR UPDATE
+      `;
+      const factor = factorRows[0];
+      if (!factor || factor.status !== "active") {
+        return finish({ outcome: "not_enabled" });
+      }
+
+      let result: LoginChallengeVerificationResult;
+      if (input.method === "recovery") {
+        const recoveryRows = await transaction`
+          UPDATE account_recovery_codes
+          SET used_at = ${input.now}
+          WHERE account_id = ${input.accountId}
+            AND code_hash = ${input.recoveryCodeHash || ""}
+            AND used_at IS NULL
+          RETURNING id
+        `;
+        if (recoveryRows.length === 0) {
+          return finish({ outcome: "recovery_invalid" });
+        }
+        result = { outcome: "accepted", method: "recovery" };
+      } else {
+        const verification = input.verifyTotp({
+          secretEncrypted: factor.secret_encrypted as AesGcmField,
+          lastAcceptedCounter:
+            factor.last_accepted_counter == null ? null : Number(factor.last_accepted_counter)
+        });
+        if (!verification.ok) {
+          return finish({ outcome: "rejected", reason: verification.reason });
+        }
+        await transaction`
+          UPDATE account_totp_factors
+          SET last_accepted_counter = ${verification.counter}, updated_at = ${input.now}
+          WHERE account_id = ${input.accountId}
+        `;
+        result = {
+          outcome: "accepted",
+          method: "totp",
+          counter: verification.counter
+        };
+      }
+
+      await transaction`
+        UPDATE account_totp_challenges
+        SET consumed_at = ${input.now}
+        WHERE id = ${challenge.id}
+      `;
+      return finish(result);
+    })) as LoginChallengeVerificationResult;
   }
 
   async takeRateLimit(input: Parameters<TotpSecurityRepository["takeRateLimit"]>[0]) {
