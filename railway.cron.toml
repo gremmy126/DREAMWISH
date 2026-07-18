@@ -1,5 +1,5 @@
 # scheduler-cron service (Config as Code path: /railway.cron.toml)
-# Runs one bounded maintenance pass every 5 minutes and exits:
+# Runs one bounded maintenance pass every hour and exits:
 #  - recovers stalled deep-research jobs to a resumable paused state
 #  - removes expired terminal deep-research jobs (30-day retention)
 # The web service also performs the same recovery lazily on every research
@@ -11,5 +11,6 @@ buildCommand = "npm ci"
 
 [deploy]
 startCommand = "npm run cron:schedulers"
-cronSchedule = "*/5 * * * *"
+cronSchedule = "0 * * * *"
 restartPolicyType = "NEVER"
+
