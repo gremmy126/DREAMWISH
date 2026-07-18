@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { ActionValue } from "../registry/action.types";
 import type { NotificationChannel } from "./notification-outbox";
+import { listActivePushTokenRecords, revokeDevicePushToken } from "../../devices/push-token.repository";
+import { isFcmConfigured, sendFcmDataMessage, type SafeMobilePush } from "../../notifications/fcm";
 import {
   claimNotification,
   markNotificationFailed,
@@ -54,12 +56,33 @@ export class NotificationOutboxWorker {
 }
 
 function defaultNotificationAdapters(): NotificationChannelAdapter[] {
-  return [inAppNotificationAdapter, webhookNotificationAdapter];
+  return [inAppNotificationAdapter, fcmNotificationAdapter, webhookNotificationAdapter];
 }
 
 const inAppNotificationAdapter: NotificationChannelAdapter = {
   supports(channel) { return channel === "in_app"; },
   async send(envelope) { return { providerReceiptId: `in-app:${envelope.dedupeKey}` }; }
+};
+
+export const fcmNotificationAdapter: NotificationChannelAdapter = {
+  supports(channel) { return channel === "mobile_push" && isFcmConfigured(); },
+  async send(envelope) {
+    const data = parseSafeMobilePush(envelope.safePayload);
+    const tokens = await listActivePushTokenRecords(envelope.ownerId);
+    if (tokens.length === 0) {
+      throw Object.assign(new Error("No active companion push token is registered."), { code: "FCM_TOKEN_NOT_FOUND" });
+    }
+    const receipts: string[] = [];
+    for (const token of tokens) {
+      try {
+        receipts.push(await sendFcmDataMessage(token.token, data));
+      } catch (error) {
+        if (!isPermanentFcmTokenError(error)) throw error;
+        await revokeDevicePushToken({ deviceId: token.deviceId, ownerId: token.ownerId, token: token.token });
+      }
+    }
+    return { providerReceiptId: receipts.join(",") || `fcm:pruned:${envelope.dedupeKey}` };
+  }
 };
 
 const webhookNotificationAdapter: NotificationChannelAdapter = {
@@ -83,6 +106,22 @@ function notificationEndpoint(channel: NotificationChannel) {
   if (channel === "browser") return process.env.AUTOMATION_BROWSER_NOTIFICATION_URL?.trim() || null;
   if (channel === "mobile" || channel === "mobile_push") return process.env.AUTOMATION_MOBILE_PUSH_NOTIFICATION_URL?.trim() || null;
   return null;
+}
+
+function parseSafeMobilePush(payload: Record<string, ActionValue>): SafeMobilePush {
+  const type = typeof payload.type === "string" ? payload.type : "";
+  const candidateId = typeof payload.candidateId === "string" ? payload.candidateId : "";
+  const route = typeof payload.route === "string" ? payload.route : "";
+  if (type !== "revenue.review_required" || !candidateId || !route.startsWith("/business/revenue")) {
+    throw Object.assign(new Error("Mobile push payload is not on the safe allowlist."), { code: "FCM_PAYLOAD_REJECTED" });
+  }
+  return { type, candidateId, route };
+}
+
+function isPermanentFcmTokenError(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+  const value = "fcmErrorCode" in error ? String(error.fcmErrorCode) : "";
+  return ["UNREGISTERED", "INVALID_ARGUMENT", "SENDER_ID_MISMATCH"].includes(value);
 }
 
 function mapEnvelope(row: Record<string, unknown>): NotificationEnvelope {

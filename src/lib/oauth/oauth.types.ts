@@ -81,6 +81,8 @@ export type OAuthAuthorizationRequest = {
   state: string;
   codeChallenge?: string;
   scopes?: OAuthTokenScope[];
+  /** Owner-supplied OAuth app Client ID; process environment is only a migration fallback. */
+  clientId?: string;
 };
 
 export type OAuthTokenExchangeInput = {
@@ -89,6 +91,9 @@ export type OAuthTokenExchangeInput = {
   code: string;
   redirectUri: string;
   codeVerifier?: string | null;
+  /** Owner-supplied OAuth app credentials; process environment is only a migration fallback. */
+  clientId?: string;
+  clientSecret?: string;
 };
 
 export type OAuthTokenExchangeResult = {

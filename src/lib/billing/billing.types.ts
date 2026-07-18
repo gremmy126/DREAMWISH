@@ -8,7 +8,11 @@ export type BillingStatus =
 
 export type BillingEntitlement = {
   ownerId: string;
+  provider: BillingProvider | null;
+  environment: BillingEnvironment | null;
   status: BillingStatus;
+  customerId: string | null;
+  subscriptionId: string | null;
   polarCustomerId: string | null;
   polarSubscriptionId: string | null;
   currentPeriodEnd: string | null;
@@ -23,7 +27,11 @@ export type BillingEntitlement = {
 export function emptyBillingEntitlement(ownerId: string): BillingEntitlement {
   return {
     ownerId,
+    provider: null,
+    environment: null,
     status: "none",
+    customerId: null,
+    subscriptionId: null,
     polarCustomerId: null,
     polarSubscriptionId: null,
     currentPeriodEnd: null,
@@ -35,3 +43,4 @@ export function emptyBillingEntitlement(ownerId: string): BillingEntitlement {
     updatedAt: new Date(0).toISOString()
   };
 }
+import type { BillingEnvironment, BillingProvider } from "./billing-gateway.types";

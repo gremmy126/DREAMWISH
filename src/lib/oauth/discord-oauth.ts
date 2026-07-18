@@ -11,7 +11,7 @@ export const DISCORD_OAUTH_SCOPES = ["identify", "email"] as const;
 export function createDiscordOAuthAuthorizationUrl(request: OAuthAuthorizationRequest) {
   const config = getOAuthProviderConfig("discord");
   const url = new URL(config.authorizationUrl);
-  url.searchParams.set("client_id", getOAuthClientId("discord"));
+  url.searchParams.set("client_id", request.clientId || getOAuthClientId("discord"));
   url.searchParams.set("redirect_uri", request.redirectUri);
   url.searchParams.set("response_type", "code");
   url.searchParams.set("state", request.state);
@@ -29,11 +29,12 @@ export function createDiscordOAuthAuthorizationUrl(request: OAuthAuthorizationRe
 export async function exchangeDiscordOAuthCode(
   code: string,
   redirectUri: string,
-  codeVerifier?: string | null
+  codeVerifier?: string | null,
+  credentials?: { clientId: string; clientSecret: string }
 ) {
   const body = new URLSearchParams({
-    client_id: getOAuthClientId("discord"),
-    client_secret: getOAuthClientSecret("discord"),
+    client_id: credentials?.clientId || getOAuthClientId("discord"),
+    client_secret: credentials?.clientSecret || getOAuthClientSecret("discord"),
     code,
     grant_type: "authorization_code",
     redirect_uri: redirectUri

@@ -14,6 +14,7 @@ export type IntegrationConnectionStatus =
   | "refresh_failed"
   | "insufficient_scope"
   | "reconnect_required"
+  | "reauthorization_required"
   | "provider_unavailable"
   | "validation_failed"
   | "connection_error"
@@ -27,6 +28,8 @@ export type IntegrationConnection = {
   userId: string;
   appId: string;
   provider: IntegrationConnectionProvider;
+  oauthAppConfigId: string | null;
+  oauthAppConfigVersion: number | null;
   providerAccountId: string;
   providerWorkspaceId: string | null;
   accountLabel: string | null;
@@ -51,13 +54,21 @@ export type IntegrationConnection = {
 
 export type PublicIntegrationConnection = Omit<
   IntegrationConnection,
-  "ownerId" | "userId" | "accessTokenCiphertext" | "refreshTokenCiphertext" | "tokenKeyVersion"
+  | "ownerId"
+  | "userId"
+  | "oauthAppConfigId"
+  | "oauthAppConfigVersion"
+  | "accessTokenCiphertext"
+  | "refreshTokenCiphertext"
+  | "tokenKeyVersion"
 > & { credentialStatus: "valid" | "expired" | "reconnect_required" | "disconnected" };
 
 export function toPublicIntegrationConnection(connection: IntegrationConnection): PublicIntegrationConnection {
   const {
     ownerId: _ownerId,
     userId: _userId,
+    oauthAppConfigId: _oauthAppConfigId,
+    oauthAppConfigVersion: _oauthAppConfigVersion,
     accessTokenCiphertext: _accessToken,
     refreshTokenCiphertext: _refreshToken,
     tokenKeyVersion: _keyVersion,
@@ -72,6 +83,7 @@ export function classifyConnectionFailure(
   if (reason === "token_expired") return "token_expired";
   if (reason === "refresh_failed") return "refresh_failed";
   if (reason === "insufficient_scope") return "insufficient_scope";
+  if (reason === "reauthorization_required") return "reauthorization_required";
   if (reason === "provider_unavailable") return "provider_unavailable";
   if (reason === "validation_failed") return "validation_failed";
   if (reason === "setup_required") return "setup_required";

@@ -1,0 +1,102 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 54;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A00000000000000000000001 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000003 /* AppDelegate.swift */; };
+		A00000000000000000000002 /* DeviceSecurityModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000004 /* DeviceSecurityModule.swift */; };
+		A00000000000000000000003 /* DeviceSecurityModule.m in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000005 /* DeviceSecurityModule.m */; };
+		A00000000000000000000004 /* EncryptedOfflineQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000006 /* EncryptedOfflineQueue.swift */; };
+		A00000000000000000000005 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000009 /* LaunchScreen.storyboard */; };
+		A00000000000000000000006 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = B0000000000000000000000A /* PrivacyInfo.xcprivacy */; };
+		A00000000000000000000007 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0000000000000000000000B /* ShareViewController.swift */; };
+		A00000000000000000000008 /* EncryptedOfflineQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000006 /* EncryptedOfflineQueue.swift */; };
+		A00000000000000000000009 /* Social.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B0000000000000000000000E /* Social.framework */; };
+		A0000000000000000000000A /* ShareExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = B00000000000000000000002 /* ShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		E00000000000000000000001 = {isa = PBXContainerItemProxy; containerPortal = F00000000000000000000000 /* Project object */; proxyType = 1; remoteGlobalIDString = F00000000000000000000002; remoteInfo = ShareExtension; };
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		C00000000000000000000005 /* Embed App Extensions */ = {isa = PBXCopyFilesBuildPhase; buildActionMask = 2147483647; dstPath = ""; dstSubfolderSpec = 13; files = (A0000000000000000000000A /* ShareExtension.appex in Embed App Extensions */, ); name = "Embed App Extensions"; runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		B00000000000000000000001 /* DREAMWISHCompanion.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DREAMWISHCompanion.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B00000000000000000000002 /* ShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		B00000000000000000000003 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		B00000000000000000000004 /* DeviceSecurityModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceSecurityModule.swift; sourceTree = "<group>"; };
+		B00000000000000000000005 /* DeviceSecurityModule.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = DeviceSecurityModule.m; sourceTree = "<group>"; };
+		B00000000000000000000006 /* EncryptedOfflineQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EncryptedOfflineQueue.swift; sourceTree = "<group>"; };
+		B00000000000000000000007 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		B00000000000000000000008 /* DREAMWISHCompanion.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DREAMWISHCompanion.entitlements; sourceTree = "<group>"; };
+		B00000000000000000000009 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
+		B0000000000000000000000A /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		B0000000000000000000000B /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
+		B0000000000000000000000C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		B0000000000000000000000D /* ShareExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ShareExtension.entitlements; sourceTree = "<group>"; };
+		B0000000000000000000000E /* Social.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Social.framework; path = System/Library/Frameworks/Social.framework; sourceTree = SDKROOT; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		C00000000000000000000002 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		C00000000000000000000007 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (A00000000000000000000009 /* Social.framework in Frameworks */, ); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		D00000000000000000000000 = {isa = PBXGroup; children = (D00000000000000000000001 /* DREAMWISHCompanion */, D00000000000000000000002 /* ShareExtension */, D00000000000000000000003 /* Frameworks */, D00000000000000000000004 /* Products */, ); sourceTree = "<group>"; };
+		D00000000000000000000001 /* DREAMWISHCompanion */ = {isa = PBXGroup; children = (B00000000000000000000003, B00000000000000000000004, B00000000000000000000005, B00000000000000000000006, B00000000000000000000007, B00000000000000000000008, B00000000000000000000009, B0000000000000000000000A, ); path = DREAMWISHCompanion; sourceTree = "<group>"; };
+		D00000000000000000000002 /* ShareExtension */ = {isa = PBXGroup; children = (B0000000000000000000000B, B0000000000000000000000C, B0000000000000000000000D, ); path = ShareExtension; sourceTree = "<group>"; };
+		D00000000000000000000003 /* Frameworks */ = {isa = PBXGroup; children = (B0000000000000000000000E, ); name = Frameworks; sourceTree = "<group>"; };
+		D00000000000000000000004 /* Products */ = {isa = PBXGroup; children = (B00000000000000000000001, B00000000000000000000002, ); name = Products; sourceTree = "<group>"; };
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		F00000000000000000000001 /* DREAMWISHCompanion */ = {isa = PBXNativeTarget; buildConfigurationList = G00000000000000000000003; buildPhases = (C00000000000000000000001, C00000000000000000000002, C00000000000000000000003, C00000000000000000000004, C00000000000000000000005, ); buildRules = (); dependencies = (E00000000000000000000002, ); name = DREAMWISHCompanion; productName = DREAMWISHCompanion; productReference = B00000000000000000000001; productType = "com.apple.product-type.application"; };
+		F00000000000000000000002 /* ShareExtension */ = {isa = PBXNativeTarget; buildConfigurationList = G00000000000000000000006; buildPhases = (C00000000000000000000006, C00000000000000000000007, C00000000000000000000008, ); buildRules = (); dependencies = (); name = ShareExtension; productName = ShareExtension; productReference = B00000000000000000000002; productType = "com.apple.product-type.app-extension"; };
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		F00000000000000000000000 /* Project object */ = {isa = PBXProject; attributes = {LastUpgradeCheck = 1600; TargetAttributes = {F00000000000000000000001 = {ProvisioningStyle = Automatic; }; F00000000000000000000002 = {ProvisioningStyle = Automatic; }; }; }; buildConfigurationList = G00000000000000000000009; compatibilityVersion = "Xcode 12.0"; developmentRegion = ko; hasScannedForEncodings = 0; knownRegions = (ko, en, Base, ); mainGroup = D00000000000000000000000; productRefGroup = D00000000000000000000004; projectDirPath = ""; projectRoot = ""; targets = (F00000000000000000000001, F00000000000000000000002, ); };
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		C00000000000000000000003 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (A00000000000000000000005, A00000000000000000000006, ); runOnlyForDeploymentPostprocessing = 0; };
+		C00000000000000000000008 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		C00000000000000000000004 /* Bundle React Native code and images */ = {isa = PBXShellScriptBuildPhase; buildActionMask = 2147483647; files = (); inputPaths = ("$(SRCROOT)/.xcode.env.local", "$(SRCROOT)/.xcode.env", ); name = "Bundle React Native code and images"; outputPaths = (); runOnlyForDeploymentPostprocessing = 0; shellPath = /bin/sh; shellScript = "set -e\nWITH_ENVIRONMENT=\"$REACT_NATIVE_PATH/scripts/xcode/with-environment.sh\"\nREACT_NATIVE_XCODE=\"$REACT_NATIVE_PATH/scripts/react-native-xcode.sh\"\n/bin/sh -c \"\\\"$WITH_ENVIRONMENT\\\" \\\"$REACT_NATIVE_XCODE\\\"\"\n"; };
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		C00000000000000000000001 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A00000000000000000000001, A00000000000000000000002, A00000000000000000000003, A00000000000000000000004, ); runOnlyForDeploymentPostprocessing = 0; };
+		C00000000000000000000006 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A00000000000000000000007, A00000000000000000000008, ); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		E00000000000000000000002 = {isa = PBXTargetDependency; target = F00000000000000000000002 /* ShareExtension */; targetProxy = E00000000000000000000001; };
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		G00000000000000000000001 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {APS_ENVIRONMENT = development; CLANG_ENABLE_MODULES = YES; CODE_SIGN_ENTITLEMENTS = DREAMWISHCompanion/DREAMWISHCompanion.entitlements; CURRENT_PROJECT_VERSION = 1; ENABLE_BITCODE = NO; INFOPLIST_FILE = DREAMWISHCompanion/Info.plist; IPHONEOS_DEPLOYMENT_TARGET = 15.1; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks", ); MARKETING_VERSION = 0.1.0; OTHER_LDFLAGS = ("$(inherited)", "-ObjC", "-lc++", ); PRODUCT_BUNDLE_IDENTIFIER = kr.co.dreamwish.companion; PRODUCT_NAME = DREAMWISHCompanion; SWIFT_OPTIMIZATION_LEVEL = "-Onone"; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = "1,2"; }; name = Debug; };
+		G00000000000000000000002 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {APS_ENVIRONMENT = production; CLANG_ENABLE_MODULES = YES; CODE_SIGN_ENTITLEMENTS = DREAMWISHCompanion/DREAMWISHCompanion.entitlements; CURRENT_PROJECT_VERSION = 1; INFOPLIST_FILE = DREAMWISHCompanion/Info.plist; IPHONEOS_DEPLOYMENT_TARGET = 15.1; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks", ); MARKETING_VERSION = 0.1.0; OTHER_LDFLAGS = ("$(inherited)", "-ObjC", "-lc++", ); PRODUCT_BUNDLE_IDENTIFIER = kr.co.dreamwish.companion; PRODUCT_NAME = DREAMWISHCompanion; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = "1,2"; VALIDATE_PRODUCT = YES; }; name = Release; };
+		G00000000000000000000004 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {APPLICATION_EXTENSION_API_ONLY = YES; CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements; CURRENT_PROJECT_VERSION = 1; INFOPLIST_FILE = ShareExtension/Info.plist; IPHONEOS_DEPLOYMENT_TARGET = 15.1; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks", "@executable_path/../../Frameworks", ); MARKETING_VERSION = 0.1.0; PRODUCT_BUNDLE_IDENTIFIER = kr.co.dreamwish.companion.ShareExtension; PRODUCT_NAME = ShareExtension; SKIP_INSTALL = YES; SWIFT_OPTIMIZATION_LEVEL = "-Onone"; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = "1,2"; }; name = Debug; };
+		G00000000000000000000005 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {APPLICATION_EXTENSION_API_ONLY = YES; CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements; CURRENT_PROJECT_VERSION = 1; INFOPLIST_FILE = ShareExtension/Info.plist; IPHONEOS_DEPLOYMENT_TARGET = 15.1; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks", "@executable_path/../../Frameworks", ); MARKETING_VERSION = 0.1.0; PRODUCT_BUNDLE_IDENTIFIER = kr.co.dreamwish.companion.ShareExtension; PRODUCT_NAME = ShareExtension; SKIP_INSTALL = YES; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = "1,2"; VALIDATE_PRODUCT = YES; }; name = Release; };
+		G00000000000000000000007 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; CLANG_CXX_LANGUAGE_STANDARD = "c++20"; CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; COPY_PHASE_STRIP = NO; DEBUG_INFORMATION_FORMAT = dwarf; ENABLE_TESTABILITY = YES; GCC_C_LANGUAGE_STANDARD = gnu11; GCC_OPTIMIZATION_LEVEL = 0; GCC_PREPROCESSOR_DEFINITIONS = ("DEBUG=1", "$(inherited)", ); IPHONEOS_DEPLOYMENT_TARGET = 15.1; MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE; ONLY_ACTIVE_ARCH = YES; SDKROOT = iphoneos; }; name = Debug; };
+		G00000000000000000000008 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; CLANG_CXX_LANGUAGE_STANDARD = "c++20"; CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; COPY_PHASE_STRIP = YES; DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym"; ENABLE_NS_ASSERTIONS = NO; GCC_C_LANGUAGE_STANDARD = gnu11; IPHONEOS_DEPLOYMENT_TARGET = 15.1; MTL_ENABLE_DEBUG_INFO = NO; SDKROOT = iphoneos; VALIDATE_PRODUCT = YES; }; name = Release; };
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		G00000000000000000000003 = {isa = XCConfigurationList; buildConfigurations = (G00000000000000000000001, G00000000000000000000002, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		G00000000000000000000006 = {isa = XCConfigurationList; buildConfigurations = (G00000000000000000000004, G00000000000000000000005, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		G00000000000000000000009 = {isa = XCConfigurationList; buildConfigurations = (G00000000000000000000007, G00000000000000000000008, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+/* End XCConfigurationList section */
+	};
+	rootObject = F00000000000000000000000 /* Project object */;
+}

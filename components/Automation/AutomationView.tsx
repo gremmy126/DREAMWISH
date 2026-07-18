@@ -144,6 +144,9 @@ export function AutomationView() {
   }
 
   async function loadWorkspace(preferredId?: string) {
+    const deepLink = typeof window === "undefined" ? null : new URL(window.location.href);
+    const requestedScenarioId = preferredId || deepLink?.searchParams.get("scenario") || undefined;
+    const requestedNodeId = deepLink?.searchParams.get("node") || null;
     const [scenarioResponse, credentialResponse] = await Promise.all([
       fetch("/api/automation/scenarios"),
       fetch("/api/automation/credentials")
@@ -154,8 +157,13 @@ export function AutomationView() {
     const nextScenarios = scenarioData.scenarios || [];
     setScenarios(nextScenarios);
     setCredentials(credentialData.credentials || []);
-    const next = nextScenarios.find((scenario) => scenario.id === preferredId) || nextScenarios[0] || null;
+    const next = nextScenarios.find((scenario) => scenario.id === requestedScenarioId) || nextScenarios[0] || null;
     selectScenario(next);
+    if (next && requestedNodeId && next.nodes.some((node) => node.id === requestedNodeId)) {
+      setActiveTab("scenario");
+      setSelectedNodeId(requestedNodeId);
+      setInspectorOpen(true);
+    }
   }
 
   const connectedOauthApps = useMemo(

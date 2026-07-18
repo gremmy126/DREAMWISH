@@ -11,7 +11,11 @@ import {
   updateConnectionStatus,
   upsertIntegrationConnection
 } from "../repositories/integration-connection.repository";
-import { classifyConnectionFailure, toPublicIntegrationConnection } from "./integration-connection.types";
+import {
+  classifyConnectionFailure,
+  toPublicIntegrationConnection,
+  type IntegrationConnection
+} from "./integration-connection.types";
 import {
   exchangeProviderAuthorizationCode,
   getOAuthAppTarget,
@@ -21,6 +25,11 @@ import {
 } from "./oauth-provider-adapter";
 import { missingOAuthScopes } from "./scope-matcher";
 import { resumeExecutionsWaitingForConnection } from "../automation/runtime/execution-enqueue.service";
+import {
+  getLatestOAuthAppConfigVersionNumber,
+  getOAuthAppConfigVersion
+} from "../repositories/oauth-app-config.repository";
+import { OAuthAppConfigError } from "./oauth-app-config.types";
 
 export async function persistOAuthCallbackConnection(input: {
   ownerId: string;
@@ -28,15 +37,26 @@ export async function persistOAuthCallbackConnection(input: {
   code: string;
   redirectUri: string;
   codeVerifier: string;
+  oauthAppConfigId: string;
+  oauthAppConfigVersion: number;
+  credentials: { clientId: string; clientSecret: string };
 }) {
   const target = getOAuthAppTarget(input.appId);
-  const token = await exchangeProviderAuthorizationCode({ target, code: input.code, redirectUri: input.redirectUri, codeVerifier: input.codeVerifier });
+  const token = await exchangeProviderAuthorizationCode({
+    target,
+    credentials: input.credentials,
+    code: input.code,
+    redirectUri: input.redirectUri,
+    codeVerifier: input.codeVerifier
+  });
   if (!token.providerAccountId) throw new Error("OAuth provider account identity is missing.");
   const connection = await upsertIntegrationConnection({
     ownerId: input.ownerId,
     userId: input.ownerId,
     appId: input.appId,
     provider: target.provider,
+    oauthAppConfigId: input.oauthAppConfigId,
+    oauthAppConfigVersion: input.oauthAppConfigVersion,
     providerAccountId: token.providerAccountId,
     providerWorkspaceId: token.workspaceId,
     accountLabel: token.workspaceName || token.accountName,
@@ -119,7 +139,13 @@ export async function refreshOAuthConnection(ownerId: string, connectionId: stri
     return connection;
   }
   try {
-    const refreshed = await refreshProviderToken({ provider: secrets.connection.provider, refreshToken: secrets.refreshToken, scopes: secrets.connection.grantedScopes });
+    const oauthAppConfig = await resolveConnectionOAuthAppConfig(secrets.connection);
+    const refreshed = await refreshProviderToken({
+      provider: secrets.connection.provider,
+      credentials: oauthAppConfig,
+      refreshToken: secrets.refreshToken,
+      scopes: secrets.connection.grantedScopes
+    });
     const connection = await saveRefreshedConnectionTokens({
       ownerId, connectionId, workerId, accessToken: refreshed.accessToken,
       refreshToken: refreshed.refreshToken, expiresAt: refreshed.expiresAt,
@@ -128,10 +154,54 @@ export async function refreshOAuthConnection(ownerId: string, connectionId: stri
     await resumeExecutionsWaitingForConnection(ownerId, connectionId);
     return connection;
   } catch (error) {
-    const connection = await updateConnectionStatus(ownerId, connectionId, "refresh_failed", null, error instanceof Error ? error.message : "refresh_failed");
-    await enqueueConnectionNotification({ ownerId, connectionId, eventType: "refresh_failed", safePayload: { appId: connection.appId, status: connection.status } });
+    const configChanged = error instanceof OAuthAppConfigError;
+    const status = configChanged ? "reauthorization_required" : "refresh_failed";
+    const connection = await updateConnectionStatus(
+      ownerId,
+      connectionId,
+      status,
+      null,
+      configChanged ? error.code : "refresh_failed"
+    );
+    await enqueueConnectionNotification({
+      ownerId,
+      connectionId,
+      eventType: status,
+      safePayload: { appId: connection.appId, status: connection.status }
+    });
     return connection;
   }
+}
+
+async function resolveConnectionOAuthAppConfig(connection: IntegrationConnection) {
+  if (!connection.oauthAppConfigId || !connection.oauthAppConfigVersion) {
+    throw oauthConfigChanged();
+  }
+  const [oauthAppConfig, latestVersion] = await Promise.all([
+    getOAuthAppConfigVersion(
+      connection.ownerId,
+      connection.oauthAppConfigId,
+      connection.oauthAppConfigVersion
+    ),
+    getLatestOAuthAppConfigVersionNumber(connection.ownerId, connection.oauthAppConfigId)
+  ]);
+  if (
+    !oauthAppConfig ||
+    oauthAppConfig.status !== "active" ||
+    oauthAppConfig.appId !== connection.appId ||
+    oauthAppConfig.provider !== connection.provider ||
+    latestVersion !== connection.oauthAppConfigVersion
+  ) {
+    throw oauthConfigChanged();
+  }
+  return oauthAppConfig;
+}
+
+function oauthConfigChanged() {
+  return new OAuthAppConfigError(
+    "OAUTH_APP_CONFIG_CHANGED",
+    "OAuth app configuration changed or was revoked."
+  );
 }
 
 export async function disconnectOAuthConnection(input: {

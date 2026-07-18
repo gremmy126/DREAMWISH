@@ -8,6 +8,7 @@ import type {
   ActionOutputField,
   ActionValue
 } from "./action.types";
+import type { AutomationAuthMode } from "../app-registry";
 
 export type MappingSource = {
   label: string;
@@ -15,6 +16,65 @@ export type MappingSource = {
   type: string;
   nodeId: string | null;
 };
+
+export type ActionConnectionGuide = {
+  authModes: AutomationAuthMode[];
+  oauthFields: string[];
+  credentialFields: string[];
+  redirectUri: string | null;
+  requiredScopes: string[];
+  officialSetupUrl: string;
+  steps: string[];
+};
+
+export type ActionGuide = ActionGuideDefinition & {
+  connection: ActionConnectionGuide;
+};
+
+export function getActionGuide(
+  appId: string,
+  actionId: string,
+  version?: number,
+  publicOrigin?: string
+): ActionGuide | null {
+  const matches = ACTION_CATALOG.filter((item) => item.appId === appId && item.id === actionId);
+  const raw = version === undefined
+    ? matches.sort((left, right) => right.version - left.version)[0]
+    : matches.find((item) => item.version === version);
+  if (!raw) return null;
+  const definition = enrichActionDefinitionGuide(raw);
+  const app = getAutomationApp(appId);
+  const origin = resolveGuideOrigin(publicOrigin);
+  const redirectUri = app?.connectionGuide.redirectPath
+    ? new URL(app.connectionGuide.redirectPath, `${origin}/`).toString()
+    : null;
+  return {
+    ...definition.guide,
+    connection: {
+      authModes: app ? [...app.supportedAuthModes] : [],
+      oauthFields: app?.oauthClientFields.map((field) => field.label) || [],
+      credentialFields: app?.credentialFields.map((field) => field.label) || [],
+      redirectUri,
+      requiredScopes: [...definition.requiredScopes],
+      officialSetupUrl: app?.connectionGuide.officialSetupUrl || "https://dreamwish.co.kr",
+      steps: app ? [...app.connectionGuide.steps] : ["별도 외부 계정 연결 없이 실행합니다."]
+    }
+  };
+}
+
+function resolveGuideOrigin(explicit?: string) {
+  const configured = explicit
+    || process.env.APP_URL
+    || process.env.NEXT_PUBLIC_APP_URL
+    || process.env.PUBLIC_APP_URL
+    || process.env.NEXT_PUBLIC_SITE_URL
+    || "http://localhost:3100";
+  const url = new URL(configured);
+  if (!(["http:", "https:"] as string[]).includes(url.protocol)) {
+    throw new Error("Automation guide origin must use HTTP or HTTPS.");
+  }
+  return url.origin;
+}
 
 const ACTION_OVERRIDES: Record<string, Partial<ActionGuideDefinition>> = {
   "gmail:watch-new-email": {

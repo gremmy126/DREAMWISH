@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { buildActionPreview, changeScenarioAction } from "../src/lib/automation/action-ui-model";
+import { buildActionPreview, changeScenarioAction, getActionAvailability } from "../src/lib/automation/action-ui-model";
+import { getActionDefinition } from "../src/lib/automation/registry/action-registry";
 import { createScenarioNode } from "../src/lib/automation/scenario-designer";
 
 test("new scenario nodes persist action identity rather than a translated label", () => {
@@ -21,6 +22,22 @@ test("changing an action replaces stale config with action-specific defaults", (
   assert.equal(changed.actionId, "send-email");
   assert.equal(changed.operation, "이메일 보내기");
   assert.deepEqual(changed.config, {});
+});
+
+test("unavailable actions expose a reason and cannot be selected", () => {
+  const unavailable = getActionDefinition("shopify", "refund-order", 1);
+  assert.ok(unavailable);
+  assert.deepEqual(getActionAvailability(unavailable), {
+    status: "unavailable",
+    selectable: false,
+    disabledReason: "이 Action은 아직 실행 Adapter가 구현되지 않았습니다."
+  });
+
+  const node = { ...createScenarioNode("gmail", 0), appId: "shopify" };
+  assert.throws(
+    () => changeScenarioAction(node, "refund-order", 1),
+    /실행 Adapter가 구현되지 않은 Action/u
+  );
 });
 
 test("preview model masks secrets and includes registry risk metadata", () => {

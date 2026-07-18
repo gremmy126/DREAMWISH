@@ -3,7 +3,10 @@ import { requireOwnerContext } from "@/src/lib/auth/owner-context";
 import { persistOAuthCallbackConnection } from "@/src/lib/oauth/oauth-connection.service";
 import { getOAuthAppTarget } from "@/src/lib/oauth/oauth-provider-adapter";
 import { buildPublicReturnUrl, getPublicAppUrl } from "@/src/lib/oauth/oauth-redirect";
-import { normalizeReturnTarget } from "@/src/lib/oauth/oauth-authorization-flow";
+import {
+  normalizeReturnTarget,
+  resolveOAuthSessionAppConfig
+} from "@/src/lib/oauth/oauth-authorization-flow";
 import { consumeOAuthSession } from "@/src/lib/repositories/oauth-session.repository";
 
 type RouteContext = { params: Promise<{ appId: string }> };
@@ -22,12 +25,16 @@ export async function GET(request: Request, context: RouteContext) {
 
     const session = await consumeOAuthSession({ ownerId: owner.uid, state, provider: target.provider });
     if (session.appId !== appId) throw new Error("OAuth application does not match state.");
+    const oauthAppConfig = await resolveOAuthSessionAppConfig(session);
     const connection = await persistOAuthCallbackConnection({
       ownerId: owner.uid,
       appId,
       code,
       redirectUri: session.redirectUri,
-      codeVerifier: session.codeVerifier || ""
+      codeVerifier: session.codeVerifier || "",
+      oauthAppConfigId: oauthAppConfig.id,
+      oauthAppConfigVersion: oauthAppConfig.version,
+      credentials: oauthAppConfig
     });
     const destination = new URL(normalizeReturnTarget(session.returnTo), getPublicAppUrl(request.url));
     destination.searchParams.set("connected", appId);

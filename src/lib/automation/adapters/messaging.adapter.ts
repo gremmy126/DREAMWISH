@@ -1,15 +1,13 @@
 import { resolveStructuredActionCredential } from "../action-credential.service";
+import { adapterImplementationSupports } from "./action-adapter.manifest";
 import type { ActionAdapter, ActionAdapterExecutionInput, ActionAdapterExecutionResult } from "./action-adapter.types";
 import { compactObject, text } from "./adapter-utils";
-import { isAdapterImplementationAvailable } from "./adapter-availability";
 import { executeOAuthJson } from "./oauth-json-client";
-
-const APPS = new Set(["discord", "telegram"]);
 
 export const messagingActionAdapter: ActionAdapter = {
   adapterVersion: 1,
   supports(adapterKey, adapterVersion) {
-    return APPS.has(adapterKey.split(".")[0]!) && isAdapterImplementationAvailable(adapterKey, adapterVersion);
+    return adapterImplementationSupports("messaging", adapterKey, adapterVersion);
   },
   execute(input) {
     return input.definition.appId === "discord" ? executeDiscord(input) : executeTelegram(input);

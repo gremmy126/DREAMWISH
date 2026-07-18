@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { ACTION_DEFINITIONS, isActionExecutable } from "../src/lib/automation/registry/action-registry";
+import { getActionGuide } from "../src/lib/automation/registry/action-guide";
 
 test("every executable action has complete registry guide metadata", () => {
   for (const definition of ACTION_DEFINITIONS.filter((item) => isActionExecutable(item.appId, item.id, item.version))) {
@@ -12,6 +13,30 @@ test("every executable action has complete registry guide metadata", () => {
       if (!field.secret) assert.ok(field.example !== undefined, `${definition.appId}:${definition.id}:${field.id}:example`);
     }
   }
+});
+
+test("connection guide tells users which OAuth fields and redirect URI to configure without secrets", () => {
+  const guide = getActionGuide("gmail", "send-email", undefined, "https://app.dreamwish.co.kr");
+  assert.ok(guide);
+  assert.deepEqual(guide.connection.oauthFields, ["Client ID", "Client Secret"]);
+  assert.deepEqual(guide.connection.credentialFields, []);
+  assert.equal(
+    guide.connection.redirectUri,
+    "https://app.dreamwish.co.kr/api/integrations/google/callback"
+  );
+  assert.match(guide.connection.officialSetupUrl, /^https:\/\//u);
+  assert.ok(guide.connection.requiredScopes.includes("gmail.send"));
+  assert.doesNotMatch(
+    JSON.stringify(guide),
+    /clientSecretValue|accessToken|refreshToken|tokenCiphertext/u
+  );
+});
+
+test("automation guidance API combines action guidance with the verified owner connection state", () => {
+  const route = fs.readFileSync("app/api/automation/analysis/route.ts", "utf8");
+  assert.match(route, /getActionGuide/u);
+  assert.match(route, /getVerifiedConnectionStates/u);
+  assert.match(route, /connectionState/u);
 });
 
 test("automation tabs exclude audit and DLQ while guide exposes registry details", () => {

@@ -102,6 +102,8 @@ CREATE TABLE IF NOT EXISTS automation_executions (
   status TEXT NOT NULL,
   error_code TEXT,
   error_message TEXT,
+  retry_eligible BOOLEAN NOT NULL DEFAULT FALSE,
+  retry_at TIMESTAMPTZ,
   started_at TIMESTAMPTZ,
   completed_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -150,6 +152,8 @@ CREATE TABLE IF NOT EXISTS automation_step_runs (
   preview_data JSONB,
   error_code TEXT,
   error_message TEXT,
+  retry_eligible BOOLEAN NOT NULL DEFAULT FALSE,
+  retry_at TIMESTAMPTZ,
   fencing_token BIGINT NOT NULL DEFAULT 0,
   started_at TIMESTAMPTZ,
   completed_at TIMESTAMPTZ,
@@ -157,6 +161,11 @@ CREATE TABLE IF NOT EXISTS automation_step_runs (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE (execution_id, node_id, attempt)
 );
+
+ALTER TABLE automation_executions ADD COLUMN IF NOT EXISTS retry_eligible BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE automation_executions ADD COLUMN IF NOT EXISTS retry_at TIMESTAMPTZ;
+ALTER TABLE automation_step_runs ADD COLUMN IF NOT EXISTS retry_eligible BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE automation_step_runs ADD COLUMN IF NOT EXISTS retry_at TIMESTAMPTZ;
 
 CREATE TABLE IF NOT EXISTS automation_step_execution_inputs (
   step_run_id TEXT PRIMARY KEY REFERENCES automation_step_runs(id) ON DELETE CASCADE,
@@ -277,6 +286,19 @@ CREATE TABLE IF NOT EXISTS automation_queue_events (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS automation_worker_heartbeats (
+  worker_id TEXT PRIMARY KEY,
+  version TEXT NOT NULL,
+  capabilities JSONB NOT NULL DEFAULT '[]'::JSONB,
+  started_at TIMESTAMPTZ NOT NULL,
+  last_seen_at TIMESTAMPTZ NOT NULL,
+  stopped_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS automation_worker_heartbeats_fresh
+  ON automation_worker_heartbeats(last_seen_at DESC)
+  WHERE stopped_at IS NULL;
+
 CREATE TABLE IF NOT EXISTS automation_notification_outbox (
   id TEXT PRIMARY KEY,
   owner_id TEXT NOT NULL,
@@ -364,6 +386,31 @@ CREATE TABLE IF NOT EXISTS oauth_authorization_sessions (
 );
 
 ALTER TABLE oauth_authorization_sessions ADD COLUMN IF NOT EXISTS service_id TEXT;
+ALTER TABLE oauth_authorization_sessions ADD COLUMN IF NOT EXISTS oauth_app_config_id TEXT;
+ALTER TABLE oauth_authorization_sessions ADD COLUMN IF NOT EXISTS oauth_app_config_version INTEGER;
+
+CREATE TABLE IF NOT EXISTS integration_oauth_app_configs (
+  id TEXT NOT NULL,
+  owner_id TEXT NOT NULL,
+  app_id TEXT NOT NULL,
+  provider TEXT NOT NULL,
+  client_id TEXT NOT NULL,
+  client_secret_ciphertext TEXT NOT NULL,
+  redirect_uri TEXT NOT NULL,
+  config_version INTEGER NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('active', 'revoked', 'reauthorization_required')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  revoked_at TIMESTAMPTZ,
+  PRIMARY KEY (id, config_version),
+  UNIQUE (owner_id, app_id, config_version)
+);
+
+CREATE INDEX IF NOT EXISTS integration_oauth_app_configs_owner_app_idx
+  ON integration_oauth_app_configs(owner_id, app_id, config_version DESC);
+
+ALTER TABLE integration_connections ADD COLUMN IF NOT EXISTS oauth_app_config_id TEXT;
+ALTER TABLE integration_connections ADD COLUMN IF NOT EXISTS oauth_app_config_version INTEGER;
 
 CREATE TABLE IF NOT EXISTS integration_connection_events (
   id TEXT PRIMARY KEY,

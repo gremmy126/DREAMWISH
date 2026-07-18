@@ -3,6 +3,8 @@
 import { ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { AppLogo } from "@/components/shared/AppLogo";
+import { ExecutionDiagnosisCard } from "@/components/Automation/ExecutionDiagnosisCard";
+import type { ExecutionDiagnosis } from "@/src/lib/automation/runtime/execution-diagnosis.service";
 
 type Execution = {
   id: string;
@@ -13,6 +15,9 @@ type Execution = {
   triggerType: string;
   createdAt: string;
   completedAt: string | null;
+  diagnosis: ExecutionDiagnosis | null;
+  queuePosition: number | null;
+  nextRunAt: string | null;
 };
 
 type Step = {
@@ -31,6 +36,7 @@ type Step = {
   apiRequestId: string | null;
   rateLimitRemaining: number | null;
   adapterLatencyMs: number | null;
+  errorCode: string | null;
   errorMessage: string | null;
 };
 
@@ -60,8 +66,21 @@ export function DurableRunHistory() {
     setLoading(true);
     try {
       const response = await fetch(`/api/automation/executions/${id}`, { cache: "no-store" });
-      const data = await response.json() as { steps?: Step[] };
-      if (response.ok) setSteps((current) => ({ ...current, [id]: data.steps || [] }));
+      const data = await response.json() as {
+        steps?: Step[];
+        diagnosis?: ExecutionDiagnosis | null;
+        queuePosition?: number | null;
+        nextRunAt?: string | null;
+      };
+      if (response.ok) {
+        setSteps((current) => ({ ...current, [id]: data.steps || [] }));
+        setExecutions((current) => current.map((execution) => execution.id === id ? {
+          ...execution,
+          diagnosis: data.diagnosis ?? null,
+          queuePosition: data.queuePosition ?? null,
+          nextRunAt: data.nextRunAt ?? null
+        } : execution));
+      }
     } finally {
       setLoading(false);
     }
@@ -86,6 +105,14 @@ export function DurableRunHistory() {
               <span className="text-[10px] text-slate-400 max-sm:w-full">{new Date(execution.createdAt).toLocaleString("ko-KR")}</span>
               {expanded === execution.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
             </button>
+            <div className="mt-3">
+              <ExecutionDiagnosisCard
+                diagnosis={execution.diagnosis}
+                queuePosition={execution.queuePosition}
+                nextRunAt={execution.nextRunAt}
+                onRecovered={() => void load()}
+              />
+            </div>
             {expanded === execution.id ? (
               <div className="mt-3 space-y-3">
                 {loading && !steps[execution.id] ? <Loader2 className="animate-spin" size={16} /> : (steps[execution.id] || []).map((step) => (
@@ -108,7 +135,11 @@ export function DurableRunHistory() {
                       <Metric label="Adapter 지연" value={step.adapterLatencyMs === null ? "-" : `${step.adapterLatencyMs}ms`} />
                       <Metric label="전체 시간" value={step.durationMs === null ? "-" : `${step.durationMs}ms`} />
                     </dl>
-                    {step.errorMessage ? <p className="mt-2 rounded-lg bg-red-50 p-2 text-[10px] text-red-700">{step.errorMessage}</p> : null}
+                    {step.errorCode || step.errorMessage ? (
+                      <p className="mt-2 rounded-lg bg-red-50 p-2 text-[10px] text-red-700">
+                        {step.errorCode ? `[${step.errorCode}] ` : ""}{step.errorMessage}
+                      </p>
+                    ) : null}
                   </div>
                 ))}
               </div>

@@ -32,6 +32,21 @@ test("integration app cards and credential details consume the shared AppLogo", 
   }
 });
 
+test("user OAuth setup panel exposes exact redirect guidance without browser secret persistence", () => {
+  const panelPath = "components/integrations/OAuthAppConfigPanel.tsx";
+  assert.equal(fs.existsSync(panelPath), true);
+  const panel = read(panelPath);
+  const credentials = read("components/integrations/KeyCredentialPanel.tsx");
+
+  assert.match(panel, /redirectUri/u);
+  assert.match(panel, /officialSetupUrl/u);
+  assert.match(panel, /type="password"/u);
+  assert.match(panel, /navigator\.clipboard\.writeText/u);
+  assert.match(panel, /\/oauth-config/u);
+  assert.doesNotMatch(panel, /localStorage|sessionStorage/u);
+  assert.match(credentials, /OAuthAppConfigPanel/u);
+});
+
 function read(path: string) {
   return fs.readFileSync(path, "utf8");
 }

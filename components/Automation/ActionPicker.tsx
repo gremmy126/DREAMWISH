@@ -35,6 +35,7 @@ export function ActionPicker({
             key={`${action.id}@${action.version}`}
             value={`${action.id}@${action.version}`}
             disabled={!isActionExecutable(action.appId, action.id, action.version)}
+            aria-disabled={!isActionExecutable(action.appId, action.id, action.version)}
           >
             {action.name}{isActionExecutable(action.appId, action.id, action.version) ? "" : " (준비 중)"}
           </option>

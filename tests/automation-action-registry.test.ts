@@ -99,6 +99,19 @@ test("newly supported messaging and YouTube actions are executable", () => {
   }
 });
 
+test("every catalogued Google Microsoft Dropbox and messaging action has a concrete adapter", () => {
+  const coveredApps = new Set([
+    "gmail", "google-sheets", "calendar", "drive", "youtube",
+    "outlook", "microsoft-teams", "onedrive", "dropbox",
+    "slack", "discord", "telegram"
+  ]);
+  const missing = ACTION_DEFINITIONS
+    .filter((action) => coveredApps.has(action.appId))
+    .filter((action) => !isActionExecutable(action.appId, action.id, action.version))
+    .map((action) => action.adapterKey);
+  assert.deepEqual(missing, []);
+});
+
 test("Filter has no actions and generic fallbacks are removed", () => {
   assert.deepEqual(listActionDefinitions("filter"), []);
   assert.deepEqual(

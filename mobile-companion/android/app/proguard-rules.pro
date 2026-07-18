@@ -1,0 +1,5 @@
+-keep class kr.co.dreamwish.companion.security.** { *; }
+-keep class kr.co.dreamwish.companion.capture.** { *; }
+-keep class kr.co.dreamwish.companion.sync.** { *; }
+-keep class * extends com.facebook.react.bridge.ReactContextBaseJavaModule { *; }
+-dontwarn org.conscrypt.**

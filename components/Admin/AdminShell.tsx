@@ -14,6 +14,7 @@ import {
   Settings2,
   ShieldCheck,
   TicketCheck,
+  WalletCards,
   Users,
   X
 } from "lucide-react";
@@ -24,12 +25,14 @@ import { AdminSystemStatus } from "./AdminSystemStatus";
 import { AdminUsers } from "./AdminUsers";
 import { AdminCoupons } from "./AdminCoupons";
 import { AdminAccessGrants } from "./AdminAccessGrants";
+import { AdminBillingPanel } from "./AdminBillingPanel";
 
 type AdminSection =
   | "dashboard"
   | "users"
   | "access"
   | "coupons"
+  | "billing"
   | "automation"
   | "dlq"
   | "audit"
@@ -44,6 +47,7 @@ const NAVIGATION: Array<{
   { id: "users", label: "사용자", icon: Users },
   { id: "access", label: "구독·이용권", icon: TicketCheck },
   { id: "coupons", label: "쿠폰", icon: BadgePercent },
+  { id: "billing", label: "결제", icon: WalletCards },
   { id: "automation", label: "자동화", icon: Bot },
   { id: "dlq", label: "DLQ", icon: Database },
   { id: "audit", label: "감사 로그", icon: ClipboardList },
@@ -117,6 +121,7 @@ export function AdminShell({ account }: { account: { email: string; name: string
           {section === "users" ? <AdminUsers /> : null}
           {section === "access" ? <AdminAccessGrants /> : null}
           {section === "coupons" ? <AdminCoupons /> : null}
+          {section === "billing" ? <AdminBillingPanel /> : null}
           {section === "automation" ? <AutomationPanel /> : null}
           {section === "dlq" ? <AdminOperations initialView="dlq" /> : null}
           {section === "audit" ? <AdminOperations initialView="audit" /> : null}

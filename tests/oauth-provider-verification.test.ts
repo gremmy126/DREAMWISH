@@ -2,6 +2,11 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { verifyProviderAccessToken } from "../src/lib/oauth/provider-verification";
+import { AUTOMATION_APPS } from "../src/lib/automation/app-registry";
+import {
+  getOAuthAppTarget
+} from "../src/lib/oauth/oauth-provider-adapter";
+import { getOAuthProviderConfig } from "../src/lib/oauth/oauth-provider-registry";
 
 test("provider verification normalizes Google Slack GitHub Notion and Discord identities", async () => {
   const cases = [
@@ -129,6 +134,69 @@ test("provider verification returns a safe error for HTTP and provider failures"
   assert.deepEqual(slackFailure, {
     ok: false,
     error: "Slack account verification failed: invalid_auth."
+  });
+});
+
+test("all canonical OAuth targets resolve to a provider adapter", () => {
+  for (const app of AUTOMATION_APPS.filter((item) => item.oauthTarget)) {
+    const target = getOAuthAppTarget(app.id);
+    assert.equal(target.provider, app.oauthTarget!.provider);
+    assert.equal(target.service, app.oauthTarget!.service);
+    assert.equal(getOAuthProviderConfig(target.provider).id, target.provider);
+  }
+});
+
+test("Microsoft and Dropbox access tokens resolve verified provider identities", async () => {
+  const microsoft = await verifyProviderAccessToken({
+    provider: "microsoft",
+    accessToken: "microsoft-secret-token",
+    fetchImpl: async (url, init) => {
+      assert.equal(String(url), "https://graph.microsoft.com/v1.0/me?$select=id,displayName,mail,userPrincipalName");
+      assert.equal(new Headers(init?.headers).get("authorization"), "Bearer microsoft-secret-token");
+      return jsonResponse({
+        id: "ms-user-1",
+        displayName: "Microsoft User",
+        mail: null,
+        userPrincipalName: "microsoft@example.com"
+      });
+    }
+  });
+  assert.deepEqual(microsoft, {
+    ok: true,
+    identity: {
+      providerAccountId: "ms-user-1",
+      accountName: "Microsoft User",
+      accountEmail: "microsoft@example.com",
+      accountAvatarUrl: null,
+      workspaceId: null,
+      workspaceName: null
+    }
+  });
+
+  const dropbox = await verifyProviderAccessToken({
+    provider: "dropbox",
+    accessToken: "dropbox-secret-token",
+    fetchImpl: async (url, init) => {
+      assert.equal(String(url), "https://api.dropboxapi.com/2/users/get_current_account");
+      assert.equal(init?.method, "POST");
+      return jsonResponse({
+        account_id: "dbid:dropbox-1",
+        email: "dropbox@example.com",
+        name: { display_name: "Dropbox User" },
+        team: { id: "team-1", name: "DREAMWISH" }
+      });
+    }
+  });
+  assert.deepEqual(dropbox, {
+    ok: true,
+    identity: {
+      providerAccountId: "dbid:dropbox-1",
+      accountName: "Dropbox User",
+      accountEmail: "dropbox@example.com",
+      accountAvatarUrl: null,
+      workspaceId: "team-1",
+      workspaceName: "DREAMWISH"
+    }
   });
 });
 

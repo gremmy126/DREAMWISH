@@ -26,6 +26,10 @@ export type CreateExecutionInput = {
   triggerEventId?: string | null;
   idempotencyKey: string;
   status?: ExecutionStatus;
+  errorCode?: string | null;
+  errorMessage?: string | null;
+  retryEligible?: boolean;
+  retryAt?: string | null;
 };
 
 export type AutomationAiResult = {
@@ -51,12 +55,13 @@ export async function createExecution(input: CreateExecutionInput): Promise<Auto
       INSERT INTO automation_executions (
         id, owner_id, workflow_id, workflow_version, parent_execution_id,
         resumed_from_step_id, execution_mode, trigger_type, trigger_event_id,
-        idempotency_key, status
+        idempotency_key, status, error_code, error_message, retry_eligible, retry_at
       ) VALUES (
         ${id}, ${input.ownerId}, ${input.workflowId}, ${input.workflowVersion},
         ${input.parentExecutionId || null}, ${input.resumedFromStepId || null},
         ${input.executionMode}, ${input.triggerType}, ${input.triggerEventId || null},
-        ${input.idempotencyKey}, ${status}
+        ${input.idempotencyKey}, ${status}, ${input.errorCode || null}, ${input.errorMessage || null},
+        ${input.retryEligible === true}, ${input.retryAt || null}
       )
       ON CONFLICT (owner_id, idempotency_key) DO NOTHING
       RETURNING *
@@ -97,6 +102,11 @@ export async function createStepRun(input: {
   executionInput: Record<string, ActionValue>;
   previewData?: Record<string, ActionValue> | null;
   fencingToken?: number;
+  status?: "running" | "waiting_connection";
+  errorCode?: string | null;
+  errorMessage?: string | null;
+  retryEligible?: boolean;
+  retryAt?: string | null;
 }) {
   await ensureAutomationRuntimeSchema();
   const sql = getPostgres();
@@ -112,13 +122,16 @@ export async function createStepRun(input: {
       INSERT INTO automation_step_runs (
         id, owner_id, execution_id, node_id, action_id, action_version, adapter_key,
         adapter_version, integration_connection_id, risk_level, status, attempt,
-        retry_count, masked_input, preview_data, fencing_token, started_at
+        retry_count, masked_input, preview_data, fencing_token, error_code, error_message,
+        retry_eligible, retry_at, started_at
       ) VALUES (
         ${id}, ${input.ownerId}, ${input.executionId}, ${input.nodeId}, ${input.actionId},
         ${input.actionVersion}, ${input.adapterKey}, ${input.adapterVersion},
-        ${input.integrationConnectionId || null}, ${input.riskLevel}, 'running', ${input.attempt || 1},
+        ${input.integrationConnectionId || null}, ${input.riskLevel}, ${input.status || "running"}, ${input.attempt || 1},
         ${input.retryCount || 0}, ${transaction.json(input.maskedInput as never)},
-        ${input.previewData ? transaction.json(input.previewData as never) : null}, ${input.fencingToken || 0}, NOW()
+        ${input.previewData ? transaction.json(input.previewData as never) : null}, ${input.fencingToken || 0},
+        ${input.errorCode || null}, ${input.errorMessage || null}, ${input.retryEligible === true},
+        ${input.retryAt || null}, ${input.status === "waiting_connection" ? null : new Date()}
       ) RETURNING *
     `;
     await transaction`
@@ -130,6 +143,12 @@ export async function createStepRun(input: {
     `;
     return rows[0]!;
   });
+}
+
+export function createWaitingConnectionStep(
+  input: Omit<Parameters<typeof createStepRun>[0], "status" | "retryEligible">
+) {
+  return createStepRun({ ...input, status: "waiting_connection", retryEligible: true });
 }
 
 export async function getStepExecutionInput(
@@ -169,6 +188,8 @@ export async function finishStepRun(input: {
   adapterLatencyMs?: number | null;
   errorCode?: string | null;
   errorMessage?: string | null;
+  retryEligible?: boolean;
+  retryAt?: string | null;
   riskLevel?: ActionRiskLevel;
   previewData?: Record<string, ActionValue> | null;
 }) {
@@ -186,6 +207,8 @@ export async function finishStepRun(input: {
         adapter_latency_ms = ${input.adapterLatencyMs ?? null},
         error_code = ${input.errorCode || null},
         error_message = ${input.errorMessage || null},
+        retry_eligible = ${input.retryEligible === true},
+        retry_at = ${input.retryAt || null},
         completed_at = NOW(), updated_at = NOW()
     WHERE owner_id = ${input.ownerId}
       AND id = ${input.stepRunId}
@@ -278,6 +301,8 @@ export async function recordExecutionError(input: {
   executionId: string;
   errorCode: string;
   errorMessage: string;
+  retryEligible?: boolean;
+  retryAt?: string | null;
 }) {
   await ensureAutomationRuntimeSchema();
   const sql = getPostgres();
@@ -285,6 +310,8 @@ export async function recordExecutionError(input: {
     UPDATE automation_executions
     SET error_code = ${input.errorCode.slice(0, 120)},
         error_message = ${input.errorMessage.slice(0, 2_000)},
+        retry_eligible = ${input.retryEligible === true},
+        retry_at = ${input.retryAt || null},
         updated_at = NOW()
     WHERE owner_id = ${input.ownerId} AND id = ${input.executionId}
   `;
@@ -379,7 +406,8 @@ export async function getExecutionDetail(ownerId: string, executionId: string) {
       step.risk_level, step.status, step.attempt, step.retry_count,
       step.masked_input, step.masked_output, step.preview_data, step.duration_ms,
       step.api_request_id, step.rate_limit_remaining, step.adapter_latency_ms,
-      step.error_code, step.error_message, step.started_at, step.completed_at
+      step.error_code, step.error_message, step.retry_eligible, step.retry_at,
+      step.started_at, step.completed_at
     FROM automation_step_runs AS step
     LEFT JOIN automation_nodes AS node
       ON node.owner_id = step.owner_id
@@ -403,6 +431,7 @@ export async function getExecutionDetail(ownerId: string, executionId: string) {
       rateLimitRemaining: row.rate_limit_remaining === null ? null : Number(row.rate_limit_remaining),
       adapterLatencyMs: row.adapter_latency_ms === null ? null : Number(row.adapter_latency_ms),
       errorCode: row.error_code ? String(row.error_code) : null, errorMessage: row.error_message ? String(row.error_message) : null,
+      retryEligible: row.retry_eligible === true, retryAt: toIso(row.retry_at),
       startedAt: toIso(row.started_at), completedAt: toIso(row.completed_at)
     }))
   };
@@ -470,6 +499,9 @@ function mapExecution(row: Record<string, unknown>): AutomationExecution {
     status: String(row.status) as ExecutionStatus,
     errorCode: row.error_code ? String(row.error_code) : null,
     errorMessage: row.error_message ? String(row.error_message) : null,
+    safeErrorMessage: row.error_message ? String(row.error_message) : null,
+    retryEligible: row.retry_eligible === true,
+    retryAt: toIso(row.retry_at),
     startedAt: toIso(row.started_at),
     completedAt: toIso(row.completed_at),
     createdAt: toIso(row.created_at)!,
@@ -496,6 +528,10 @@ function mapStepRun(row: Record<string, unknown>): AutomationStepRun {
     apiRequestId: row.api_request_id ? String(row.api_request_id) : null,
     rateLimitRemaining: row.rate_limit_remaining === null ? null : Number(row.rate_limit_remaining),
     adapterLatencyMs: row.adapter_latency_ms === null ? null : Number(row.adapter_latency_ms),
+    errorCode: row.error_code ? String(row.error_code) : null,
+    errorMessage: row.error_message ? String(row.error_message) : null,
+    retryEligible: row.retry_eligible === true,
+    retryAt: toIso(row.retry_at),
     maskedInput: structuredClone((row.masked_input || {}) as Record<string, ActionValue>),
     maskedOutput: row.masked_output ? structuredClone(row.masked_output as Record<string, ActionValue>) : null,
     previewData: row.preview_data ? structuredClone(row.preview_data as Record<string, ActionValue>) : null,

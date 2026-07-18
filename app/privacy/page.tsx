@@ -66,12 +66,16 @@ export default function PrivacyPage() {
                 <td>워크플로, 입력·출력·Preview, 실행·승인·재시도 기록, API 요청 ID, 감사 이벤트</td>
               </tr>
               <tr>
+                <td>컴패니언 앱·매출 후보</td>
+                <td>연결 기기·공개키·앱 버전·동기화 sequence, 사용자가 선택한 연락처·일정 후보, Android에서 허용 목록에 넣은 앱의 마스킹된 알림 텍스트 또는 iPhone 공유 확장으로 직접 공유한 텍스트, 추정 금액·거래 방향·신뢰도·검토 결과, 암호화된 푸시 토큰</td>
+              </tr>
+              <tr>
                 <td>외부 연결</td>
                 <td>앱·제공자, 연결 ID, 외부 계정 ID·이메일·이름, 허용 Scope, 연결·자격증명 상태, 암호화된 인증정보</td>
               </tr>
               <tr>
                 <td>결제·구독</td>
-                <td>Polar 고객·주문·구독 식별자, 결제 상태, 결제 금액·통화, 결제·갱신·해지 시각, 이용 종료일</td>
+                <td>Polar 또는 PortOne 고객·결제·빌링키·구독 식별자, KPN·NHN KCP 처리 결과, 결제 상태, 결제 금액·통화, 결제·갱신·해지·환불 시각, 이용 종료일</td>
               </tr>
               <tr>
                 <td>쿠폰·이용권</td>
@@ -90,7 +94,7 @@ export default function PrivacyPage() {
         </div>
         <p>
           비밀번호는 Firebase 인증 화면에서 처리되며 회사가 평문으로 저장하지 않습니다. 결제 카드번호와
-          CVC는 Polar 및 해당 결제 처리 사업자가 처리하며 DREAMWISH 서버가 직접 저장하지 않습니다.
+          CVC는 Polar, PortOne, KPN, NHN KCP 및 해당 결제 처리 사업자가 처리하며 DREAMWISH는 카드 정보를 직접 저장하지 않습니다.
           Access Token, Refresh Token, API Key 등 연결 비밀정보는 화면과 로그에서 마스킹하고 저장 시 보호합니다.
         </p>
       </PolicySection>
@@ -98,8 +102,9 @@ export default function PrivacyPage() {
       <PolicySection id="collection" title="4. 개인정보의 수집 방법">
         <ul>
           <li>회원가입, 설정, 콘텐츠 작성, 파일 업로드, 고객문의 과정에서 이용자가 직접 입력</li>
-          <li>Firebase 이메일 로그인, Kakao·Naver 로그인, Polar 결제 및 OAuth 제공자의 동의 화면을 통한 전달</li>
+          <li>Firebase 이메일 로그인, Kakao·Naver 로그인, Polar·PortOne 결제 및 OAuth 제공자의 동의 화면을 통한 전달</li>
           <li>사용자가 연결한 외부 앱의 API 또는 Webhook을 통한 동기화</li>
+          <li>컴패니언 앱에서 사용자가 권한·허용 앱·동기화 버튼을 선택하거나 iPhone 공유 확장으로 직접 전달한 정보. iPhone에서 다른 앱의 알림을 자동 수집하지 않음</li>
           <li>서비스 이용 과정에서 서버·브라우저 로그와 쿠키를 통해 자동 생성</li>
         </ul>
       </PolicySection>
@@ -116,6 +121,7 @@ export default function PrivacyPage() {
               <tr><td>계정 및 이용자 콘텐츠</td><td>회원 탈퇴 또는 이용자가 삭제할 때까지</td></tr>
               <tr><td>삭제 대기 계정</td><td>삭제 요청 후 7일의 취소 가능 기간까지. 이후 법정 보관 대상 외 계정 정보를 삭제</td></tr>
               <tr><td>OAuth 연결 및 암호화된 인증정보</td><td>연결 해제, 자격증명 삭제 또는 회원 탈퇴 시까지</td></tr>
+              <tr><td>연결 기기·매출 후보·푸시 토큰</td><td>이용자가 검토·삭제하거나 기기 연결을 해제하거나 회원 탈퇴할 때까지. 감사·결제 기록은 관계 법령상 기간</td></tr>
               <tr><td>쿠폰 발급·사용 및 이용권 기록</td><td>혜택 제공·분쟁 대응 목적 달성 시까지. 결제·계약 관련 기록은 관계 법령상 기간</td></tr>
               <tr><td>쿠키 동의 선택</td><td>선택 시점부터 180일 또는 이용자가 먼저 삭제·변경할 때까지</td></tr>
               <tr><td>계약 또는 청약철회 등에 관한 기록</td><td>전자상거래법에 따라 5년</td></tr>
@@ -158,11 +164,11 @@ export default function PrivacyPage() {
             <tbody>
               <tr>
                 <td>Google(Firebase, Gemini, Analytics, Ads)</td>
-                <td>계정 인증, 선택한 AI 입력·출력, 동의한 이용 분석·광고 정보</td>
+                <td>계정 인증, 선택한 AI 입력·출력, 동의한 이용 분석·광고 정보, 컴패니언 앱의 후보 ID 기반 푸시 전송</td>
                 <td>미국 등 Google 인프라 운영 국가·서비스 이용 또는 제공자 정책상 기간</td>
               </tr>
               <tr>
-                <td>Polar 및 결제 처리 사업자</td>
+                <td>Polar, PortOne, KPN, NHN KCP 및 결제 처리 사업자</td>
                 <td>계정 이메일, 고객·구독·주문 정보, 결제 및 구독 관리</td>
                 <td>미국 등 결제 인프라 운영 국가·계약 및 법정 보유 기간</td>
               </tr>
@@ -186,7 +192,7 @@ export default function PrivacyPage() {
         </div>
         <p>
           선택 기능의 국외 이전을 원하지 않으면 해당 AI 제공자·외부 앱을 사용하지 않거나 연결을 해제할 수
-          있습니다. 다만 Firebase 인증과 Polar 결제처럼 핵심 기능에 필요한 처리를 거부하면 회원가입 또는 유료
+          있습니다. 다만 Firebase 인증과 선택한 Polar·PortOne 결제처럼 핵심 기능에 필요한 처리를 거부하면 회원가입 또는 유료
           서비스 이용이 제한될 수 있습니다.
         </p>
       </PolicySection>

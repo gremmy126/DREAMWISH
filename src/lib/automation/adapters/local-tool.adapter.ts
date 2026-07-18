@@ -1,19 +1,17 @@
+import { adapterImplementationSupports } from "./action-adapter.manifest";
 import type { ActionAdapter, ActionAdapterExecutionInput } from "./action-adapter.types";
 import { arrayValue, numberValue, objectValue, text } from "./adapter-utils";
-import { isAdapterImplementationAvailable } from "./adapter-availability";
 
 export const localToolAdapter: ActionAdapter = {
   adapterVersion: 1,
   supports(adapterKey, adapterVersion) {
-    return isAdapterImplementationAvailable(adapterKey, adapterVersion) && LOCAL_APPS.has(adapterKey.split(".")[0]!);
+    return adapterImplementationSupports("localTool", adapterKey, adapterVersion);
   },
   async execute(input) {
     const startedAt = performance.now();
     return { output: executeLocal(input), adapterLatencyMs: Math.round(performance.now() - startedAt) };
   }
 };
-
-const LOCAL_APPS = new Set(["text-formatter", "datetime", "math", "json", "csv", "array-aggregator", "text-aggregator", "router", "delay", "iterator"]);
 
 function executeLocal({ definition, normalizedInput: input }: ActionAdapterExecutionInput): Record<string, unknown> {
   const id = definition.id;
@@ -58,6 +56,7 @@ function executeLocal({ definition, normalizedInput: input }: ActionAdapterExecu
   if (definition.appId === "router") return { result: { directive: "route", mode: id, input } };
   throw new Error(`Local adapter does not implement ${definition.adapterKey}.`);
 }
+
 
 function executeDateTime(id: string, input: ActionAdapterExecutionInput["normalizedInput"]) {
   if (id === "now") return { result: new Date().toISOString() };

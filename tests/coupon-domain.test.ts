@@ -77,6 +77,16 @@ test("effective entitlement accepts administrators, billing, or active grants", 
   assert.equal(resolveEffectiveEntitlement({ role: "user", billingActive: false, grant: { ...activeGrant, endsAt: "2026-07-16T00:00:00.000Z" }, now }), false);
 });
 
+test("domestic coupon amounts are server-calculated and never reduce a charge below one won", () => {
+  const { calculateDomesticCouponAmount } = require("../src/lib/coupons/coupon.service") as {
+    calculateDomesticCouponAmount: (base: number, coupon: { type: string; value: number | null; currency: string | null } | null) => number;
+  };
+  assert.equal(calculateDomesticCouponAmount(10_000, { type: "percentage_discount", value: 25, currency: null }), 7_500);
+  assert.equal(calculateDomesticCouponAmount(10_000, { type: "fixed_discount", value: 3_000, currency: "KRW" }), 7_000);
+  assert.equal(calculateDomesticCouponAmount(1_000, { type: "fixed_discount", value: 5_000, currency: "KRW" }), 1);
+  assert.equal(calculateDomesticCouponAmount(10_000, { type: "fixed_discount", value: 3_000, currency: "USD" }), 10_000);
+});
+
 async function withEnv(values: Record<string, string | undefined>, run: () => void | Promise<void>) {
   const original = { ...process.env };
   process.env = { ...original };
@@ -86,4 +96,3 @@ async function withEnv(values: Record<string, string | undefined>, run: () => vo
   }
   try { await run(); } finally { process.env = original; }
 }
-

@@ -19,7 +19,7 @@ export const SLACK_OAUTH_SCOPES = [
 export function createSlackOAuthAuthorizationUrl(request: OAuthAuthorizationRequest) {
   const config = getOAuthProviderConfig("slack");
   const url = new URL(config.authorizationUrl);
-  url.searchParams.set("client_id", getOAuthClientId("slack"));
+  url.searchParams.set("client_id", request.clientId || getOAuthClientId("slack"));
   url.searchParams.set("redirect_uri", request.redirectUri);
   url.searchParams.set("state", request.state);
   url.searchParams.set(
@@ -29,13 +29,17 @@ export function createSlackOAuthAuthorizationUrl(request: OAuthAuthorizationRequ
   return url;
 }
 
-export async function exchangeSlackOAuthCode(code: string, redirectUri: string) {
+export async function exchangeSlackOAuthCode(
+  code: string,
+  redirectUri: string,
+  credentials?: { clientId: string; clientSecret: string }
+) {
   const response = await fetch(getOAuthProviderConfig("slack").tokenUrl, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
-      client_id: getOAuthClientId("slack"),
-      client_secret: getOAuthClientSecret("slack"),
+      client_id: credentials?.clientId || getOAuthClientId("slack"),
+      client_secret: credentials?.clientSecret || getOAuthClientSecret("slack"),
       code,
       redirect_uri: redirectUri
     })

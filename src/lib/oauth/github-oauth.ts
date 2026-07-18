@@ -11,7 +11,7 @@ export const GITHUB_OAUTH_SCOPES = ["read:user", "user:email"] as const;
 export function createGitHubOAuthAuthorizationUrl(request: OAuthAuthorizationRequest) {
   const config = getOAuthProviderConfig("github");
   const url = new URL(config.authorizationUrl);
-  url.searchParams.set("client_id", getOAuthClientId("github"));
+  url.searchParams.set("client_id", request.clientId || getOAuthClientId("github"));
   url.searchParams.set("redirect_uri", request.redirectUri);
   url.searchParams.set("state", request.state);
   url.searchParams.set(
@@ -22,7 +22,11 @@ export function createGitHubOAuthAuthorizationUrl(request: OAuthAuthorizationReq
   return url;
 }
 
-export async function exchangeGitHubOAuthCode(code: string, redirectUri: string) {
+export async function exchangeGitHubOAuthCode(
+  code: string,
+  redirectUri: string,
+  credentials?: { clientId: string; clientSecret: string }
+) {
   const response = await fetch(getOAuthProviderConfig("github").tokenUrl, {
     method: "POST",
     headers: {
@@ -30,8 +34,8 @@ export async function exchangeGitHubOAuthCode(code: string, redirectUri: string)
       "Content-Type": "application/x-www-form-urlencoded"
     },
     body: new URLSearchParams({
-      client_id: getOAuthClientId("github"),
-      client_secret: getOAuthClientSecret("github"),
+      client_id: credentials?.clientId || getOAuthClientId("github"),
+      client_secret: credentials?.clientSecret || getOAuthClientSecret("github"),
       code,
       redirect_uri: redirectUri
     })

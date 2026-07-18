@@ -17,7 +17,7 @@ test("workflow structural validation blocks cycles and unimplemented adapters", 
   assert.equal(validateWorkflowStructure(scenario).valid, true);
   const cyclic = { ...scenario, edges: [...scenario.edges, { id: "e2", source: "b", target: "a" }] };
   assert.ok(validateWorkflowStructure(cyclic).issues.some((issue) => issue.code === "CYCLE_DETECTED"));
-  const unavailable = { ...scenario, nodes: scenario.nodes.map((node) => node.id === "b" ? { ...node, appId: "stripe", actionId: "refund" } : node) };
+  const unavailable = { ...scenario, nodes: scenario.nodes.map((node) => node.id === "b" ? { ...node, appId: "shopify", actionId: "refund-order" } : node) };
   assert.ok(validateWorkflowStructure(unavailable).issues.some((issue) => issue.code === "ADAPTER_NOT_IMPLEMENTED"));
 });
 

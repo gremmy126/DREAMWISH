@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { descendantNodeIds, orderedWorkflowNodes } from "../src/lib/automation/runtime/workflow-runner";
+import { validateWorkflowForExecution } from "../src/lib/automation/runtime/workflow-validator";
 import type { AutomationScenario } from "../src/lib/automation/scenario-designer";
 
 const base: AutomationScenario = {
@@ -23,6 +24,21 @@ test("runtime orders pinned workflow nodes and identifies filter descendants", (
   assert.deepEqual([...descendantNodeIds(base, "filter")], ["send"]);
 });
 
+test("workflow validation reports insufficient scopes before queueing", async () => {
+  const result = await validateWorkflowForExecution("owner-1", base, {
+    validateConnection: async () => {
+      throw Object.assign(new Error("필요한 OAuth Scope가 없습니다: gmail.send"), {
+        code: "SCOPE_INSUFFICIENT",
+        missingScopes: ["gmail.send"]
+      });
+    }
+  });
+  assert.equal(result.canQueue, false);
+  assert.equal(result.findings[0]?.code, "SCOPE_INSUFFICIENT");
+  assert.deepEqual(result.findings[0]?.fields, ["gmail.send"]);
+  assert.equal(result.findings[0]?.remediation?.deepLink, "/?view=automation&app=gmail&node=send");
+});
+
 test("canonical execute route creates a durable execution and queue job", () => {
   const source = fs.readFileSync("app/api/automation/workflows/[workflowId]/execute/route.ts", "utf8");
   const enqueue = fs.readFileSync("src/lib/automation/runtime/execution-enqueue.service.ts", "utf8");
@@ -31,6 +47,15 @@ test("canonical execute route creates a durable execution and queue job", () => 
   assert.match(enqueue, /jobType:\s*"execute_workflow"/u);
   assert.match(enqueue, /PostgresAutomationQueue/u);
   assert.match(source, /assertSameOriginMutation/u);
+});
+
+test("queue insertion performs connection preflight and persists a waiting execution without a job", () => {
+  const enqueue = fs.readFileSync("src/lib/automation/runtime/execution-enqueue.service.ts", "utf8");
+  assert.match(enqueue, /validateWorkflowForExecution/u);
+  assert.match(enqueue, /status:[^\n]+"waiting_connection"/u);
+  assert.match(enqueue, /queued:\s*false/u);
+  assert.match(enqueue, /job:\s*null/u);
+  assert.match(enqueue, /findings:\s*preflight\.findings/u);
 });
 
 test("default worker handles initial and approved resume jobs through the common pipeline", () => {

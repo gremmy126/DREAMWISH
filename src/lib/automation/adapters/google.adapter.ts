@@ -1,14 +1,14 @@
+import { adapterImplementationSupports } from "./action-adapter.manifest";
 import type { ActionAdapter, ActionAdapterExecutionInput, ActionAdapterExecutionResult } from "./action-adapter.types";
 import { arrayValue, booleanValue, compactObject, numberValue, objectValue, text } from "./adapter-utils";
 import { executeOAuthJson } from "./oauth-json-client";
-import { isAdapterImplementationAvailable } from "./adapter-availability";
-
-const GOOGLE_APPS = new Set(["gmail", "google-sheets", "calendar", "drive", "youtube"]);
+import { executeOAuthBinary, executeOAuthRaw } from "./oauth-json-client";
+import { loadActionFile, saveRemoteFile } from "./file-transfer";
 
 export const googleActionAdapter: ActionAdapter = {
   adapterVersion: 1,
   supports(adapterKey, adapterVersion) {
-    return GOOGLE_APPS.has(adapterKey.split(".")[0]!) && isAdapterImplementationAvailable(adapterKey, adapterVersion);
+    return adapterImplementationSupports("google", adapterKey, adapterVersion);
   },
   execute(input) {
     if (input.definition.appId === "gmail") return executeGmail(input);
@@ -60,6 +60,19 @@ async function executeGmail(input: ActionAdapterExecutionInput): Promise<ActionA
     });
     return combineAdapterResults(original, sent);
   }
+  if (input.definition.id === "forward-email") {
+    const original = await executeOAuthJson(input, {
+      url: `${base}/messages/${messageId}?format=raw`
+    });
+    const raw = typeof original.output.raw === "string" ? original.output.raw : "";
+    if (!raw) throw permanent("Gmail did not return the original message.");
+    const sent = await executeOAuthJson(input, {
+      url: `${base}/messages/send`,
+      method: "POST",
+      body: { raw: buildForwardEmail(text(values, "to"), text(values, "message"), raw) }
+    });
+    return combineAdapterResults(original, sent);
+  }
   if (input.definition.id === "permanently-delete-email") return executeOAuthJson(input, { url: `${base}/messages/${messageId}`, method: "DELETE" });
   if (["mark-read", "mark-unread", "archive-email", "add-label", "remove-label"].includes(input.definition.id)) {
     const labelId = input.definition.id === "add-label" || input.definition.id === "remove-label" ? text(values, "labelId") : input.definition.id === "archive-email" ? "INBOX" : "UNREAD";
@@ -70,6 +83,25 @@ async function executeGmail(input: ActionAdapterExecutionInput): Promise<ActionA
   if (input.definition.id === "download-attachment") {
     return executeOAuthJson(input, { url: `${base}/messages/${messageId}/attachments/${encodeURIComponent(text(values, "attachmentId"))}` });
   }
+  if (input.definition.id === "save-attachment") {
+    const attachmentId = text(values, "attachmentId");
+    const downloaded = await executeOAuthJson(input, {
+      url: `${base}/messages/${messageId}/attachments/${encodeURIComponent(attachmentId)}`
+    });
+    const encoded = typeof downloaded.output.data === "string" ? downloaded.output.data : "";
+    if (!encoded) throw permanent("Gmail did not return attachment data.");
+    const bytes = Buffer.from(encoded.replace(/-/gu, "+").replace(/_/gu, "/"), "base64");
+    const file = await saveRemoteFile({
+      ownerId: input.ownerId,
+      bytes,
+      name: `gmail-attachment-${attachmentId}`,
+      contentType: "application/octet-stream"
+    });
+    return {
+      ...downloaded,
+      output: { id: file.id, name: file.name, size: file.size, destination: text(values, "destination") }
+    };
+  }
   const url = new URL(`${base}/messages`);
   url.searchParams.set("q", text(values, "query"));
   url.searchParams.set("maxResults", String(numberValue(values, "limit", 25)));
@@ -78,6 +110,33 @@ async function executeGmail(input: ActionAdapterExecutionInput): Promise<ActionA
 
 async function executeYouTube(input: ActionAdapterExecutionInput): Promise<ActionAdapterExecutionResult> {
   const values = input.normalizedInput;
+  if (input.definition.id === "upload-video") {
+    const video = await loadActionFile(input.ownerId, values.video, "video.bin");
+    const boundary = `dreamwish-${input.idempotencyKey.replace(/[^A-Za-z0-9]/gu, "").slice(0, 40)}`;
+    const metadata = JSON.stringify({
+      snippet: { title: text(values, "title"), description: text(values, "description") },
+      status: { privacyStatus: text(values, "privacy", "private") }
+    });
+    const body = multipartRelated(boundary, metadata, video.contentType, video.bytes);
+    return executeOAuthRaw(input, {
+      url: "https://www.googleapis.com/upload/youtube/v3/videos?part=snippet,status&uploadType=multipart",
+      method: "POST",
+      headers: { "Content-Type": `multipart/related; boundary=${boundary}` },
+      body
+    });
+  }
+  if (input.definition.id === "set-thumbnail") {
+    const thumbnail = await loadActionFile(input.ownerId, values.thumbnail, "thumbnail.jpg");
+    if (thumbnail.bytes.byteLength > 2 * 1024 * 1024) {
+      throw Object.assign(new Error("YouTube 썸네일은 2 MiB 이하여야 합니다."), { code: "ACTION_INPUT_TOO_LARGE", retryable: false });
+    }
+    return executeOAuthRaw(input, {
+      url: `https://www.googleapis.com/upload/youtube/v3/thumbnails/set?videoId=${encodeURIComponent(text(values, "videoId"))}&uploadType=media`,
+      method: "POST",
+      headers: { "Content-Type": thumbnail.contentType },
+      body: thumbnail.bytes
+    });
+  }
   if (input.definition.id === "add-playlist-item") {
     return executeOAuthJson(input, {
       url: "https://www.googleapis.com/youtube/v3/playlistItems?part=snippet",
@@ -172,9 +231,40 @@ function executeCalendar(input: ActionAdapterExecutionInput) {
   return executeOAuthJson(input, { url: `${base}/${encodeURIComponent(text(values, "eventId"))}`, method: "PATCH", body });
 }
 
-function executeDrive(input: ActionAdapterExecutionInput) {
+async function executeDrive(input: ActionAdapterExecutionInput) {
   const values = input.normalizedInput;
   const base = "https://www.googleapis.com/drive/v3/files";
+  if (input.definition.id === "upload-file") {
+    const file = await loadActionFile(input.ownerId, values.file, text(values, "name", "upload.bin"));
+    const boundary = `dreamwish-${input.idempotencyKey.replace(/[^A-Za-z0-9]/gu, "").slice(0, 40)}`;
+    const metadata = JSON.stringify(compactObject({
+      name: text(values, "name", file.name),
+      parents: values.folderId ? [text(values, "folderId")] : undefined
+    }));
+    return executeOAuthRaw(input, {
+      url: "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,mimeType,size,webViewLink",
+      method: "POST",
+      headers: { "Content-Type": `multipart/related; boundary=${boundary}` },
+      body: multipartRelated(boundary, metadata, file.contentType, file.bytes)
+    });
+  }
+  if (input.definition.id === "download-file") {
+    const fileId = encodeURIComponent(text(values, "fileId"));
+    const metadata = await executeOAuthJson(input, { url: `${base}/${fileId}?fields=id,name,mimeType,size` });
+    const downloaded = await executeOAuthBinary(input, { url: `${base}/${fileId}?alt=media` });
+    const file = await saveRemoteFile({
+      ownerId: input.ownerId,
+      bytes: downloaded.bytes,
+      name: typeof metadata.output.name === "string" ? metadata.output.name : `drive-${fileId}`,
+      contentType: typeof metadata.output.mimeType === "string" ? metadata.output.mimeType : downloaded.contentType
+    });
+    return {
+      output: { id: file.id, name: file.name, size: file.size, mimeType: file.mimeType },
+      apiRequestId: downloaded.apiRequestId || metadata.apiRequestId,
+      rateLimitRemaining: downloaded.rateLimitRemaining,
+      adapterLatencyMs: (metadata.adapterLatencyMs || 0) + downloaded.adapterLatencyMs
+    };
+  }
   if (input.definition.id === "create-folder") return executeOAuthJson(input, { url: base, method: "POST", body: compactObject({ name: text(values, "name"), mimeType: "application/vnd.google-apps.folder", parents: values.parentId ? [text(values, "parentId")] : undefined }) });
   if (input.definition.id === "share-file") return executeOAuthJson(input, { url: `${base}/${encodeURIComponent(text(values, "fileId"))}/permissions?sendNotificationEmail=${booleanValue(values, "notify", true)}`, method: "POST", body: { type: "user", role: text(values, "role"), emailAddress: text(values, "email") } });
   if (input.definition.id === "move-file") return executeOAuthJson(input, { url: `${base}/${encodeURIComponent(text(values, "fileId"))}?addParents=${encodeURIComponent(text(values, "destinationFolderId"))}&fields=id,name,parents`, method: "PATCH", body: {} });
@@ -210,6 +300,48 @@ function buildReplyEmail(input: { to: string; subject: string; messageId: string
     "Content-Type: text/plain; charset=UTF-8"
   ];
   return Buffer.from(`${headers.join("\r\n")}\r\n\r\n${input.body}`, "utf8").toString("base64url");
+}
+
+function buildForwardEmail(to: string, message: string, originalRaw: string) {
+  const cleanTo = to.trim();
+  if (!cleanTo || /\r|\n/u.test(cleanTo)) throw permanent("Forward recipient is invalid.", "ACTION_INPUT_INVALID");
+  const boundary = `dreamwish-forward-${Date.now().toString(36)}`;
+  const original = Buffer.from(originalRaw.replace(/-/gu, "+").replace(/_/gu, "/"), "base64").toString("base64");
+  const mime = [
+    `To: ${cleanTo}`,
+    "Subject: Fwd: forwarded message",
+    "MIME-Version: 1.0",
+    `Content-Type: multipart/mixed; boundary=${boundary}`,
+    "",
+    `--${boundary}`,
+    "Content-Type: text/plain; charset=UTF-8",
+    "",
+    message,
+    `--${boundary}`,
+    "Content-Type: message/rfc822; name=forwarded-message.eml",
+    "Content-Transfer-Encoding: base64",
+    "Content-Disposition: attachment; filename=forwarded-message.eml",
+    "",
+    original,
+    `--${boundary}--`
+  ].join("\r\n");
+  return Buffer.from(mime, "utf8").toString("base64url");
+}
+
+function multipartRelated(boundary: string, metadata: string, contentType: string, bytes: Buffer) {
+  return Buffer.concat([
+    Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n--${boundary}\r\nContent-Type: ${contentType}\r\n\r\n`, "utf8"),
+    bytes,
+    Buffer.from(`\r\n--${boundary}--`, "utf8")
+  ]);
+}
+
+function permanent(message: string, code = "ACTION_FAILED") {
+  return Object.assign(new Error(message), { code, retryable: false });
+}
+
+function keys(input: Record<string, string[]>) {
+  return new Set(Object.entries(input).flatMap(([appId, actionIds]) => actionIds.map((actionId) => `${appId}.${actionId}`)));
 }
 
 function gmailHeaders(output: Record<string, unknown>) {

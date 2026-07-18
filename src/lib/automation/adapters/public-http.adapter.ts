@@ -1,11 +1,12 @@
 import { assertPublicDns, assertSafeUrlFormat } from "../../deep-research/safe-fetch";
+import { adapterImplementationSupports } from "./action-adapter.manifest";
 import type { ActionAdapter } from "./action-adapter.types";
 import { objectValue, text } from "./adapter-utils";
 
 export const publicHttpAdapter: ActionAdapter = {
   adapterVersion: 1,
   supports(adapterKey, adapterVersion) {
-    return adapterVersion === 1 && (adapterKey === "webhook.send" || /^http\.(get|post|put|patch|delete)$/u.test(adapterKey));
+    return adapterImplementationSupports("publicHttp", adapterKey, adapterVersion);
   },
   async execute(input) {
     const startedAt = performance.now();

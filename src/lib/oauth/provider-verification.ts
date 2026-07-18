@@ -57,12 +57,14 @@ function endpointFor(provider: ConnectableOAuthProviderId) {
   if (provider === "slack") return "https://slack.com/api/auth.test";
   if (provider === "github") return "https://api.github.com/user";
   if (provider === "notion") return "https://api.notion.com/v1/users/me";
+  if (provider === "microsoft") return "https://graph.microsoft.com/v1.0/me?$select=id,displayName,mail,userPrincipalName";
+  if (provider === "dropbox") return "https://api.dropboxapi.com/2/users/get_current_account";
   return "https://discord.com/api/users/@me";
 }
 
 function requestFor(provider: ConnectableOAuthProviderId, accessToken: string): RequestInit {
   return {
-    method: provider === "slack" ? "POST" : "GET",
+    method: provider === "slack" || provider === "dropbox" ? "POST" : "GET",
     headers: {
       Authorization: `Bearer ${accessToken}`,
       Accept: "application/json",
@@ -111,6 +113,24 @@ function normalizeIdentity(
       email: stringValue(person.email),
       avatar: stringValue(data.avatar_url),
       workspaceName: stringValue(bot.workspace_name)
+    });
+  }
+  if (provider === "microsoft") {
+    return identity({
+      id: stringValue(data.id),
+      name: stringValue(data.displayName),
+      email: stringValue(data.mail) || stringValue(data.userPrincipalName)
+    });
+  }
+  if (provider === "dropbox") {
+    const name = asRecord(data.name);
+    const team = asRecord(data.team);
+    return identity({
+      id: stringValue(data.account_id),
+      name: stringValue(name.display_name),
+      email: stringValue(data.email),
+      workspaceId: stringValue(team.id),
+      workspaceName: stringValue(team.name)
     });
   }
 

@@ -77,7 +77,7 @@ export const OAUTH_PROVIDER_REGISTRY: Record<ConnectableOAuthProviderId, OAuthPr
       "team:read"
     ],
     supportsPkce: false,
-    supportsRefreshToken: false
+    supportsRefreshToken: true
   },
   github: {
     id: "github",
@@ -101,7 +101,7 @@ export const OAUTH_PROVIDER_REGISTRY: Record<ConnectableOAuthProviderId, OAuthPr
     redirectPath: "/api/integrations/notion/callback",
     defaultScopes: [],
     supportsPkce: false,
-    supportsRefreshToken: false
+    supportsRefreshToken: true
   },
   discord: {
     id: "discord",

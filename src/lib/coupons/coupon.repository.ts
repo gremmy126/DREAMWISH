@@ -232,6 +232,32 @@ export async function getPreparedDiscount(userId: string) {
   return redemption && coupon ? { redemption, coupon } : null;
 }
 
+export async function getPreparedDomesticDiscount(userId: string) {
+  const now = new Date();
+  if (hasPostgresStorage()) {
+    await ensureAdminSchema();
+    const rows = await getPostgres()`
+      SELECT r.*, row_to_json(c.*) AS coupon
+      FROM coupon_redemptions r JOIN coupon_codes c ON c.id = r.coupon_id
+      WHERE r.user_id = ${userId} AND r.status = 'reserved' AND r.expires_at > NOW()
+        AND c.active = TRUE AND c.coupon_type IN ('percentage_discount', 'fixed_discount')
+      ORDER BY r.reserved_at DESC LIMIT 1
+    `;
+    return rows[0]
+      ? { redemption: mapRedemptionRow(rows[0]), coupon: mapCouponRow(rows[0].coupon as Record<string, unknown>) }
+      : null;
+  }
+  const db = await readDb();
+  const redemption = db.redemptions.find((item) =>
+    item.userId === userId && item.status === "reserved" && Boolean(item.expiresAt) &&
+    new Date(item.expiresAt!).getTime() > now.getTime()
+  );
+  const coupon = redemption
+    ? db.coupons.find((item) => item.id === redemption.couponId && item.active && item.type !== "access_duration")
+    : null;
+  return redemption && coupon ? { redemption, coupon } : null;
+}
+
 export async function markPreparedDiscountRedeemed(userId: string) {
   return updatePreparedDiscount(userId, "redeemed");
 }
@@ -334,4 +360,3 @@ function mapGrantRow(row: Record<string, unknown>): AccessGrant {
 }
 
 function toIso(value: unknown) { return value instanceof Date ? value.toISOString() : new Date(String(value)).toISOString(); }
-

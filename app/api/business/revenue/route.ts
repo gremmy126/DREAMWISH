@@ -10,6 +10,8 @@ import type {
   RevenueCaptureMethod,
   RevenuePlatform
 } from "@/src/lib/business/revenue.types";
+import { importBillingRevenueForOwner } from "@/src/lib/business/billing-revenue-import.service";
+import { assertSameOriginMutation } from "@/src/lib/security/csrf";
 
 const PLATFORMS: RevenuePlatform[] = ["android", "ios", "web"];
 const METHODS: RevenueCaptureMethod[] = [
@@ -22,10 +24,12 @@ const METHODS: RevenueCaptureMethod[] = [
 
 export async function GET(request: Request) {
   const owner = await requireOwnerContext(request);
+  await importBillingRevenueForOwner(owner.uid);
   return NextResponse.json({ candidates: await listRevenueCandidates(owner.uid) });
 }
 
 export async function POST(request: Request) {
+  assertSameOriginMutation(request);
   const owner = await requireOwnerContext(request);
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
   const platform = body.platform as RevenuePlatform;
@@ -55,14 +59,17 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
+  assertSameOriginMutation(request);
   const owner = await requireOwnerContext(request);
   const body = (await request.json().catch(() => ({}))) as {
     id?: unknown;
     status?: RevenueCandidateStatus;
     confirmedAmount?: unknown;
+    linkedCandidateId?: unknown;
   };
   const id = clean(body.id, 160);
-  if (!id || (body.status !== "confirmed" && body.status !== "rejected")) {
+  const status = body.status;
+  if (!id || !isFinalStatus(status)) {
     return NextResponse.json({ error: "Candidate id and final status are required." }, { status: 400 });
   }
   const confirmedAmount =
@@ -72,12 +79,17 @@ export async function PATCH(request: Request) {
   const candidate = await transitionRevenueCandidate(
     owner.uid,
     id,
-    body.status,
-    confirmedAmount
+    status,
+    confirmedAmount,
+    clean(body.linkedCandidateId, 160) || null
   );
   return candidate
     ? NextResponse.json({ candidate })
     : NextResponse.json({ error: "Revenue candidate not found." }, { status: 404 });
+}
+
+function isFinalStatus(value: RevenueCandidateStatus | undefined): value is Exclude<RevenueCandidateStatus, "provisional"> {
+  return value !== undefined && ["confirmed", "expense", "personal", "duplicate", "rejected"].includes(value);
 }
 
 function clean(value: unknown, maxLength: number) {

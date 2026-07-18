@@ -1,10 +1,11 @@
 "use client";
 
-import { CheckCircle2, KeyRound, Loader2, LogIn, ShieldAlert, Unplug } from "lucide-react";
+import { CheckCircle2, KeyRound, Loader2, ShieldAlert, Unplug } from "lucide-react";
 import { useEffect, useState } from "react";
 import { AppLogo } from "@/components/shared/AppLogo";
 import { getAutomationApp } from "@/src/lib/automation/app-registry";
 import type { VerifiedConnectionState } from "@/src/lib/integrations/verified-connection.service";
+import { OAuthAppConfigPanel } from "./OAuthAppConfigPanel";
 
 export function KeyCredentialPanel({
   appId,
@@ -60,12 +61,6 @@ export function KeyCredentialPanel({
     } finally { setBusy(false); }
   }
 
-  function startOAuth() {
-    if (!app?.oauthTarget) return;
-    const { provider, service } = app.oauthTarget;
-    window.location.assign(`/api/integrations/${encodeURIComponent(provider)}/connect?service=${encodeURIComponent(service)}&returnTo=${encodeURIComponent("/?view=integrations")}`);
-  }
-
   const connected = connection?.status === "connected";
   const missing = app.credentialFields.some((field) => field.required && !values[field.id]?.trim());
 
@@ -78,6 +73,12 @@ export function KeyCredentialPanel({
           <p className="mt-1 text-xs leading-5 text-app-muted">{app.help}</p>
         </div>
       </div>
+
+      {app.oauthTarget ? (
+        <div className="mt-5">
+          <OAuthAppConfigPanel app={app} onChanged={onChanged} />
+        </div>
+      ) : null}
 
       {connected ? (
         <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
@@ -93,11 +94,7 @@ export function KeyCredentialPanel({
             <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">기존 정보는 검증되지 않아 연결로 사용하지 않습니다. 다시 인증해 주세요.</p>
           ) : null}
 
-          {app.oauthTarget ? (
-            <button type="button" onClick={startOAuth} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-app-primary px-4 text-sm font-bold text-white">
-              <LogIn size={16} />{app.label} OAuth로 연결
-            </button>
-          ) : app.supportedAuthModes.includes("oauth") && app.credentialFields.length === 0 ? (
+          {!app.oauthTarget && app.supportedAuthModes.includes("oauth") && app.credentialFields.length === 0 ? (
             <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-xs leading-6 text-blue-800"><ShieldAlert size={18} className="mb-2" />이 앱은 사용자가 Client ID나 Secret을 넣는 방식이 아닙니다. 운영자가 OAuth 앱 설정을 완료해야 연결할 수 있습니다.</div>
           ) : null}
 

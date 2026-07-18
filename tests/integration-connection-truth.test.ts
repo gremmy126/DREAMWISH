@@ -116,6 +116,17 @@ test("integration status and UI expose truthful reconnect state with safe API pa
   assert.match(disconnectSource, /readApiResponse/u);
 });
 
+test("automation connection manager uses the same verified status contract as integrations", async () => {
+  const source = await fs.readFile(
+    path.join(process.cwd(), "components/Automation/DurableConnectionPanel.tsx"),
+    "utf8"
+  );
+  assert.match(source, /\/api\/integrations\/status/u);
+  assert.match(source, /VerifiedConnectionState/u);
+  assert.match(source, /userOAuthSetupRequired/u);
+  assert.doesNotMatch(source, /GOOGLE_CLIENT_ID|SLACK_CLIENT_ID|GITHUB_CLIENT_ID/u);
+});
+
 async function withTempDataDir(run: () => Promise<void>) {
   const previous = process.env.DATA_DIR;
   const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), "dreamwish-connection-state-"));

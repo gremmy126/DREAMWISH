@@ -1,3 +1,4 @@
+import { adapterImplementationSupports } from "./action-adapter.manifest";
 import type { ActionAdapter } from "./action-adapter.types";
 import type { ActionAdapterExecutionInput } from "./action-adapter.types";
 import { executeOAuthJson } from "./oauth-json-client";
@@ -7,11 +8,7 @@ import { booleanValue, text } from "./adapter-utils";
 export const triggerActionAdapter: ActionAdapter = {
   adapterVersion: 1,
   supports(adapterKey, adapterVersion) {
-    return adapterVersion === 1 && (
-      adapterKey === "gmail.watch-new-email" ||
-      adapterKey === "webhook.receive" ||
-      adapterKey.startsWith("schedule.")
-    );
+    return adapterImplementationSupports("trigger", adapterKey, adapterVersion);
   },
   async execute(input) {
     if (input.definition.adapterKey === "gmail.watch-new-email") {

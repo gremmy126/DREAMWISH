@@ -1,0 +1,64 @@
+plugins {
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+    id("com.facebook.react")
+}
+
+def googleServicesFile = file("google-services.json")
+if (googleServicesFile.exists()) apply plugin: "com.google.gms.google-services"
+
+react { autolinkLibrariesWithApp() }
+
+def releaseStoreFile = System.getenv("DREAMWISH_UPLOAD_STORE_FILE")
+def releaseStorePassword = System.getenv("DREAMWISH_UPLOAD_STORE_PASSWORD")
+def releaseKeyAlias = System.getenv("DREAMWISH_UPLOAD_KEY_ALIAS")
+def releaseKeyPassword = System.getenv("DREAMWISH_UPLOAD_KEY_PASSWORD")
+
+android {
+    namespace "kr.co.dreamwish.companion"
+    compileSdk 36
+    defaultConfig {
+        applicationId "kr.co.dreamwish.companion"
+        minSdk 26
+        targetSdk 36
+        versionCode 1
+        versionName "0.1.0"
+        buildConfigField "String", "API_BASE_URL", '"https://dreamwish.co.kr"'
+    }
+    signingConfigs {
+        if (releaseStoreFile && releaseStorePassword && releaseKeyAlias && releaseKeyPassword) {
+            release {
+                storeFile file(releaseStoreFile)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
+    }
+    buildTypes {
+        debug { applicationIdSuffix ".debug" }
+        release {
+            if (releaseStoreFile && releaseStorePassword && releaseKeyAlias && releaseKeyPassword) signingConfig signingConfigs.release
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
+        }
+    }
+}
+
+tasks.configureEach { task ->
+    if (task.name in ["assembleRelease", "bundleRelease"] && (!releaseStoreFile || !releaseStorePassword || !releaseKeyAlias || !releaseKeyPassword)) {
+        task.doFirst {
+            throw new GradleException("Release signing requires DREAMWISH_UPLOAD_STORE_FILE, DREAMWISH_UPLOAD_STORE_PASSWORD, DREAMWISH_UPLOAD_KEY_ALIAS, and DREAMWISH_UPLOAD_KEY_PASSWORD")
+        }
+    }
+    if (task.name in ["assembleRelease", "bundleRelease"] && !googleServicesFile.exists()) {
+        task.doFirst { throw new GradleException("Release push notifications require android/app/google-services.json") }
+    }
+}
+
+dependencies {
+    implementation("com.facebook.react:react-android")
+    implementation("androidx.work:work-runtime-ktx:2.10.1")
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+    if (hermesEnabled.toBoolean()) implementation("com.facebook.react:hermes-android") else implementation("org.webkit:android-jsc:+")
+}

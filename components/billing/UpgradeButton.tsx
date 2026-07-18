@@ -3,11 +3,15 @@
 import { CreditCard, Loader2, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { useAccess } from "@/src/lib/auth/access-context";
+import { DomesticCheckoutDialog } from "@/components/billing/DomesticCheckoutDialog";
 
 export function UpgradeButton({ compact = false }: { compact?: boolean }) {
   const { access } = useAccess();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [domesticOpen, setDomesticOpen] = useState(false);
+  const [domesticMode, setDomesticMode] = useState<"sandbox" | "live">("sandbox");
+  const [domesticFlow, setDomesticFlow] = useState<"v1" | "v2">("v2");
 
   const admin = access.adminBypass;
   const paid = !admin && access.canUseApp && !access.requiresPayment;
@@ -17,6 +21,16 @@ export function UpgradeButton({ compact = false }: { compact?: boolean }) {
     setLoading(true);
     setError(null);
     try {
+      if (!paid) {
+        const configResponse = await fetch("/api/billing/domestic/config");
+        const domestic = (await configResponse.json().catch(() => null)) as { enabled?: boolean; environment?: "sandbox" | "live"; flow?: "v1" | "v2" } | null;
+        if (configResponse.ok && domestic?.enabled) {
+          setDomesticMode(domestic.environment || "sandbox");
+          setDomesticFlow(domestic.flow || "v2");
+          setDomesticOpen(true);
+          return;
+        }
+      }
       const endpoint = paid ? "/api/billing/portal" : "/api/billing/checkout";
       const response = await fetch(endpoint, { method: "POST" });
       const payload = (await response.json().catch(() => null)) as
@@ -35,6 +49,7 @@ export function UpgradeButton({ compact = false }: { compact?: boolean }) {
   }
 
   return (
+    <>
     <div className="space-y-2">
       <button
         type="button"
@@ -53,5 +68,7 @@ export function UpgradeButton({ compact = false }: { compact?: boolean }) {
       </button>
       {error ? <p className="px-1 text-[11px] leading-4 text-red-600">{error}</p> : null}
     </div>
+    <DomesticCheckoutDialog open={domesticOpen} mode={domesticMode} flow={domesticFlow} onClose={() => setDomesticOpen(false)} />
+    </>
   );
 }

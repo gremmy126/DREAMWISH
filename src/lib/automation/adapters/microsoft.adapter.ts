@@ -1,14 +1,14 @@
+import { adapterImplementationSupports } from "./action-adapter.manifest";
 import type { ActionAdapter, ActionAdapterExecutionInput } from "./action-adapter.types";
 import { arrayValue, compactObject, text } from "./adapter-utils";
 import { executeOAuthJson } from "./oauth-json-client";
-import { isAdapterImplementationAvailable } from "./adapter-availability";
-
-const APPS = new Set(["outlook", "microsoft-teams", "onedrive"]);
+import { executeOAuthBinary, executeOAuthRaw } from "./oauth-json-client";
+import { filenameFromDisposition, loadActionFile, saveRemoteFile } from "./file-transfer";
 
 export const microsoftActionAdapter: ActionAdapter = {
   adapterVersion: 1,
   supports(adapterKey, adapterVersion) {
-    return APPS.has(adapterKey.split(".")[0]!) && isAdapterImplementationAvailable(adapterKey, adapterVersion);
+    return adapterImplementationSupports("microsoft", adapterKey, adapterVersion);
   },
   execute(input) {
     if (input.definition.appId === "outlook") return executeOutlook(input);
@@ -58,8 +58,40 @@ function executeTeams(input: ActionAdapterExecutionInput) {
   });
 }
 
-function executeOneDrive(input: ActionAdapterExecutionInput) {
+async function executeOneDrive(input: ActionAdapterExecutionInput) {
   const values = input.normalizedInput;
+  if (input.definition.id === "upload-file") {
+    const file = await loadActionFile(input.ownerId, values.file, "upload.bin");
+    const destination = text(values, "path", file.name).replace(/^\/+|\/+$/gu, "") || file.name;
+    return executeOAuthRaw(input, {
+      url: `https://graph.microsoft.com/v1.0/me/drive/root:/${destination.split("/").map(encodeURIComponent).join("/")}:/content`,
+      method: "PUT",
+      headers: {
+        "Content-Type": file.contentType,
+        "client-request-id": input.idempotencyKey,
+        "return-client-request-id": "true"
+      },
+      body: file.bytes
+    });
+  }
+  if (input.definition.id === "download-file") {
+    const downloaded = await executeOAuthBinary(input, {
+      url: `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(text(values, "fileId"))}/content`,
+      headers: { "client-request-id": input.idempotencyKey, "return-client-request-id": "true" }
+    });
+    const file = await saveRemoteFile({
+      ownerId: input.ownerId,
+      bytes: downloaded.bytes,
+      name: filenameFromDisposition(downloaded.contentDisposition, `onedrive-${text(values, "fileId")}`),
+      contentType: downloaded.contentType
+    });
+    return {
+      output: { id: file.id, name: file.name, size: file.size, mimeType: file.mimeType },
+      apiRequestId: downloaded.apiRequestId,
+      rateLimitRemaining: downloaded.rateLimitRemaining,
+      adapterLatencyMs: downloaded.adapterLatencyMs
+    };
+  }
   const item = `/me/drive/items/${encodeURIComponent(text(values, "fileId"))}`;
   if (input.definition.id === "move-file") return executeOAuthJson(input, {
     url: `https://graph.microsoft.com/v1.0${item}`, method: "PATCH",

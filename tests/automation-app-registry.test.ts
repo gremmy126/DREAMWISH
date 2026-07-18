@@ -46,6 +46,36 @@ test("automation apps declare truthful supported auth modes and verification con
   assert.deepEqual(getAutomationApp("youtube")?.oauthTarget, { provider: "google", service: "youtube" });
 });
 
+test("every OAuth app declares exact user client fields and a setup guide", () => {
+  for (const app of AUTOMATION_APPS.filter((item) => item.oauthTarget)) {
+    assert.deepEqual(
+      app.oauthClientFields.map((field) => field.id),
+      ["clientId", "clientSecret"],
+      `${app.id} must expose user client fields`
+    );
+    assert.equal(app.oauthClientFields[1]?.secret, true, `${app.id} client secret must be marked secret`);
+    assert.match(app.connectionGuide.officialSetupUrl, /^https:\/\//u, `${app.id} guide must link the provider console`);
+    assert.ok(
+      app.connectionGuide.redirectPath.startsWith("/api/integrations/"),
+      `${app.id} guide must expose the exact callback path`
+    );
+    assert.ok(app.connectionGuide.steps.length >= 3, `${app.id} guide must have at least three steps`);
+    assert.ok(app.connectionGuide.scopeHelp.length > 0, `${app.id} guide must explain requested scopes`);
+  }
+  for (const app of AUTOMATION_APP_DEFINITIONS.filter((item) => !item.oauthTarget)) {
+    assert.deepEqual(app.oauthClientFields, [], `${app.id} without OAuth must not ask for client fields`);
+  }
+});
+
+test("Microsoft and Dropbox apps are connectable from the canonical registry", () => {
+  assert.deepEqual(getAutomationApp("outlook")?.oauthTarget, { provider: "microsoft", service: "outlook" });
+  assert.deepEqual(getAutomationApp("microsoft-teams")?.oauthTarget, { provider: "microsoft", service: "microsoft-teams" });
+  assert.deepEqual(getAutomationApp("onedrive")?.oauthTarget, { provider: "microsoft", service: "onedrive" });
+  assert.deepEqual(getAutomationApp("dropbox")?.oauthTarget, { provider: "dropbox", service: "dropbox" });
+  assert.equal(getAutomationApp("outlook")?.connectionGuide.redirectPath, "/api/integrations/microsoft/callback");
+  assert.equal(getAutomationApp("dropbox")?.connectionGuide.redirectPath, "/api/integrations/dropbox/callback");
+});
+
 test("Automation tabs are interactive and module letters are replaced by app logos", () => {
   const source = fs.readFileSync("components/Automation/AutomationView.tsx", "utf8");
   const tabs = fs.readFileSync("components/Automation/AutomationTabs.tsx", "utf8");

@@ -8,6 +8,7 @@ import {
 
 const connection: IntegrationConnection = {
   id: "connection-1", ownerId: "owner-1", userId: "owner-1", appId: "gmail", provider: "google",
+  oauthAppConfigId: "oauth-config-1", oauthAppConfigVersion: 1,
   providerAccountId: "account-1", providerWorkspaceId: null, accountLabel: "Work", accountEmail: "work@example.com",
   accessTokenCiphertext: "secret-access", refreshTokenCiphertext: "secret-refresh", tokenKeyVersion: 1,
   expiresAt: "2099-01-01T00:00:00.000Z", grantedScopes: ["gmail.send"], status: "connected",

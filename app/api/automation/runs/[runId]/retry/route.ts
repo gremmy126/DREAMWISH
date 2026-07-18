@@ -34,5 +34,13 @@ export async function POST(request: Request, context: Context) {
     triggerData: original.triggerData,
     priority: 25
   });
+  if (!queued.queued) {
+    return NextResponse.json({
+      ok: false,
+      waitingConnection: true,
+      execution: queued.execution,
+      findings: queued.findings
+    }, { status: 409 });
+  }
   return NextResponse.json({ ok: true, execution: queued.execution, jobId: queued.job.id }, { status: 202 });
 }

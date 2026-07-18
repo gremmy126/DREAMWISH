@@ -15,7 +15,7 @@ export const GOOGLE_OAUTH_SCOPES = [
 export function createGoogleOAuthAuthorizationUrl(request: OAuthAuthorizationRequest) {
   const config = getOAuthProviderConfig("google");
   const url = new URL(config.authorizationUrl);
-  url.searchParams.set("client_id", getOAuthClientId("google"));
+  url.searchParams.set("client_id", request.clientId || getOAuthClientId("google"));
   url.searchParams.set("redirect_uri", request.redirectUri);
   url.searchParams.set("response_type", "code");
   url.searchParams.set("access_type", "offline");
@@ -36,11 +36,12 @@ export function createGoogleOAuthAuthorizationUrl(request: OAuthAuthorizationReq
 export async function exchangeGoogleOAuthCode(
   code: string,
   redirectUri: string,
-  codeVerifier?: string | null
+  codeVerifier?: string | null,
+  credentials?: { clientId: string; clientSecret: string }
 ) {
   const body = new URLSearchParams({
-    client_id: getOAuthClientId("google"),
-    client_secret: getOAuthClientSecret("google"),
+    client_id: credentials?.clientId || getOAuthClientId("google"),
+    client_secret: credentials?.clientSecret || getOAuthClientSecret("google"),
     code,
     grant_type: "authorization_code",
     redirect_uri: redirectUri

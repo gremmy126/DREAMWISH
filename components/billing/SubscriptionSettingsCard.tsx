@@ -82,6 +82,27 @@ export function SubscriptionSettingsCard() {
     }
   }
 
+  async function continueCancellation() {
+    if (!entitlement || entitlement.provider === "polar" || entitlement.provider === null) {
+      await openPortal();
+      return;
+    }
+    setPortalLoading(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/billing/domestic/cancel", { method: "POST" });
+      const payload = (await response.json().catch(() => null)) as BillingStatusResponse | null;
+      if (!response.ok) throw new Error(payload?.error || "구독 해지를 예약하지 못했습니다.");
+      setConfirmOpen(false);
+      await loadStatus();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "구독 해지를 예약하지 못했습니다.");
+      setConfirmOpen(false);
+    } finally {
+      setPortalLoading(false);
+    }
+  }
+
   const active = entitlement?.status === "active";
   const scheduled = active && entitlement.cancelAtPeriodEnd;
   const periodEnd = entitlement?.endsAt || entitlement?.currentPeriodEnd;
@@ -171,6 +192,7 @@ export function SubscriptionSettingsCard() {
             ) : null}
 
             <div className="flex flex-wrap gap-3 text-sm">
+              {entitlement.provider === "polar" || entitlement.provider === null ? (
               <button
                 type="button"
                 onClick={() => void openPortal()}
@@ -180,6 +202,7 @@ export function SubscriptionSettingsCard() {
                 {portalLoading ? <Loader2 className="animate-spin" size={15} aria-hidden="true" /> : <ExternalLink size={15} aria-hidden="true" />}
                 Polar 결제 관리
               </button>
+              ) : null}
               <Link className="inline-flex min-h-11 items-center justify-center px-2 font-semibold text-app-primary" href="/refunds">
                 환불 및 구독 해지 정책
               </Link>
@@ -191,9 +214,10 @@ export function SubscriptionSettingsCard() {
       {confirmOpen ? (
         <CancellationDialog
           busy={portalLoading}
+          domestic={Boolean(entitlement?.provider && entitlement.provider !== "polar")}
           periodEnd={periodEnd}
           onCancel={() => setConfirmOpen(false)}
-          onContinue={() => void openPortal()}
+          onContinue={() => void continueCancellation()}
         />
       ) : null}
     </>
@@ -202,11 +226,13 @@ export function SubscriptionSettingsCard() {
 
 function CancellationDialog({
   busy,
+  domestic,
   periodEnd,
   onCancel,
   onContinue
 }: {
   busy: boolean;
+  domestic: boolean;
   periodEnd: string | null | undefined;
   onCancel: () => void;
   onContinue: () => void;
@@ -302,7 +328,7 @@ function CancellationDialog({
             className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-red-600 px-4 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-wait disabled:bg-red-300"
           >
             {busy ? <Loader2 className="animate-spin" size={15} aria-hidden="true" /> : null}
-            Polar에서 해지 계속
+            {domestic ? "구독 해지 예약" : "Polar에서 해지 계속"}
           </button>
         </div>
       </div>

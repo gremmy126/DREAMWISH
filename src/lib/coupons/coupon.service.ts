@@ -1,8 +1,55 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { getCouponHashSecret, hashCouponCode } from "./coupon-code";
+import type { Coupon } from "./coupon.types";
 
 export const PENDING_COUPON_COOKIE = "dreamwish-pending-coupon" as const;
 export const PENDING_COUPON_MAX_AGE_SECONDS = 15 * 60;
+
+export function calculateDomesticCouponAmount(
+  baseAmount: number,
+  coupon: Pick<Coupon, "type" | "value" | "currency"> | null
+) {
+  const base = Math.max(1, Math.trunc(baseAmount));
+  if (!coupon || coupon.type === "access_duration" || !coupon.value) return base;
+  if (coupon.type === "percentage_discount") {
+    const percent = Math.max(0, Math.min(100, coupon.value));
+    return Math.max(1, Math.trunc(base * (100 - percent) / 100));
+  }
+  if (coupon.currency && coupon.currency.toUpperCase() !== "KRW") return base;
+  return Math.max(1, base - Math.max(0, Math.trunc(coupon.value)));
+}
+
+export function buildDomesticSubscriptionPricing(
+  baseAmount: number,
+  coupon: Pick<Coupon, "type" | "value" | "currency" | "duration" | "durationMonths"> | null
+) {
+  const base = Math.max(1, Math.trunc(baseAmount));
+  const initialAmount = calculateDomesticCouponAmount(base, coupon);
+  if (!coupon || initialAmount === base || coupon.duration === "once") {
+    return {
+      initialAmount,
+      renewalAmount: base,
+      remainingDiscountCycles: 0,
+      discountForever: false
+    };
+  }
+  if (coupon.duration === "forever") {
+    return {
+      initialAmount,
+      renewalAmount: initialAmount,
+      remainingDiscountCycles: 0,
+      discountForever: true
+    };
+  }
+  const totalCycles = Math.max(1, Math.trunc(coupon.durationMonths || 1));
+  const remainingDiscountCycles = Math.max(0, totalCycles - 1);
+  return {
+    initialAmount,
+    renewalAmount: remainingDiscountCycles > 0 ? initialAmount : base,
+    remainingDiscountCycles,
+    discountForever: false
+  };
+}
 
 export function createPendingCouponCookie(code: string, now = Date.now()) {
   const payload = Buffer.from(
@@ -50,4 +97,3 @@ function readCookie(cookieHeader: string | null, name: string) {
   }
   return null;
 }
-

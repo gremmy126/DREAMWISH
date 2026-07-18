@@ -233,7 +233,12 @@ const records = (appId: string, label: string, idField: string, baseFields: Acti
   action(appId, `get-${label}`, `${display(label)} 조회`, "read", [field(idField, `${display(label)} ID`, "resource")], { risk: "read", scopes: ["read"] })
 ];
 
-const airtable = records("airtable", "record", "recordId", [field("baseId", "Base", "resource"), field("tableId", "Table", "resource"), field("fields", "Fields", "json")]).map((item, index) => ({ ...item, name: ["레코드 생성", "레코드 수정", "레코드 삭제", "레코드 조회"][index]! }));
+const airtable = [
+  action("airtable", "create-record", "레코드 생성", "write", [field("baseId", "Base", "resource"), field("tableId", "Table", "resource"), field("fields", "Fields", "json")], { risk: "medium", scopes: ["data.records:write"] }),
+  action("airtable", "update-record", "레코드 수정", "write", [field("baseId", "Base", "resource"), field("tableId", "Table", "resource"), field("recordId", "Record ID", "resource"), field("fields", "Fields", "json")], { risk: "medium", scopes: ["data.records:write"] }),
+  action("airtable", "delete-record", "레코드 삭제", "write", [field("baseId", "Base", "resource"), field("tableId", "Table", "resource"), field("recordId", "Record ID", "resource")], { ...high("DELETE"), scopes: ["data.records:write"] }),
+  action("airtable", "get-record", "레코드 조회", "read", [field("baseId", "Base", "resource"), field("tableId", "Table", "resource"), field("recordId", "Record ID", "resource")], { risk: "read", scopes: ["data.records:read"] })
+];
 
 const projectApps = [
   action("trello", "create-card", "카드 생성", "write", [field("boardId", "Board", "resource"), field("listId", "List", "resource"), field("name", "Card name"), optional("description", "Description", "textarea")], { risk: "medium", scopes: ["write"] }),

@@ -83,15 +83,16 @@ test("revenue candidates are owner scoped idempotent and provisional until confi
 });
 
 test("mobile companion references enforce platform rules and Open Banking is disabled", async () => {
-  const android = await read("mobile-companion/android/NotificationCaptureService.kt");
-  const ios = await read("mobile-companion/ios/ShareViewController.swift");
+  const android = await read("mobile-companion/android/app/src/main/java/kr/co/dreamwish/companion/capture/NotificationCaptureService.kt");
+  const ios = await read("mobile-companion/ios/ShareExtension/ShareViewController.swift");
   const guide = await read("mobile-companion/README.md");
-  const androidManifest = await read("mobile-companion/android/AndroidManifest.xml");
-  const iosInfo = await read("mobile-companion/ios/Info.plist");
+  const androidManifest = await read("mobile-companion/android/app/src/main/AndroidManifest.xml");
+  const iosInfo = await read("mobile-companion/ios/ShareExtension/Info.plist");
   const route = await read("app/api/business/revenue/route.ts");
   // Revenue-candidate review moved from the Business overview to the ERP
   // workspace so the Business page stays operations-focused.
   const businessHub = await read("components/Business/ErpWorkspace.tsx");
+  const revenuePanel = await read("components/Business/RevenueReviewPanel.tsx");
   const devicePanel = await read("components/Business/DeviceConnectionPanel.tsx");
 
   assert.match(android, /NotificationListenerService/u);
@@ -102,8 +103,8 @@ test("mobile companion references enforce platform rules and Open Banking is dis
   assert.match(guide, /iPhone[\s\S]*cannot[\s\S]*other apps[\s\S]*notifications/iu);
   assert.match(route, /requireOwnerContext\(request\)/u);
   assert.match(businessHub, /\/api\/business\/revenue/u);
-  assert.match(businessHub, /"confirmed"/u);
-  assert.match(businessHub, /"rejected"/u);
+  assert.match(businessHub + revenuePanel, /"confirmed"/u);
+  assert.match(businessHub + revenuePanel, /"rejected"/u);
   assert.match(devicePanel, /Android/u);
   assert.match(devicePanel, /iPhone/u);
   assert.equal(openBankingAdapter.enabled, false);

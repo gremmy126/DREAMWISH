@@ -1,14 +1,12 @@
+import { adapterImplementationSupports } from "./action-adapter.manifest";
 import type { ActionAdapter, ActionAdapterExecutionInput, ActionAdapterExecutionResult } from "./action-adapter.types";
 import { arrayValue, booleanValue, compactObject, objectValue, text } from "./adapter-utils";
 import { executeOAuthJson } from "./oauth-json-client";
-import { isAdapterImplementationAvailable } from "./adapter-availability";
-
-const APPS = new Set(["slack", "github", "notion"]);
 
 export const collaborationActionAdapter: ActionAdapter = {
   adapterVersion: 1,
   supports(adapterKey, adapterVersion) {
-    return APPS.has(adapterKey.split(".")[0]!) && isAdapterImplementationAvailable(adapterKey, adapterVersion);
+    return adapterImplementationSupports("collaboration", adapterKey, adapterVersion);
   },
   execute(input) {
     if (input.definition.appId === "slack") return executeSlack(input);

@@ -42,9 +42,9 @@ export default function RefundsPage() {
       <PolicySection id="subscription-cancellation" title="3. 구독 해지">
         <ul>
           <li>회원은 DREAMWISH 설정의 “구독 해지”에서 언제든 다음 자동 결제를 중단할 수 있습니다.</li>
-          <li>최종 해지는 본인 확인이 적용된 Polar 고객 포털에서 처리됩니다.</li>
+          <li>Polar 구독은 본인 확인이 적용된 고객 포털에서, PortOne·KPN·NHN KCP 국내 구독은 DREAMWISH 설정에서 처리됩니다.</li>
           <li>일반적인 해지는 현재 결제 기간 종료일에 적용되고, 종료 전까지 유료 기능을 이용할 수 있습니다.</li>
-          <li>해지 예약이 완료되면 다음 결제는 생성되지 않으며, 허용되는 기간에는 Polar에서 해지 예약을 취소할 수 있습니다.</li>
+          <li>해지 예약이 완료되면 다음 결제는 생성되지 않으며, 공급자가 지원하는 허용 기간에는 해지 예약을 취소할 수 있습니다.</li>
           <li>구독 해지는 앞으로의 갱신을 중단하는 절차이며 이미 완료된 결제의 환불을 의미하지 않습니다.</li>
         </ul>
       </PolicySection>
@@ -79,7 +79,7 @@ export default function RefundsPage() {
         </p>
         <ul>
           <li>DREAMWISH 가입 이메일</li>
-          <li>결제일, 결제 금액과 Polar 영수증 또는 주문 식별정보</li>
+          <li>결제일, 결제 금액과 Polar 또는 PortOne·KPN·NHN KCP 영수증·주문 식별정보</li>
           <li>요청 사유와 문제가 발생한 시각</li>
           <li>오류 화면, 요청 ID 등 사실 확인에 필요한 자료</li>
         </ul>
@@ -88,9 +88,9 @@ export default function RefundsPage() {
 
       <PolicySection id="processing" title="7. 환불 처리와 결제수단 반영">
         <p>
-          환불 사유가 승인되면 원래 결제수단으로 취소 또는 환급을 요청합니다. 법정 청약철회나 환급 의무가 적용되는
+          환불 사유가 승인되면 원 결제수단으로 취소 또는 환급을 요청합니다. 법정 청약철회나 환급 의무가 적용되는
           경우 회사는 관계 법령에서 정한 기한에 따라 처리합니다. 회사가 결제 취소를 요청한 뒤 실제 카드 승인 취소
-          또는 계좌 반영까지는 Polar, 카드사와 금융기관의 처리 일정에 따라 추가 시간이 걸릴 수 있습니다.
+          또는 계좌 반영까지는 Polar, PortOne, KPN, NHN KCP, 카드사와 금융기관의 처리 일정에 따라 추가 시간이 걸릴 수 있습니다.
         </p>
       </PolicySection>
 

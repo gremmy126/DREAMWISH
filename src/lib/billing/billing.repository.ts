@@ -13,6 +13,7 @@ import {
   emptyBillingEntitlement,
   type BillingEntitlement
 } from "./billing.types";
+import type { BillingEnvironment, BillingProvider } from "./billing-gateway.types";
 
 const BILLING_NAMESPACE = "billing-entitlement";
 const BILLING_FILE = "billing-entitlements.json";
@@ -85,6 +86,76 @@ export async function applyPolarBillingEvent(input: {
   });
 }
 
+export async function applyDomesticBillingPayment(input: {
+  eventId: string;
+  ownerId: string;
+  provider: Exclude<BillingProvider, "polar">;
+  environment: BillingEnvironment;
+  subscriptionId: string;
+  currentPeriodEnd: string;
+  occurredAt: string;
+}) {
+  if (input.environment !== "live") {
+    throw new Error("Sandbox payments cannot create billing entitlement.");
+  }
+  return updateBillingEntitlement(input.ownerId, (current) => {
+    if (current.lastEventId === input.eventId) return current;
+    return {
+      ...current,
+      provider: input.provider,
+      environment: input.environment,
+      status: "active",
+      subscriptionId: input.subscriptionId,
+      currentPeriodEnd: input.currentPeriodEnd,
+      cancelAtPeriodEnd: false,
+      canceledAt: null,
+      endsAt: null,
+      lastEventId: input.eventId,
+      lastEventAt: input.occurredAt,
+      updatedAt: new Date().toISOString()
+    };
+  });
+}
+
+export async function applyDomesticCancellation(input: {
+  ownerId: string;
+  subscriptionId: string;
+  currentPeriodEnd: string;
+}) {
+  return updateBillingEntitlement(input.ownerId, (current) => {
+    if (current.subscriptionId !== input.subscriptionId) return current;
+    return {
+      ...current,
+      cancelAtPeriodEnd: true,
+      canceledAt: new Date().toISOString(),
+      endsAt: input.currentPeriodEnd,
+      updatedAt: new Date().toISOString()
+    };
+  });
+}
+
+export async function applyDomesticRefund(input: {
+  eventId: string;
+  ownerId: string;
+  subscriptionId: string;
+  occurredAt: string;
+}) {
+  return updateBillingEntitlement(input.ownerId, (current) => {
+    if (current.lastEventId === input.eventId || current.subscriptionId !== input.subscriptionId) return current;
+    return {
+      ...current,
+      status: "revoked",
+      cancelAtPeriodEnd: true,
+      canceledAt: input.occurredAt,
+      endsAt: input.occurredAt,
+      currentPeriodEnd: input.occurredAt,
+      lastEventId: input.eventId,
+      lastEventAt: input.occurredAt,
+      updatedAt: new Date().toISOString()
+    };
+  });
+}
+
 async function updateBillingEntitlement(
   ownerId: string,
   update: (current: BillingEntitlement) => BillingEntitlement
@@ -119,15 +190,17 @@ async function updateBillingEntitlement(
   });
 }
 
-function normalizeEntitlement(
+export function normalizeEntitlement(
   value: BillingEntitlement,
   ownerId: string
 ): BillingEntitlement {
   const fallback = emptyBillingEntitlement(ownerId);
+  const legacyProvider = value.polarCustomerId || value.polarSubscriptionId ? "polar" : null;
   return {
     ...fallback,
     ...value,
     ownerId,
+    provider: value.provider || legacyProvider,
     status: isBillingStatus(value.status) ? value.status : "none"
   };
 }

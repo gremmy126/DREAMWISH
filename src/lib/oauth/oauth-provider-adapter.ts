@@ -1,10 +1,6 @@
 import { createOAuthAuthorizationUrl, exchangeOAuthCode } from "./oauth.service";
-import {
-  getOAuthClientId,
-  getOAuthClientSecret,
-  getOAuthProviderConfig,
-  validateOAuthProviderConfigured
-} from "./oauth-provider-registry";
+import { getOAuthProviderConfig } from "./oauth-provider-registry";
+import type { OAuthClientCredentials } from "./oauth-app-config.types";
 import type {
   ConnectableOAuthProviderId,
   OAuthServiceId,
@@ -60,12 +56,12 @@ export function getOAuthAppIdForLegacyTarget(provider: ConnectableOAuthProviderI
 
 export function createProviderAuthorizationUrl(input: {
   target: OAuthAppTarget;
+  credentials: OAuthClientCredentials;
   redirectUri: string;
   state: string;
   codeChallenge: string;
   requestedScopes?: string[];
 }) {
-  validateOAuthProviderConfigured(input.target.provider);
   const scopes = input.requestedScopes?.length ? input.requestedScopes : input.target.scopes;
   const allowedScopes = new Set(input.target.scopes);
   if (scopes.some((scope) => !allowedScopes.has(scope))) throw new Error("Requested OAuth scopes exceed the app contract.");
@@ -76,12 +72,13 @@ export function createProviderAuthorizationUrl(input: {
       redirectUri: input.redirectUri,
       state: input.state,
       codeChallenge: getOAuthProviderConfig(input.target.provider).supportsPkce ? input.codeChallenge : undefined,
-      scopes
+      scopes,
+      clientId: input.credentials.clientId
     });
   }
   const config = getOAuthProviderConfig(input.target.provider);
   const url = new URL(config.authorizationUrl);
-  url.searchParams.set("client_id", getOAuthClientId(input.target.provider));
+  url.searchParams.set("client_id", input.credentials.clientId);
   url.searchParams.set("response_type", "code");
   url.searchParams.set("redirect_uri", input.redirectUri);
   url.searchParams.set("state", input.state);
@@ -95,6 +92,7 @@ export function createProviderAuthorizationUrl(input: {
 
 export async function exchangeProviderAuthorizationCode(input: {
   target: OAuthAppTarget;
+  credentials: OAuthClientCredentials;
   code: string;
   redirectUri: string;
   codeVerifier: string;
@@ -105,10 +103,12 @@ export async function exchangeProviderAuthorizationCode(input: {
       service: input.target.service,
       code: input.code,
       redirectUri: input.redirectUri,
-      codeVerifier: getOAuthProviderConfig(input.target.provider).supportsPkce ? input.codeVerifier : null
+      codeVerifier: getOAuthProviderConfig(input.target.provider).supportsPkce ? input.codeVerifier : null,
+      clientId: input.credentials.clientId,
+      clientSecret: input.credentials.clientSecret
     });
   }
-  const data = await requestToken(input.target.provider, {
+  const data = await requestToken(input.target.provider, input.credentials, {
     grant_type: "authorization_code",
     code: input.code,
     redirect_uri: input.redirectUri,
@@ -136,10 +136,11 @@ export async function exchangeProviderAuthorizationCode(input: {
 
 export async function refreshProviderToken(input: {
   provider: ConnectableOAuthProviderId;
+  credentials: OAuthClientCredentials;
   refreshToken: string;
   scopes: string[];
 }): Promise<OAuthRefreshResult> {
-  const data = await requestToken(input.provider, {
+  const data = await requestToken(input.provider, input.credentials, {
     grant_type: "refresh_token",
     refresh_token: input.refreshToken,
     ...(input.provider === "microsoft" ? { scope: input.scopes.join(" ") } : {})
@@ -181,16 +182,25 @@ export async function validateProviderToken(provider: ConnectableOAuthProviderId
   };
 }
 
-async function requestToken(provider: ConnectableOAuthProviderId, values: Record<string, string>) {
-  validateOAuthProviderConfigured(provider);
+async function requestToken(
+  provider: ConnectableOAuthProviderId,
+  credentials: OAuthClientCredentials,
+  values: Record<string, string>
+) {
+  const isNotion = provider === "notion";
+  const authorization = Buffer.from(`${credentials.clientId}:${credentials.clientSecret}`).toString("base64");
   const response = await fetch(getOAuthProviderConfig(provider).tokenUrl, {
     method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      client_id: getOAuthClientId(provider),
-      client_secret: getOAuthClientSecret(provider),
-      ...values
-    }),
+    headers: isNotion
+      ? { Authorization: `Basic ${authorization}`, "Content-Type": "application/json", "Notion-Version": "2026-03-11" }
+      : { "Content-Type": "application/x-www-form-urlencoded" },
+    body: isNotion
+      ? JSON.stringify(values)
+      : new URLSearchParams({
+          client_id: credentials.clientId,
+          client_secret: credentials.clientSecret,
+          ...values
+        }),
     signal: AbortSignal.timeout(15_000)
   });
   const data = await response.json().catch(() => ({})) as { access_token?: string; refresh_token?: string; expires_in?: number; scope?: string; error?: string; error_description?: string };

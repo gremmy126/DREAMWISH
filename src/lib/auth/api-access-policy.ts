@@ -29,7 +29,9 @@ const PUBLIC_API_PATHS = new Set([
   "/api/auth/oauth/naver/start",
   "/api/auth/oauth/naver/callback",
   "/api/coupons/prepare",
-  "/api/webhooks/polar"
+  "/api/webhooks/polar",
+  "/api/webhooks/portone/v2",
+  "/api/webhooks/portone/v1"
 ]);
 
 const BILLING_API_PATHS = new Set([
@@ -40,7 +42,7 @@ const BILLING_API_PATHS = new Set([
 ]);
 
 const OAUTH_CALLBACK_PATTERN = /^\/api\/(?:oauth\/[^/]+\/callback|integrations\/[^/]+\/(?:oauth\/)?callback)$/u;
-const DEVICE_COMPANION_PATTERN = /^\/api\/devices\/(?:pair|[^/]+\/sync|pairing-challenges\/[^/]+\/(?:register|status))$/u;
+const DEVICE_COMPANION_PATTERN = /^\/api\/devices\/(?:pair|[^/]+\/(?:sync|push-token|disconnect)|pairing-challenges\/[^/]+\/(?:register|status))$/u;
 // Custom automation webhooks authenticate with their own per-webhook secret,
 // not a session cookie: external services must be able to call them.
 const AUTOMATION_WEBHOOK_PATTERN = /^\/api\/webhooks\/automation\/[^/]+$/u;
@@ -58,7 +60,7 @@ export function classifyApiAccess(pathname: string): ApiAccessClass {
   ) {
     return "public";
   }
-  if (BILLING_API_PATHS.has(path)) return "billing";
+  if (BILLING_API_PATHS.has(path) || isPathOrChild(path, "/api/billing")) return "billing";
   if (isPathOrChild(path, ADMIN_API_PREFIX)) return "admin";
   return "protected";
 }

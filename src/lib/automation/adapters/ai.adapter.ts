@@ -2,16 +2,14 @@ import { chatWithAI } from "../../ai/ai.service";
 import type { AIMessage } from "../../ai/ai-provider";
 import { OpenAICompatibleProvider } from "../../ai/openai-compatible.provider";
 import { resolveStructuredActionCredential } from "../action-credential.service";
+import { adapterImplementationSupports } from "./action-adapter.manifest";
 import type { ActionAdapter, ActionAdapterExecutionInput } from "./action-adapter.types";
-import { isAdapterImplementationAvailable } from "./adapter-availability";
 import { text } from "./adapter-utils";
-
-const AI_APPS = new Set(["ai", "openai"]);
 
 export const aiActionAdapter: ActionAdapter = {
   adapterVersion: 1,
   supports(adapterKey, adapterVersion) {
-    return AI_APPS.has(adapterKey.split(".")[0]!) && isAdapterImplementationAvailable(adapterKey, adapterVersion);
+    return adapterImplementationSupports("ai", adapterKey, adapterVersion);
   },
   async execute(input) {
     const startedAt = Date.now();

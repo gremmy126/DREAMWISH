@@ -5,6 +5,7 @@ import { requireOwnerContext } from "@/src/lib/auth/owner-context";
 import { buildPublicReturnUrl } from "@/src/lib/oauth/oauth-redirect";
 import { persistOAuthCallbackConnection } from "@/src/lib/oauth/oauth-connection.service";
 import { getOAuthAppIdForLegacyTarget } from "@/src/lib/oauth/oauth-provider-adapter";
+import { resolveOAuthSessionAppConfig } from "@/src/lib/oauth/oauth-authorization-flow";
 
 type RouteContext = {
   params: Promise<{ appId: string }>;
@@ -29,12 +30,16 @@ export async function GET(request: Request, context: RouteContext) {
 
     const session = await consumeOAuthSession({ ownerId: owner.uid, state, provider });
     const appId = session.appId || getOAuthAppIdForLegacyTarget(provider, session.service);
+    const oauthAppConfig = await resolveOAuthSessionAppConfig(session);
     const connection = await persistOAuthCallbackConnection({
       ownerId: owner.uid,
       appId,
       code,
       redirectUri: session.redirectUri,
-      codeVerifier: session.codeVerifier || ""
+      codeVerifier: session.codeVerifier || "",
+      oauthAppConfigId: oauthAppConfig.id,
+      oauthAppConfigVersion: oauthAppConfig.version,
+      credentials: oauthAppConfig
     });
 
     return NextResponse.redirect(buildPublicReturnUrl(request.url, {

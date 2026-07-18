@@ -11,7 +11,10 @@
     "test": "node scripts/run-tests.mjs",
     "typecheck": "tsc --noEmit",
     "cron:schedulers": "node scripts/run-schedulers.mjs",
-    "automation:worker": "node scripts/run-automation-worker.mjs"
+    "automation:worker": "node scripts/run-automation-worker.mjs",
+    "billing:worker": "node scripts/run-billing-worker.mjs",
+    "billing:verify-postgres": "node scripts/verify-billing-postgres.mjs",
+    "postgres:verify-production": "node scripts/verify-production-postgres.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1086.0",
@@ -19,6 +22,8 @@
     "@langchain/langgraph": "^1.4.7",
     "@polar-sh/nextjs": "^0.9.6",
     "@polar-sh/sdk": "^0.48.1",
+    "@portone/browser-sdk": "^0.1.9",
+    "@portone/server-sdk": "^0.19.0",
     "@xyflow/react": "^12.11.2",
     "d3-force": "^3.0.0",
     "firebase": "^12.16.0",

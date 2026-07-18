@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireOwnerContext } from "@/src/lib/auth/owner-context";
 import { getScenario } from "@/src/lib/automation/scenario.repository";
-import { validateWorkflowForActivation } from "@/src/lib/automation/runtime/workflow-validator";
 import { enqueueScenarioExecution } from "@/src/lib/automation/runtime/execution-enqueue.service";
 import type { ApprovalPolicy } from "@/src/lib/automation/runtime/types";
 import { assertSameOriginMutation } from "@/src/lib/security/csrf";
@@ -22,10 +21,6 @@ export async function POST(request: Request, context: RouteContext) {
     };
     const scenario = await getScenario(owner.uid, workflowId);
     if (!scenario) return NextResponse.json({ ok: false, error: "워크플로를 찾을 수 없습니다." }, { status: 404 });
-    const validation = await validateWorkflowForActivation(owner.uid, scenario);
-    if (!validation.valid) {
-      return NextResponse.json({ ok: false, error: "실행 전 검증에 실패했습니다.", issues: validation.issues }, { status: 422 });
-    }
     const result = await enqueueScenarioExecution({
       ownerId: owner.uid,
       actorId: owner.uid,
@@ -39,8 +34,22 @@ export async function POST(request: Request, context: RouteContext) {
       triggerData: body.triggerData,
       priority: 25
     });
+    if (!result.queued) {
+      return NextResponse.json({
+        ok: false,
+        waitingConnection: true,
+        execution: result.execution,
+        findings: result.findings,
+        workflowVersion: result.workflowVersion
+      }, { status: 409 });
+    }
     return NextResponse.json({ ok: true, execution: result.execution, jobId: result.job.id, workflowVersion: result.workflowVersion }, { status: 202 });
   } catch (error) {
-    return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : "워크플로 실행을 예약하지 못했습니다." }, { status: 400 });
+    const failure = error as { code?: string; findings?: unknown[] };
+    return NextResponse.json({
+      ok: false,
+      error: error instanceof Error ? error.message : "워크플로 실행을 예약하지 못했습니다.",
+      ...(failure.code === "WORKFLOW_PREFLIGHT_FAILED" ? { findings: failure.findings } : {})
+    }, { status: failure.code === "WORKFLOW_PREFLIGHT_FAILED" ? 422 : 400 });
   }
 }

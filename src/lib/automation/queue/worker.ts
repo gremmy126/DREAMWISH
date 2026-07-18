@@ -1,4 +1,5 @@
 import type { AutomationQueueAdapter, AutomationQueueJob, QueueLease } from "./queue.adapter";
+import { normalizeAutomationError } from "../runtime/automation-error-catalog";
 
 export type QueueJobHandler = (
   job: AutomationQueueJob,
@@ -37,7 +38,9 @@ export class AutomationQueueWorker {
       if (!completed) throw new PermanentQueueJobError("Queue lease was lost before completion.", "LEASE_LOST");
       return { claimed: true, status: "completed" as const, jobId: job.id };
     } catch (error) {
-      const caught = normalizeError(error);
+      const caught = error instanceof PermanentQueueJobError
+        ? { code: error.code, message: error.message, retryable: false, retryAfterMs: undefined }
+        : normalizeAutomationError(error);
       if (!caught.retryable || caught.code === "LEASE_LOST") {
         if (caught.code !== "LEASE_LOST") await this.queue.moveToDeadLetter(lease, caught.message);
         return { claimed: true, status: caught.code === "LEASE_LOST" ? "lease_lost" as const : "dead_letter" as const, jobId: job.id };
@@ -58,22 +61,6 @@ export class AutomationQueueWorker {
       if (!result.claimed) await waitForAbort(signal, pollMs);
     }
   }
-}
-
-function normalizeError(error: unknown) {
-  if (error instanceof PermanentQueueJobError) {
-    return { code: error.code, message: error.message, retryable: false, retryAfterMs: undefined };
-  }
-  if (error && typeof error === "object") {
-    const value = error as { code?: unknown; message?: unknown; retryable?: unknown; retryAfterMs?: unknown };
-    return {
-      code: typeof value.code === "string" ? value.code : "QUEUE_JOB_FAILED",
-      message: typeof value.message === "string" ? value.message.slice(0, 2_000) : "Queue job failed.",
-      retryable: value.retryable !== false,
-      retryAfterMs: typeof value.retryAfterMs === "number" ? value.retryAfterMs : undefined
-    };
-  }
-  return { code: "QUEUE_JOB_FAILED", message: String(error || "Queue job failed.").slice(0, 2_000), retryable: true, retryAfterMs: undefined };
 }
 
 function waitForAbort(signal: AbortSignal, milliseconds: number) {

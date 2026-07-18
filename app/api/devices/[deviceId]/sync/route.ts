@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { createRevenueCandidate } from "@/src/lib/business/revenue.repository";
+import { transitionRevenueCandidate } from "@/src/lib/business/revenue.repository";
+import { canAutoConfirmAndroidRevenue } from "@/src/lib/business/revenue-policy";
 import { DeviceProtocolError } from "@/src/lib/devices/device-contract";
 import { ingestCalendarCandidates, ingestContactCandidates } from "@/src/lib/devices/device.repository";
 import { acceptSignedDeviceEnvelope } from "@/src/lib/devices/pairing.service";
@@ -12,11 +14,12 @@ export async function POST(request: Request, context: Context) {
     const envelope = await request.json().catch(() => null);
     const accepted = await acceptSignedDeviceEnvelope({ deviceId, envelope });
     const payload = accepted.payload;
+    if (payload.type !== "device.sync") throw new DeviceProtocolError("DEVICE_ENVELOPE_INVALID");
     const contacts = await ingestContactCandidates(accepted.device.ownerId, deviceId, payload.contacts);
     const calendarEvents = await ingestCalendarCandidates(accepted.device.ownerId, deviceId, payload.calendarEvents);
     const revenueSignals = [];
     for (const signal of payload.revenueSignals) {
-      revenueSignals.push(await createRevenueCandidate({
+      let candidate = await createRevenueCandidate({
         ownerId: accepted.device.ownerId,
         eventId: `${deviceId}:${signal.eventId}`,
         platform: accepted.device.platform,
@@ -24,7 +27,13 @@ export async function POST(request: Request, context: Context) {
         sourceApp: signal.sourceApp || "mobile-companion",
         capturedAt: signal.capturedAt || new Date().toISOString(),
         rawText: signal.rawText
-      }));
+      });
+      if (accepted.device.platform === "android" && await canAutoConfirmAndroidRevenue(
+        accepted.device.ownerId, candidate.sourceApp, candidate.confidence, candidate.direction
+      )) {
+        candidate = (await transitionRevenueCandidate(accepted.device.ownerId, candidate.id, "confirmed")) || candidate;
+      }
+      revenueSignals.push(candidate);
     }
     return NextResponse.json({
       apiVersion: 1,

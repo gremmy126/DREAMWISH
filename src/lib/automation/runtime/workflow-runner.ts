@@ -25,6 +25,7 @@ import type { AutomationExecution, AutomationStepRun } from "./types";
 import type { AutomationQueueJob } from "../queue/queue.adapter";
 import type { QueueJobHandler } from "../queue/worker";
 import { appendAutomationAuditEvent } from "./audit.repository";
+import { normalizeAutomationError } from "./automation-error-catalog";
 
 type HandlerContext = Parameters<QueueJobHandler>[1];
 
@@ -296,8 +297,15 @@ async function runWithExecutionLifecycle(job: AutomationQueueJob, operation: (ex
   try {
     await operation(execution);
   } catch (error) {
-    const normalized = normalizeRuntimeError(error);
-    await recordExecutionError({ ownerId: job.ownerId, executionId: execution.id, errorCode: normalized.code, errorMessage: normalized.message });
+    const normalized = normalizeAutomationError(error);
+    await recordExecutionError({
+      ownerId: job.ownerId,
+      executionId: execution.id,
+      errorCode: normalized.code,
+      errorMessage: normalized.message,
+      retryEligible: normalized.retryable,
+      retryAt: normalized.retryAt
+    });
     const current = await getExecution(job.ownerId, execution.id);
     if (current?.status === "running") {
       if (isConnectionError(normalized.code)) {
@@ -357,15 +365,19 @@ async function createNodeStep(
 }
 
 async function finishFailedStep(job: AutomationQueueJob, stepRunId: string, fencingToken: number, startedAt: number, error: unknown) {
-  const normalized = normalizeRuntimeError(error);
+  const normalized = normalizeAutomationError(error);
   await finishStepRun({
     ownerId: job.ownerId,
     stepRunId,
     fencingToken,
     status: "failed",
     durationMs: Date.now() - startedAt,
+    apiRequestId: normalized.apiRequestId,
+    rateLimitRemaining: normalized.rateLimitRemaining,
     errorCode: normalized.code,
-    errorMessage: normalized.message
+    errorMessage: normalized.message,
+    retryEligible: normalized.retryable,
+    retryAt: normalized.retryAt
   }).catch(() => undefined);
 }
 
@@ -445,16 +457,4 @@ function isApprovalMismatch(error: unknown) {
 
 function messageOf(error: unknown) {
   return error instanceof Error ? error.message : String(error || "Automation execution failed.");
-}
-
-function normalizeRuntimeError(error: unknown) {
-  if (error && typeof error === "object") {
-    const input = error as { code?: unknown; message?: unknown; retryable?: unknown; retryAfterMs?: unknown };
-    return Object.assign(new Error(typeof input.message === "string" ? input.message.slice(0, 2_000) : "Automation execution failed."), {
-      code: typeof input.code === "string" ? input.code : "AUTOMATION_EXECUTION_FAILED",
-      retryable: input.retryable !== false,
-      retryAfterMs: typeof input.retryAfterMs === "number" ? input.retryAfterMs : undefined
-    });
-  }
-  return Object.assign(new Error(messageOf(error).slice(0, 2_000)), { code: "AUTOMATION_EXECUTION_FAILED", retryable: true });
 }

@@ -14,6 +14,8 @@ export async function upsertIntegrationConnection(input: {
   userId: string;
   appId: string;
   provider: IntegrationConnectionProvider;
+  oauthAppConfigId: string;
+  oauthAppConfigVersion: number;
   providerAccountId: string;
   providerWorkspaceId?: string | null;
   accountLabel?: string | null;
@@ -49,6 +51,8 @@ export async function upsertIntegrationConnection(input: {
           SET user_id = ${input.userId}, account_label = ${input.accountLabel || null},
               account_email = ${input.accountEmail || null}, token_ciphertext = ${accessTokenCiphertext},
               refresh_token_ciphertext = ${refreshTokenCiphertext}, token_key_version = 1,
+              oauth_app_config_id = ${input.oauthAppConfigId},
+              oauth_app_config_version = ${input.oauthAppConfigVersion},
               expires_at = ${input.expiresAt || null}, granted_scopes = ${uniqueScopes(input.grantedScopes)},
               status = 'connected', connected_at = COALESCE(connected_at, NOW()), validated_at = NOW(),
               disconnected_at = NULL, revoked_at = NULL, disconnect_actor_id = NULL,
@@ -60,12 +64,14 @@ export async function upsertIntegrationConnection(input: {
           INSERT INTO integration_connections (
             id, owner_id, user_id, app_id, provider, provider_account_id, provider_workspace_id,
             account_label, account_email, token_ciphertext, refresh_token_ciphertext,
-            token_key_version, expires_at, granted_scopes, status, connected_at, validated_at
+            token_key_version, oauth_app_config_id, oauth_app_config_version,
+            expires_at, granted_scopes, status, connected_at, validated_at
           ) VALUES (
             ${id}, ${input.ownerId}, ${input.userId}, ${input.appId}, ${input.provider},
             ${input.providerAccountId}, ${input.providerWorkspaceId || null}, ${input.accountLabel || null},
             ${input.accountEmail || null}, ${accessTokenCiphertext}, ${refreshTokenCiphertext}, 1,
-            ${input.expiresAt || null}, ${uniqueScopes(input.grantedScopes)}, 'connected', NOW(), NOW()
+            ${input.oauthAppConfigId}, ${input.oauthAppConfigVersion}, ${input.expiresAt || null},
+            ${uniqueScopes(input.grantedScopes)}, 'connected', NOW(), NOW()
           ) RETURNING *
         `;
     await appendConnectionEvent(transaction, input.ownerId, id, previous ? "reconnected" : "connected", input.userId, {
@@ -250,6 +256,10 @@ function mapConnection(row: Record<string, unknown>): IntegrationConnection {
   return {
     id: String(row.id), ownerId: String(row.owner_id), userId: String(row.user_id), appId: String(row.app_id),
     provider: String(row.provider) as IntegrationConnectionProvider,
+    oauthAppConfigId: nullableString(row.oauth_app_config_id),
+    oauthAppConfigVersion: row.oauth_app_config_version === null || row.oauth_app_config_version === undefined
+      ? null
+      : Number(row.oauth_app_config_version),
     providerAccountId: String(row.provider_account_id),
     providerWorkspaceId: nullableString(row.provider_workspace_id), accountLabel: nullableString(row.account_label),
     accountEmail: nullableString(row.account_email), accessTokenCiphertext: nullableString(row.token_ciphertext),

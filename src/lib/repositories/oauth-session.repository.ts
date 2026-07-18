@@ -14,6 +14,8 @@ export type OAuthSessionRecord = {
   provider: ConnectableOAuthProviderId;
   service: OAuthServiceId;
   appId?: string;
+  oauthAppConfigId: string | null;
+  oauthAppConfigVersion: number | null;
   requestedScopes?: string[];
   stateHash: string;
   redirectUri: string;
@@ -37,6 +39,8 @@ export async function createOAuthSession(input: {
   provider: ConnectableOAuthProviderId;
   service: OAuthServiceId;
   appId?: string;
+  oauthAppConfigId?: string | null;
+  oauthAppConfigVersion?: number | null;
   requestedScopes?: string[];
   state: string;
   redirectUri: string;
@@ -50,6 +54,8 @@ export async function createOAuthSession(input: {
     const session: OAuthSessionRecord = {
       id: randomUUID(), ownerId: input.ownerId, provider: input.provider, service: input.service,
       appId: input.appId || input.service, requestedScopes: input.requestedScopes || [],
+      oauthAppConfigId: input.oauthAppConfigId || null,
+      oauthAppConfigVersion: input.oauthAppConfigVersion || null,
       stateHash: hashOAuthState(input.state), redirectUri: input.redirectUri,
       codeVerifier: input.codeVerifier || null, returnTo: input.returnTo || null, status: "created",
       createdAt: now.toISOString(), expiresAt: new Date(now.getTime() + SESSION_TTL_MS).toISOString(), completedAt: null
@@ -57,11 +63,13 @@ export async function createOAuthSession(input: {
     await sql`
       INSERT INTO oauth_authorization_sessions (
         id, owner_id, provider, app_id, service_id, state_hash, pkce_verifier_ciphertext,
-        requested_scopes, redirect_uri, return_target, expires_at
+        oauth_app_config_id, oauth_app_config_version, requested_scopes,
+        redirect_uri, return_target, expires_at
       ) VALUES (
         ${session.id}, ${input.ownerId}, ${input.provider}, ${session.appId!}, ${input.service},
         ${session.stateHash}, ${input.codeVerifier ? encryptToken(input.codeVerifier) : null},
-        ${session.requestedScopes || []}, ${input.redirectUri}, ${input.returnTo || null}, ${session.expiresAt}
+        ${session.oauthAppConfigId}, ${session.oauthAppConfigVersion}, ${session.requestedScopes || []},
+        ${input.redirectUri}, ${input.returnTo || null}, ${session.expiresAt}
       )
     `;
     return session;
@@ -74,6 +82,8 @@ export async function createOAuthSession(input: {
     provider: input.provider,
     service: input.service,
     appId: input.appId || input.service,
+    oauthAppConfigId: input.oauthAppConfigId || null,
+    oauthAppConfigVersion: input.oauthAppConfigVersion || null,
     requestedScopes: input.requestedScopes || [],
     stateHash: hashOAuthState(input.state),
     redirectUri: input.redirectUri,
@@ -215,6 +225,8 @@ function normalizeSessionRecord(record: OAuthSessionRecord): OAuthSessionRecord 
     ownerId: legacy.ownerId || null,
     service: legacy.service || (record.provider === "google" ? "drive" : record.provider),
     appId: record.appId || legacy.service || record.provider,
+    oauthAppConfigId: record.oauthAppConfigId || null,
+    oauthAppConfigVersion: record.oauthAppConfigVersion || null,
     requestedScopes: record.requestedScopes || [],
     stateHash: record.stateHash || (legacy.state ? hashOAuthState(legacy.state) : ""),
     codeVerifier: record.codeVerifier || null,
@@ -230,7 +242,12 @@ function mapPostgresSession(row: Record<string, unknown>): OAuthSessionRecord {
     id: String(row.id), ownerId: String(row.owner_id),
     provider: String(row.provider) as ConnectableOAuthProviderId,
     service: String(row.service_id || row.app_id) as OAuthServiceId,
-    appId: String(row.app_id), requestedScopes: Array.isArray(row.requested_scopes) ? row.requested_scopes.map(String) : [],
+    appId: String(row.app_id),
+    oauthAppConfigId: row.oauth_app_config_id ? String(row.oauth_app_config_id) : null,
+    oauthAppConfigVersion: row.oauth_app_config_version === null || row.oauth_app_config_version === undefined
+      ? null
+      : Number(row.oauth_app_config_version),
+    requestedScopes: Array.isArray(row.requested_scopes) ? row.requested_scopes.map(String) : [],
     stateHash: String(row.state_hash), redirectUri: String(row.redirect_uri),
     codeVerifier: row.pkce_verifier_ciphertext ? decryptToken(String(row.pkce_verifier_ciphertext)) : null,
     returnTo: row.return_target ? String(row.return_target) : null,

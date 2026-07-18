@@ -53,18 +53,35 @@ export const deviceSyncPayloadSchema = z.object({
   revenueSignals: z.array(revenueSignalSchema).max(100).default([])
 }).strict();
 
+export const devicePushTokenPayloadSchema = z.object({
+  apiVersion: z.literal(COMPANION_API_VERSION),
+  type: z.literal("device.push-token"),
+  action: z.enum(["register", "revoke"]),
+  platform: z.enum(DEVICE_PLATFORMS),
+  token: z.string().trim().min(16).max(4_096)
+}).strict();
+
+export const deviceDisconnectPayloadSchema = z.object({
+  apiVersion: z.literal(COMPANION_API_VERSION),
+  type: z.literal("device.disconnect")
+}).strict();
+
+export const signedDevicePayloadSchema = z.discriminatedUnion("type", [deviceSyncPayloadSchema, devicePushTokenPayloadSchema, deviceDisconnectPayloadSchema]);
+
 export const signedEnvelopeSchema = z.object({
   apiVersion: z.literal(COMPANION_API_VERSION),
   deviceId: z.string().trim().min(1).max(180),
   eventId: z.string().trim().min(1).max(256),
   sequence: z.number().int().safe().positive(),
   sentAt: z.string().datetime(),
-  payload: deviceSyncPayloadSchema,
+  payload: signedDevicePayloadSchema,
   signature: z.string().regex(/^[A-Za-z0-9_-]{64,512}$/u)
 }).strict();
 
 export type RegisterDeviceRequest = z.infer<typeof registerDeviceRequestSchema>;
 export type DeviceSyncPayload = z.infer<typeof deviceSyncPayloadSchema>;
+export type DevicePushTokenPayload = z.infer<typeof devicePushTokenPayloadSchema>;
+export type DeviceDisconnectPayload = z.infer<typeof deviceDisconnectPayloadSchema>;
 export type SignedEnvelope = z.infer<typeof signedEnvelopeSchema>;
 
 export type CreatePairingResponse = {

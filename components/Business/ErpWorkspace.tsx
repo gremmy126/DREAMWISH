@@ -6,6 +6,8 @@ import { SurfaceCard } from "@/components/Common/SurfaceCard";
 import { DeviceConnectionPanel } from "@/components/Business/DeviceConnectionPanel";
 import { readApiResponse } from "@/src/lib/api/api-response";
 import type { RevenueCandidate } from "@/src/lib/business/revenue.types";
+import type { RevenueCandidateStatus } from "@/src/lib/business/revenue.types";
+import { RevenueReviewPanel } from "@/components/Business/RevenueReviewPanel";
 
 type ErpTab =
   | "products"
@@ -59,16 +61,16 @@ export function ErpWorkspace() {
     }
   }, []);
 
-  async function transitionCandidate(id: string, status: "confirmed" | "rejected") {
+  async function transitionCandidate(id: string, status: Exclude<RevenueCandidateStatus, "provisional">, linkedCandidateId?: string) {
     setError(null);
     try {
       const response = await fetch("/api/business/revenue", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, status })
+        body: JSON.stringify({ id, status, linkedCandidateId })
       });
       await readApiResponse(response);
-      setNotice(status === "confirmed" ? "매출이 확정되었습니다." : "후보에서 제외했습니다.");
+      setNotice(status === "confirmed" ? "매출이 확정되었습니다." : "검토 분류를 저장했습니다.");
       await load(tab);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "요청이 실패했습니다.");
@@ -203,9 +205,9 @@ export function ErpWorkspace() {
       {loading ? (
         <div className="h-40 animate-pulse rounded-2xl border border-app-border bg-white" aria-hidden />
       ) : tab === "candidates" ? (
-        <CandidateList
+        <RevenueReviewPanel
           candidates={items as unknown as RevenueCandidate[]}
-          onTransition={(id, status) => void transitionCandidate(id, status)}
+          onTransition={(id, status, linkedCandidateId) => void transitionCandidate(id, status, linkedCandidateId)}
         />
       ) : (
         <EntityTable
@@ -713,66 +715,6 @@ function Table({ headers, rows }: { headers: string[]; rows: Array<Array<React.R
             ))}
           </tbody>
         </table>
-      </div>
-    </SurfaceCard>
-  );
-}
-
-function CandidateList({
-  candidates,
-  onTransition
-}: {
-  candidates: RevenueCandidate[];
-  onTransition: (id: string, status: "confirmed" | "rejected") => void;
-}) {
-  if (candidates.length === 0) {
-    return (
-      <SurfaceCard className="p-10 text-center">
-        <Package size={26} className="mx-auto text-app-primary" />
-        <p className="mt-3 text-sm text-app-muted">수집된 매출 후보가 없습니다.</p>
-      </SurfaceCard>
-    );
-  }
-  return (
-    <SurfaceCard className="p-5">
-      <div className="space-y-3">
-        {candidates.map((candidate) => (
-          <div
-            key={candidate.id}
-            className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-app-border bg-app-bg p-4"
-          >
-            <div>
-              <p className="text-sm font-semibold text-app-text">
-                {candidate.amount === null ? "금액 확인 필요" : currency(candidate.amount)}
-              </p>
-              <p className="mt-1 text-xs text-app-muted">
-                {candidate.platform} · {candidate.captureMethod} · 신뢰도 {Math.round(candidate.confidence * 100)}%
-              </p>
-            </div>
-            {candidate.status === "provisional" ? (
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => onTransition(candidate.id, "confirmed")}
-                  className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white"
-                >
-                  매출 확정
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onTransition(candidate.id, "rejected")}
-                  className="rounded-xl border border-app-border bg-white px-3 py-2 text-xs font-semibold text-app-muted"
-                >
-                  개인/오류 제외
-                </button>
-              </div>
-            ) : (
-              <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-app-muted">
-                {candidate.status === "confirmed" ? "확정됨" : "제외됨"}
-              </span>
-            )}
-          </div>
-        ))}
       </div>
     </SurfaceCard>
   );

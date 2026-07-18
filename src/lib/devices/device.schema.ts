@@ -56,6 +56,21 @@ CREATE TABLE IF NOT EXISTS paired_devices (
 CREATE INDEX IF NOT EXISTS paired_devices_owner_status
   ON paired_devices(owner_id, status, created_at DESC);
 
+CREATE TABLE IF NOT EXISTS device_push_tokens (
+  id TEXT PRIMARY KEY,
+  device_id TEXT NOT NULL REFERENCES paired_devices(id),
+  owner_id TEXT NOT NULL,
+  platform TEXT NOT NULL CHECK (platform IN ('android', 'ios')),
+  token_ciphertext TEXT NOT NULL,
+  token_digest TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'revoked')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  revoked_at TIMESTAMPTZ
+);
+CREATE UNIQUE INDEX IF NOT EXISTS device_push_tokens_active_digest ON device_push_tokens(token_digest) WHERE status = 'active';
+CREATE INDEX IF NOT EXISTS device_push_tokens_owner_active ON device_push_tokens(owner_id, status, updated_at DESC);
+
 CREATE TABLE IF NOT EXISTS device_sync_events (
   id TEXT PRIMARY KEY,
   owner_id TEXT NOT NULL,

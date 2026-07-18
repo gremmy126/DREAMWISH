@@ -68,3 +68,15 @@ test("refund policy preserves mandatory consumer rights", () => {
   assert.match(source, /중대한 플랫폼 오류/u);
   assert.doesNotMatch(source, /어떠한 경우에도 환불|결제 즉시 사용한 것으로 간주|법정 청약철회 불가/u);
 });
+
+test("policies disclose domestic processors and that DREAMWISH does not store card details", () => {
+  const privacy = read("app/privacy/page.tsx");
+  const terms = read("app/terms/page.tsx");
+  const refunds = read("app/refunds/page.tsx");
+  for (const processor of ["PortOne", "KPN", "NHN KCP"]) {
+    assert.match(privacy, new RegExp(processor, "u"));
+  }
+  assert.match(privacy, /카드 정보를 직접 저장하지/u);
+  assert.match(terms, /테스트 결제/u);
+  assert.match(refunds, /원 결제수단/u);
+});

@@ -56,6 +56,9 @@ export type AutomationExecution = {
   status: ExecutionStatus;
   errorCode: string | null;
   errorMessage: string | null;
+  safeErrorMessage: string | null;
+  retryEligible: boolean;
+  retryAt: string | null;
   startedAt: string | null;
   completedAt: string | null;
   createdAt: string;
@@ -80,6 +83,10 @@ export type AutomationStepRun = {
   apiRequestId: string | null;
   rateLimitRemaining: number | null;
   adapterLatencyMs: number | null;
+  errorCode: string | null;
+  errorMessage: string | null;
+  retryEligible: boolean;
+  retryAt: string | null;
   maskedInput: Record<string, ActionValue>;
   maskedOutput: Record<string, ActionValue> | null;
   previewData: Record<string, ActionValue> | null;

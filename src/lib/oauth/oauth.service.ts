@@ -47,12 +47,16 @@ export async function exchangeOAuthCode(
   input: OAuthTokenExchangeInput
 ): Promise<OAuthTokenExchangeResult> {
   const service = input.service || resolveOAuthService(input.provider, null);
+  const credentials = input.clientId && input.clientSecret
+    ? { clientId: input.clientId, clientSecret: input.clientSecret }
+    : undefined;
 
   if (input.provider === "google") {
     const token = await exchangeGoogleOAuthCode(
       input.code,
       input.redirectUri,
-      input.codeVerifier
+      input.codeVerifier,
+      credentials
     );
     const profile = await fetchGoogleAccountProfile(token.access_token);
     return {
@@ -72,7 +76,7 @@ export async function exchangeOAuthCode(
   }
 
   if (input.provider === "slack") {
-    const token = await exchangeSlackOAuthCode(input.code, input.redirectUri);
+    const token = await exchangeSlackOAuthCode(input.code, input.redirectUri, credentials);
     return {
       provider: "slack",
       service,
@@ -90,7 +94,7 @@ export async function exchangeOAuthCode(
   }
 
   if (input.provider === "github") {
-    const token = await exchangeGitHubOAuthCode(input.code, input.redirectUri);
+    const token = await exchangeGitHubOAuthCode(input.code, input.redirectUri, credentials);
     const profile = await fetchGitHubAccountProfile(token.access_token || "");
     return {
       provider: "github",
@@ -109,12 +113,12 @@ export async function exchangeOAuthCode(
   }
 
   if (input.provider === "notion") {
-    const token = await exchangeNotionOAuthCode(input.code, input.redirectUri);
+    const token = await exchangeNotionOAuthCode(input.code, input.redirectUri, credentials);
     return {
       provider: "notion",
       service,
       accessToken: token.access_token || "",
-      refreshToken: null,
+      refreshToken: token.refresh_token || null,
       expiresAt: null,
       scope: [],
       providerAccountId: token.bot_id || token.workspace_id || null,
@@ -130,7 +134,8 @@ export async function exchangeOAuthCode(
     const token = await exchangeDiscordOAuthCode(
       input.code,
       input.redirectUri,
-      input.codeVerifier
+      input.codeVerifier,
+      credentials
     );
     const profile = await fetchDiscordAccountProfile(token.access_token || "");
     return {

@@ -4,14 +4,17 @@ export type RevenueCaptureMethod =
   | "share_extension"
   | "manual"
   | "gmail"
-  | "csv";
+  | "csv"
+  | "billing";
 export type RevenueDirection = "income" | "expense" | "cancellation" | "unknown";
-export type RevenueCandidateStatus = "provisional" | "confirmed" | "rejected";
+export type RevenueCandidateStatus = "provisional" | "confirmed" | "expense" | "personal" | "duplicate" | "rejected";
+export type RevenueClassification = "unknown" | "revenue" | "expense" | "personal" | "duplicate" | "rejected";
 
 export type RevenueCandidate = {
   id: string;
   ownerId: string;
   eventId: string;
+  transactionFingerprint: string;
   platform: RevenuePlatform;
   captureMethod: RevenueCaptureMethod;
   sourceApp: string;
@@ -25,6 +28,8 @@ export type RevenueCandidate = {
   confidence: number;
   evidence: string[];
   status: RevenueCandidateStatus;
+  classification: RevenueClassification;
+  linkedCandidateId: string | null;
   confirmedAt: string | null;
   rejectedAt: string | null;
   createdAt: string;

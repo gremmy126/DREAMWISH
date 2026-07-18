@@ -105,5 +105,14 @@ export async function POST(request: Request, context: Context) {
     priority: 30
   });
 
+  if (!queued.queued) {
+    return NextResponse.json({
+      accepted: true,
+      waitingConnection: true,
+      executionId: queued.execution.id,
+      findings: queued.findings
+    }, { status: 202 });
+  }
+
   return NextResponse.json({ accepted: true, executionId: queued.execution.id, jobId: queued.job.id }, { status: 202 });
 }

@@ -74,6 +74,30 @@ export async function enqueueConnectionNotification(input: {
   return inserted;
 }
 
+export async function enqueueMobilePushNotification(input: {
+  ownerId: string;
+  subjectId: string;
+  eventType: string;
+  safePayload: Record<string, ActionValue>;
+}) {
+  await ensureAutomationRuntimeSchema();
+  const sql = getPostgres();
+  const id = randomUUID();
+  const channel: NotificationChannel = "mobile_push";
+  const dedupeKey = notificationDedupeKey(input.subjectId, input.eventType, channel, input.ownerId);
+  const rows = await sql`
+    INSERT INTO automation_notification_outbox (
+      id, owner_id, event_id, channel, dedupe_key, safe_payload
+    ) VALUES (
+      ${id}, ${input.ownerId}, ${`${input.eventType}:${input.subjectId}`}, ${channel},
+      ${dedupeKey}, ${sql.json(input.safePayload as never)}
+    )
+    ON CONFLICT (dedupe_key) DO NOTHING
+    RETURNING id
+  `;
+  return rows[0] ? String(rows[0].id) : null;
+}
+
 export async function claimNotification(workerId: string, leaseMs = 30_000) {
   await ensureAutomationRuntimeSchema();
   const sql = getPostgres();

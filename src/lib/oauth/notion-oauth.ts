@@ -8,7 +8,7 @@ import type { OAuthAuthorizationRequest } from "./oauth.types";
 export function createNotionOAuthAuthorizationUrl(request: OAuthAuthorizationRequest) {
   const config = getOAuthProviderConfig("notion");
   const url = new URL(config.authorizationUrl);
-  url.searchParams.set("client_id", getOAuthClientId("notion"));
+  url.searchParams.set("client_id", request.clientId || getOAuthClientId("notion"));
   url.searchParams.set("redirect_uri", request.redirectUri);
   url.searchParams.set("response_type", "code");
   url.searchParams.set("owner", "user");
@@ -16,9 +16,13 @@ export function createNotionOAuthAuthorizationUrl(request: OAuthAuthorizationReq
   return url;
 }
 
-export async function exchangeNotionOAuthCode(code: string, redirectUri: string) {
-  const clientId = getOAuthClientId("notion");
-  const clientSecret = getOAuthClientSecret("notion");
+export async function exchangeNotionOAuthCode(
+  code: string,
+  redirectUri: string,
+  credentials?: { clientId: string; clientSecret: string }
+) {
+  const clientId = credentials?.clientId || getOAuthClientId("notion");
+  const clientSecret = credentials?.clientSecret || getOAuthClientSecret("notion");
   const basic = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
   const response = await fetch(getOAuthProviderConfig("notion").tokenUrl, {
     method: "POST",
@@ -34,6 +38,7 @@ export async function exchangeNotionOAuthCode(code: string, redirectUri: string)
   });
   const data = (await response.json()) as {
     access_token?: string;
+    refresh_token?: string;
     workspace_id?: string;
     workspace_name?: string;
     workspace_icon?: string;

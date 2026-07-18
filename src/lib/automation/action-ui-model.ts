@@ -1,4 +1,4 @@
-import { getActionDefinition } from "./registry/action-registry";
+import { getActionDefinition, isActionExecutable } from "./registry/action-registry";
 import type { ActionDefinition, ActionRiskLevel, ActionValue } from "./registry/action.types";
 import type { ScenarioNode } from "./scenario-designer";
 
@@ -17,6 +17,23 @@ export type ActionPreviewModel = {
   confirmationPhrase: string | null;
 };
 
+export type ActionAvailability = {
+  status: "ready" | "unavailable";
+  selectable: boolean;
+  disabledReason: string | null;
+};
+
+export function getActionAvailability(definition: ActionDefinition): ActionAvailability {
+  if (isActionExecutable(definition.appId, definition.id, definition.version)) {
+    return { status: "ready", selectable: true, disabledReason: null };
+  }
+  return {
+    status: "unavailable",
+    selectable: false,
+    disabledReason: "이 Action은 아직 실행 Adapter가 구현되지 않았습니다."
+  };
+}
+
 export function changeScenarioAction(
   node: ScenarioNode,
   actionId: string,
@@ -24,6 +41,9 @@ export function changeScenarioAction(
 ): ScenarioNode {
   const definition = getActionDefinition(node.appId, actionId, actionVersion);
   if (!definition) throw new Error("등록되지 않은 Action입니다.");
+  if (!getActionAvailability(definition).selectable) {
+    throw new Error("실행 Adapter가 구현되지 않은 Action은 선택할 수 없습니다.");
+  }
   return {
     ...node,
     actionId: definition.id,

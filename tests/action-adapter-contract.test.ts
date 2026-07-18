@@ -8,9 +8,25 @@ import { hasRegisteredActionAdapter } from "../src/lib/automation/adapters/actio
 test("action executability is based on a real versioned adapter implementation", () => {
   assert.equal(isActionExecutable("gmail", "send-email", 1), true);
   assert.equal(isActionExecutable("github", "create-release", 1), true);
-  assert.equal(isActionExecutable("stripe", "refund-payment", 1), false);
-  assert.equal(isActionExecutable("drive", "upload-file", 1), false);
+  assert.equal(isActionExecutable("stripe", "refund", 1), true);
+  assert.equal(isActionExecutable("shopify", "refund-order", 1), false);
+  assert.equal(isActionExecutable("drive", "upload-file", 1), true);
   assert.ok(listImplementedAdapterKeys().every((key) => key.endsWith("@1")));
+});
+
+test("browser adapter availability does not import the server adapter registry", () => {
+  const source = fs.readFileSync("src/lib/automation/adapters/adapter-availability.ts", "utf8");
+  assert.doesNotMatch(source, /action-adapter\.registry/u);
+  assert.match(source, /action-adapter\.manifest/u);
+});
+
+test("client adapter manifest stays synchronized with the server registry", () => {
+  const registered = ACTION_DEFINITIONS
+    .filter((definition) => hasRegisteredActionAdapter(definition))
+    .map((definition) => `${definition.adapterKey}@${definition.adapterVersion}`)
+    .sort();
+
+  assert.deepEqual(listImplementedAdapterKeys(), registered);
 });
 
 test("every advertised executable action resolves to a server adapter", () => {

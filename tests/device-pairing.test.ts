@@ -320,8 +320,8 @@ test("contact and calendar candidates are idempotent and owner isolated", async 
 
 test("device routes and companion contracts exclude SMS and call logs", async () => {
   const route = await fs.readFile(path.join(process.cwd(), "app/api/devices/[deviceId]/sync/route.ts"), "utf8");
-  const manifest = await fs.readFile(path.join(process.cwd(), "mobile-companion/android/AndroidManifest.xml"), "utf8");
-  const info = await fs.readFile(path.join(process.cwd(), "mobile-companion/ios/Info.plist"), "utf8");
+  const manifest = await fs.readFile(path.join(process.cwd(), "mobile-companion/android/app/src/main/AndroidManifest.xml"), "utf8");
+  const info = await fs.readFile(path.join(process.cwd(), "mobile-companion/ios/DREAMWISHCompanion/Info.plist"), "utf8");
   assert.match(route, /contacts/u);
   assert.match(route, /calendarEvents/u);
   assert.doesNotMatch(route, /sms|callLogs|READ_SMS|READ_CALL_LOG/iu);
@@ -332,6 +332,8 @@ test("device routes and companion contracts exclude SMS and call logs", async ()
 test("only public-key companion endpoints bypass browser session middleware", () => {
   assert.equal(classifyApiAccess("/api/devices/pair"), "public");
   assert.equal(classifyApiAccess("/api/devices/device-1/sync"), "public");
+  assert.equal(classifyApiAccess("/api/devices/device-1/push-token"), "public");
+  assert.equal(classifyApiAccess("/api/devices/device-1/disconnect"), "public");
   assert.equal(classifyApiAccess("/api/devices/pairing-challenges"), "protected");
   assert.equal(classifyApiAccess("/api/devices/calendar-candidates"), "protected");
 });
@@ -349,12 +351,10 @@ test("business and CRM expose real paired-device contact workflows", async () =>
 
 test("mobile contact and calendar reference modules use the device sync contract", async () => {
   for (const relativePath of [
-    "mobile-companion/android/SignedEnvelope.kt",
-    "mobile-companion/android/ContactSyncWorker.kt",
-    "mobile-companion/android/CalendarSyncWorker.kt",
-    "mobile-companion/ios/SignedEnvelope.swift",
-    "mobile-companion/ios/ContactSyncService.swift",
-    "mobile-companion/ios/CalendarSyncService.swift"
+    "mobile-companion/src/services/device-sync.ts",
+    "mobile-companion/src/services/contact-calendar-sync.ts",
+    "mobile-companion/android/app/src/main/java/kr/co/dreamwish/companion/security/DeviceKeyModule.kt",
+    "mobile-companion/ios/DREAMWISHCompanion/DeviceSecurityModule.swift"
   ]) {
     const source = await fs.readFile(path.join(process.cwd(), relativePath), "utf8");
     assert.match(source, /Device|device/u, relativePath);

@@ -20,6 +20,18 @@ export type WorkflowValidationCode =
 
 export type WorkflowValidationIssue = { code: WorkflowValidationCode; message: string; nodeId?: string; fields?: string[] };
 
+export type WorkflowValidationFinding = WorkflowValidationIssue & {
+  remediation?: {
+    appId: string;
+    nodeId: string;
+    deepLink: string;
+  };
+};
+
+export type WorkflowValidationDependencies = {
+  validateConnection: typeof validateActionConnection;
+};
+
 export function validateWorkflowStructure(scenario: AutomationScenario) {
   const issues: WorkflowValidationIssue[] = [];
   const nodeIds = new Set(scenario.nodes.map((node) => node.id));
@@ -38,18 +50,29 @@ export function validateWorkflowStructure(scenario: AutomationScenario) {
 }
 
 export async function validateWorkflowForActivation(ownerId: string, scenario: AutomationScenario) {
+  return validateWorkflowForExecution(ownerId, scenario);
+}
+
+export async function validateWorkflowForExecution(
+  ownerId: string,
+  scenario: AutomationScenario,
+  dependencies: WorkflowValidationDependencies = { validateConnection: validateActionConnection }
+) {
   const structural = validateWorkflowStructure(scenario);
-  const issues = [...structural.issues];
+  const findings: WorkflowValidationFinding[] = [...structural.issues];
   for (const node of scenario.nodes) {
     if (node.appId === "filter") continue;
     const definition = node.actionId ? getActionDefinition(node.appId, node.actionId, node.actionVersion || undefined) : null;
     if (!definition || (!node.requiresCredential && definition.requiredScopes.length === 0)) continue;
     if (!node.credentialId || node.credentialId.startsWith("pending-")) {
-      issues.push({ code: "CONNECTION_REQUIRED", nodeId: node.id, message: `${node.label}에서 사용할 연결 계정을 선택하세요.` });
+      findings.push(withConnectionRemediation(
+        { code: "CONNECTION_REQUIRED", nodeId: node.id, message: `${node.label}에서 사용할 연결 계정을 선택하세요.` },
+        node
+      ));
       continue;
     }
     try {
-      await validateActionConnection({
+      await dependencies.validateConnection({
         ownerId,
         connectionId: node.credentialId,
         appId: node.appId,
@@ -64,15 +87,34 @@ export async function validateWorkflowForActivation(ownerId: string, scenario: A
       const code = allowedCodes.includes(candidate.code as WorkflowValidationCode)
         ? candidate.code as WorkflowValidationCode
         : "CREDENTIAL_INVALID";
-      issues.push({
+      findings.push(withConnectionRemediation({
         code,
         nodeId: node.id,
         fields: candidate.missingScopes,
         message: error instanceof Error ? error.message : `${node.label} 연결을 확인하세요.`
-      });
+      }, node));
     }
   }
-  return { valid: issues.length === 0, issues };
+  return {
+    valid: findings.length === 0,
+    canQueue: findings.length === 0,
+    findings,
+    issues: findings
+  };
+}
+
+function withConnectionRemediation(
+  finding: WorkflowValidationIssue,
+  node: ScenarioNode
+): WorkflowValidationFinding {
+  return {
+    ...finding,
+    remediation: {
+      appId: node.appId,
+      nodeId: node.id,
+      deepLink: `/?view=automation&app=${encodeURIComponent(node.appId)}&node=${encodeURIComponent(node.id)}`
+    }
+  };
 }
 
 function validateNodeDefinition(node: ScenarioNode, issues: WorkflowValidationIssue[]) {
