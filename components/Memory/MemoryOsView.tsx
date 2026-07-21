@@ -235,7 +235,7 @@ export function MemoryOsView() {
 
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-extrabold text-app-text">Memory</h1>
+          <h1 className="text-xl font-extrabold text-app-text sm:text-2xl">Memory</h1>
           <p className="mt-1 text-xs text-app-muted">
             AI와 조직의 모든 지식을 연결하여 더 나은 결정을 만들어보세요.
           </p>
@@ -568,7 +568,7 @@ function KpiCard({
         </span>
         <p className="text-[11px] font-bold text-app-muted">{label}</p>
       </div>
-      <p className="mt-2 text-2xl font-extrabold text-app-text">{value.toLocaleString()}</p>
+      <p className="mt-2 text-xl font-extrabold text-app-text sm:text-2xl">{value.toLocaleString()}</p>
       <p className="mt-0.5 text-[10px] font-bold text-[#16a34a]">
         {delta > 0 ? `+${delta} 지난 30일` : "지난 30일 변화 없음"}
       </p>

@@ -235,7 +235,7 @@ export function TeamView() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-2.5">
-            <h1 className="text-2xl font-extrabold text-app-text">Team</h1>
+            <h1 className="text-xl font-extrabold text-app-text sm:text-2xl">Team</h1>
             <span className="rounded-xl bg-app-hover px-2.5 py-1 text-[10px] font-extrabold text-app-primary">
               AI Intelligence Hub
             </span>

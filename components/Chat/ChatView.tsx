@@ -775,8 +775,8 @@ export function ChatView() {
   }
 
   return (
-    <div className="grid h-[calc(100vh-96px)] min-h-[720px] grid-cols-[clamp(240px,16vw,260px)_minmax(620px,760px)_minmax(0,1fr)] gap-5">
-      <SurfaceCard className="flex min-h-0 flex-col p-4">
+    <div className="grid gap-5 xl:h-[calc(100vh-96px)] xl:min-h-[720px] xl:grid-cols-[clamp(240px,16vw,260px)_minmax(620px,760px)_minmax(0,1fr)]">
+      <SurfaceCard className="flex max-h-[70dvh] min-h-0 flex-col p-4 xl:max-h-none">
         <SectionHeader
           icon={MessageSquareText}
           title={t("chat.sessions")}
@@ -945,18 +945,18 @@ export function ChatView() {
         </div>
       </SurfaceCard>
 
-      <SurfaceCard className="flex min-h-0 flex-col overflow-hidden">
-        <div className="border-b border-app-border p-5">
-          <div className="flex items-center justify-between gap-4">
+      <SurfaceCard className="order-first flex h-[calc(100dvh-170px)] min-h-[480px] flex-col overflow-hidden xl:order-none xl:h-auto xl:min-h-0">
+        <div className="border-b border-app-border p-4 sm:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h1 className="text-lg font-semibold text-app-text">{t("chat.title")}</h1>
+              <h1 className="text-base font-semibold text-app-text sm:text-lg">{t("chat.title")}</h1>
               <p className="mt-1 text-sm text-app-muted">
                 {currentProject
                   ? t("chat.subtitleProject", { project: currentProject.name })
                   : t("chat.subtitleNoProject")}
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <div className="inline-flex rounded-2xl border border-app-border bg-white p-1">
                 {(["ask", "plan", "agent"] as ChatMode[]).map((mode) => (
                   <button
@@ -992,7 +992,7 @@ export function ChatView() {
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-auto p-6 app-scrollbar">
+        <div className="min-h-0 flex-1 overflow-auto p-4 app-scrollbar sm:p-6">
           {messages.length === 0 ? (
             <div className="h-full" aria-label="empty conversation" />
           ) : (
@@ -1003,7 +1003,7 @@ export function ChatView() {
                   className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
                 >
                   <div
-                    className={`max-w-[78%] rounded-[22px] px-5 py-4 shadow-soft ${
+                    className={`max-w-[88%] rounded-[22px] px-4 py-3 shadow-soft sm:max-w-[78%] sm:px-5 sm:py-4 ${
                       message.role === "user"
                         ? "bg-app-primary text-white"
                         : "border border-app-border bg-white text-app-text"
@@ -1199,7 +1199,7 @@ export function ChatView() {
 
       {projectModalOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 px-4">
-          <div className="w-[420px] rounded-app border border-app-border bg-white p-5 shadow-app">
+          <div className="w-full max-w-[420px] rounded-app border border-app-border bg-white p-5 shadow-app">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-base font-semibold text-app-text">{t("chat.createProjectTitle")}</h2>
               <button

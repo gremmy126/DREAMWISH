@@ -93,26 +93,31 @@ export function AdminShell({ account }: { account: { email: string; name: string
 
       <div className="lg:pl-[260px]">
         <header className="sticky top-0 z-30 flex h-[72px] items-center justify-between border-b border-app-border bg-app-bg/90 px-4 backdrop-blur-xl sm:px-6">
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 items-center gap-3">
             <button
               type="button"
               aria-label="관리자 메뉴 열기"
               onClick={() => setMobileOpen(true)}
-              className="flex h-11 w-11 items-center justify-center rounded-2xl border border-app-border bg-white lg:hidden"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-app-border bg-white lg:hidden"
             >
               <Menu size={19} />
             </button>
-            <div>
-              <p className="text-xs font-semibold text-app-primary">DREAMWISH CONTROL CENTER</p>
-              <h1 className="text-lg font-bold">{NAVIGATION.find((item) => item.id === section)?.label}</h1>
+            <div className="min-w-0">
+              <p className="truncate text-[10px] font-semibold text-app-primary sm:text-xs">
+                DREAMWISH CONTROL CENTER
+              </p>
+              <h1 className="truncate text-base font-bold sm:text-lg">
+                {NAVIGATION.find((item) => item.id === section)?.label}
+              </h1>
             </div>
           </div>
           <Link
             href="/"
-            className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-app-border bg-white px-4 text-xs font-bold shadow-soft transition hover:bg-app-hover"
+            className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-2xl border border-app-border bg-white px-3 text-xs font-bold shadow-soft transition hover:bg-app-hover sm:px-4"
           >
             <ChevronLeft size={15} />
-            서비스로 돌아가기
+            <span className="hidden sm:inline">서비스로 돌아가기</span>
+            <span className="sm:hidden">서비스</span>
           </Link>
         </header>
 

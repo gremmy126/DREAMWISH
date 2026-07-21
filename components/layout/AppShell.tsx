@@ -29,6 +29,7 @@ export function AppShell({
   initialView?: ViewId;
 }) {
   const [activeView, setActiveView] = useState<ViewId>(initialView);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const navigateToView = useCallback((view: ViewId) => {
     setActiveView(view);
@@ -71,9 +72,14 @@ export function AppShell({
   return (
     <AuthGate hasServerSession={hasServerSession}>
       <div className="min-h-screen bg-app-bg">
-        <Sidebar activeView={activeView} onViewChange={navigateToView} />
+        <Sidebar
+          activeView={activeView}
+          onViewChange={navigateToView}
+          mobileOpen={mobileNavOpen}
+          onMobileClose={() => setMobileNavOpen(false)}
+        />
         <div className="md:pl-[248px]">
-          <Topbar />
+          <Topbar onMenuOpen={() => setMobileNavOpen(true)} />
           <main className="px-4 pb-6 md:px-6">
             <AnimatePresence mode="wait">
               <PageTransition key={activeView}>
@@ -92,7 +98,7 @@ export function AppShell({
 
 function AppFooter() {
   return (
-    <footer className="px-6 pb-8 text-xs text-app-muted">
+    <footer className="px-4 pb-8 text-xs text-app-muted sm:px-6">
       <nav
         aria-label="주요 페이지"
         className="flex flex-wrap items-center gap-3 border-t border-app-border pt-5"

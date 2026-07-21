@@ -5,7 +5,8 @@ import {
   Home,
   Info,
   MessageSquareText,
-  UsersRound
+  UsersRound,
+  X
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useState } from "react";
@@ -19,6 +20,8 @@ import { getNavLabel } from "@/src/lib/i18n/translations";
 type SidebarProps = {
   activeView: ViewId;
   onViewChange: (view: ViewId) => void;
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
 };
 
 export { SIDEBAR_NAV_ORDER };
@@ -32,12 +35,55 @@ const primaryItems: Array<{
   { id: "team", icon: UsersRound }
 ];
 
-export function Sidebar({ activeView, onViewChange }: SidebarProps) {
+export function Sidebar({
+  activeView,
+  onViewChange,
+  mobileOpen = false,
+  onMobileClose
+}: SidebarProps) {
+  return (
+    <>
+      <aside className="fixed inset-y-0 left-0 z-30 hidden h-dvh w-[248px] min-h-0 flex-col border-r border-app-border bg-white/88 px-4 py-5 backdrop-blur-xl md:flex">
+        <SidebarContent activeView={activeView} onViewChange={onViewChange} />
+      </aside>
+
+      {mobileOpen ? (
+        <div className="fixed inset-0 z-40 md:hidden">
+          <button
+            type="button"
+            aria-label="메뉴 닫기"
+            className="absolute inset-0 bg-slate-950/35"
+            onClick={onMobileClose}
+          />
+          <aside className="relative flex h-dvh w-[min(84vw,300px)] min-h-0 flex-col bg-white px-4 py-5 shadow-app">
+            <button
+              type="button"
+              aria-label="메뉴 닫기"
+              onClick={onMobileClose}
+              className="absolute right-3 top-5 flex h-10 w-10 items-center justify-center rounded-2xl border border-app-border text-app-muted transition hover:bg-app-hover"
+            >
+              <X size={17} />
+            </button>
+            <SidebarContent
+              activeView={activeView}
+              onViewChange={(view) => {
+                onViewChange(view);
+                onMobileClose?.();
+              }}
+            />
+          </aside>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+function SidebarContent({ activeView, onViewChange }: SidebarProps) {
   const [companyOpen, setCompanyOpen] = useState(false);
   const { language, t } = useAppLanguage();
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-30 hidden h-dvh w-[248px] min-h-0 flex-col border-r border-app-border bg-white/88 px-4 py-5 backdrop-blur-xl md:flex">
+    <>
       <button
         type="button"
         onClick={() => onViewChange("chat")}
@@ -95,7 +141,7 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
 
       {companyOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 px-4">
-          <div className="w-[360px] rounded-app border border-app-border bg-white p-5 shadow-app">
+          <div className="w-full max-w-[360px] rounded-app border border-app-border bg-white p-5 shadow-app">
             <div className="mb-4 flex items-center justify-between gap-3">
               <h2 className="text-base font-semibold text-app-text">{t("sidebar.company")}</h2>
               <button
@@ -116,7 +162,7 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
           </div>
         </div>
       ) : null}
-    </aside>
+    </>
   );
 }
 

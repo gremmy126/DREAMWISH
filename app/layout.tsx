@@ -19,6 +19,13 @@ const GTM_ID = getPublicEnv("NEXT_PUBLIC_GTM_ID");
 const GOOGLE_ADS_ID = getPublicEnv("NEXT_PUBLIC_GOOGLE_ADS_ID");
 const GOOGLE_TAG_LOADER_ID = GA_MEASUREMENT_ID || GOOGLE_ADS_ID;
 
+const SOCIAL_IMAGE = {
+  url: "/images/dreamwish-social-card.png",
+  width: 1200,
+  height: 630,
+  alt: "DREAMWISH 개인두뇌 AI"
+};
+
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   applicationName: SITE_NAME,
@@ -27,6 +34,20 @@ export const metadata: Metadata = {
     template: "%s | DREAMWISH"
   },
   description: SITE_DESCRIPTION,
+  openGraph: {
+    type: "website",
+    locale: "ko_KR",
+    siteName: SITE_NAME,
+    title: "DREAMWISH - 나만의 개인두뇌 AI",
+    description: SITE_DESCRIPTION,
+    images: [SOCIAL_IMAGE]
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "DREAMWISH - 나만의 개인두뇌 AI",
+    description: SITE_DESCRIPTION,
+    images: [SOCIAL_IMAGE]
+  },
   robots: {
     index: true,
     follow: true,

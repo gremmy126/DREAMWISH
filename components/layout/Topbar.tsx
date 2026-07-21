@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Command, LogOut, Search, Settings, ShieldCheck, UserRound } from "lucide-react";
+import { Bell, Command, LogOut, Menu, Search, Settings, ShieldCheck, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { IconButton } from "@/components/Common/IconButton";
@@ -9,7 +9,7 @@ import { AUTH_SESSION_CLEARED_EVENT } from "@/src/lib/auth/auth-events";
 import { logoutFirebaseUser } from "@/src/lib/firebase/firebase-client";
 import { useAppLanguage } from "@/src/lib/i18n/use-app-language";
 
-export function Topbar() {
+export function Topbar({ onMenuOpen }: { onMenuOpen?: () => void } = {}) {
   const [profileOpen, setProfileOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [account, setAccount] = useState<{ email: string; role: "admin" | "user" } | null>(null);
@@ -44,21 +44,33 @@ export function Topbar() {
   }
 
   return (
-    <header className="sticky top-0 z-20 flex h-[72px] items-center justify-between bg-app-bg/88 px-6 backdrop-blur-xl">
-      <div className="flex h-11 w-full max-w-[520px] items-center gap-3 rounded-2xl border border-app-border bg-white px-4 shadow-soft">
-        <Search size={18} className="text-slate-400" />
-        <input
-          aria-label={t("topbar.searchAria")}
-          className="min-w-0 flex-1 bg-transparent text-sm text-app-text outline-none placeholder:text-slate-400"
-          placeholder={t("topbar.searchPlaceholder")}
-        />
-        <span className="flex items-center gap-1 rounded-xl border border-app-border bg-app-bg px-2 py-1 text-xs font-medium text-slate-500">
-          <Command size={12} />
-          K
-        </span>
+    <header className="sticky top-0 z-20 flex h-[72px] items-center justify-between gap-2 bg-app-bg/88 px-4 backdrop-blur-xl sm:gap-3 sm:px-6">
+      <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+        {onMenuOpen ? (
+          <button
+            type="button"
+            onClick={onMenuOpen}
+            aria-label="메뉴 열기"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-app-border bg-white text-slate-500 shadow-soft transition hover:bg-app-hover hover:text-app-primary md:hidden"
+          >
+            <Menu size={18} />
+          </button>
+        ) : null}
+        <div className="flex h-11 w-full max-w-[520px] items-center gap-3 rounded-2xl border border-app-border bg-white px-3 shadow-soft sm:px-4">
+          <Search size={18} className="shrink-0 text-slate-400" />
+          <input
+            aria-label={t("topbar.searchAria")}
+            className="min-w-0 flex-1 bg-transparent text-sm text-app-text outline-none placeholder:text-slate-400"
+            placeholder={t("topbar.searchPlaceholder")}
+          />
+          <span className="hidden items-center gap-1 rounded-xl border border-app-border bg-app-bg px-2 py-1 text-xs font-medium text-slate-500 sm:flex">
+            <Command size={12} />
+            K
+          </span>
+        </div>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex shrink-0 items-center gap-2 sm:gap-3">
         <IconButton label={t("topbar.notifications")}>
           <Bell size={17} />
         </IconButton>

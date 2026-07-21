@@ -35,7 +35,7 @@ export function AdminOverview() {
     <div className="space-y-5">
       <section className="rounded-[22px] border border-app-border bg-gradient-to-br from-white to-violet-50 p-6 shadow-soft">
         <p className="text-xs font-bold text-app-primary">운영 현황</p>
-        <h2 className="mt-2 text-2xl font-black tracking-tight">서비스 전체 상태를 한곳에서 관리하세요.</h2>
+        <h2 className="mt-2 text-xl font-black tracking-tight sm:text-2xl">서비스 전체 상태를 한곳에서 관리하세요.</h2>
         <p className="mt-2 text-sm text-app-muted">계정, 접근권한, 쿠폰, 자동화 실패와 시스템 설정을 서버 권한 기준으로 확인합니다.</p>
       </section>
       {error ? <p className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</p> : null}
@@ -43,7 +43,7 @@ export function AdminOverview() {
         {cards.map(({ label, value, icon: Icon }) => (
           <article key={label} className="rounded-[22px] border border-app-border bg-white p-5 shadow-soft">
             <div className="flex items-center justify-between"><p className="text-xs font-semibold text-app-muted">{label}</p><Icon size={17} className="text-app-primary" /></div>
-            <p className="mt-5 text-3xl font-black">{value ?? "—"}</p>
+            <p className="mt-5 text-2xl font-black sm:text-3xl">{value ?? "—"}</p>
           </article>
         ))}
       </section>

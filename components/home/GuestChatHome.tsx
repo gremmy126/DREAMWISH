@@ -1,7 +1,8 @@
 "use client";
 
-import { ArrowUp, Bot, CalendarDays, FileUp, Mail, Mic, Sparkles, UsersRound } from "lucide-react";
+import { ArrowUp, Bot, CalendarDays, FileUp, Mail, Menu, Mic, Sparkles, UsersRound, X } from "lucide-react";
 import Link from "next/link";
+import { useState } from "react";
 import { GuestAdSlot } from "@/components/ads/GuestAdSlot";
 import { BrainLogo } from "@/components/brand/BrainLogo";
 import { openCookieSettings } from "@/components/consent/consent";
@@ -20,17 +21,19 @@ type GuestChatHomeProps = {
 };
 
 export function GuestChatHome({ onLoginRequest, restoringSession = false }: GuestChatHomeProps) {
+  const [menuOpen, setMenuOpen] = useState(false);
+
   return (
     <div className="min-h-dvh bg-[radial-gradient(circle_at_top,_rgba(124,58,237,0.10),_transparent_36%),linear-gradient(to_bottom,#ffffff,#f8fafc)] text-slate-950">
       <header className="sticky top-0 z-30 border-b border-slate-200/70 bg-white/80 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
-          <Link href="/" className="flex items-center gap-3" aria-label="DREAMWISH 홈">
-            <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-blue-600 text-white shadow-lg shadow-violet-200">
+          <Link href="/" className="flex min-w-0 items-center gap-2.5 sm:gap-3" aria-label="DREAMWISH 홈">
+            <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-blue-600 text-white shadow-lg shadow-violet-200">
               <BrainLogo className="h-6 w-6" />
             </span>
-            <span>
-              <span className="block text-sm font-extrabold tracking-tight">DREAMWISH</span>
-              <span className="block text-[10px] font-semibold text-slate-500">개인두뇌 AI</span>
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-extrabold tracking-tight">DREAMWISH</span>
+              <span className="hidden text-[10px] font-semibold text-slate-500 sm:block">개인두뇌 AI</span>
             </span>
           </Link>
           <nav aria-label="주요 메뉴" className="hidden items-center gap-5 text-sm font-semibold text-slate-600 md:flex">
@@ -39,22 +42,53 @@ export function GuestChatHome({ onLoginRequest, restoringSession = false }: Gues
             <Link className="transition hover:text-violet-700" href="/team">Team</Link>
             <Link className="transition hover:text-violet-700" href="/pricing">Pricing</Link>
           </nav>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             <button
               type="button"
               onClick={onLoginRequest}
-              className="inline-flex h-10 items-center justify-center rounded-xl bg-slate-950 px-5 text-sm font-bold text-white transition hover:bg-violet-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-600"
+              className="inline-flex h-10 items-center justify-center rounded-xl bg-slate-950 px-3.5 text-xs font-bold text-white transition hover:bg-violet-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-600 sm:px-5 sm:text-sm"
             >
               Login
             </button>
             <Link
               href="/signup"
-              className="inline-flex h-10 items-center justify-center rounded-xl bg-violet-600 px-5 text-sm font-bold text-white transition hover:bg-violet-700"
+              className="inline-flex h-10 items-center justify-center rounded-xl bg-violet-600 px-3.5 text-xs font-bold text-white transition hover:bg-violet-700 sm:px-5 sm:text-sm"
             >
               Get Started
             </Link>
+            <button
+              type="button"
+              aria-label={menuOpen ? "메뉴 닫기" : "메뉴 열기"}
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen((open) => !open)}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-violet-300 hover:text-violet-700 md:hidden"
+            >
+              {menuOpen ? <X size={18} /> : <Menu size={18} />}
+            </button>
           </div>
         </div>
+        {menuOpen ? (
+          <nav
+            aria-label="모바일 메뉴"
+            className="border-t border-slate-200/70 bg-white/95 px-4 py-3 md:hidden"
+          >
+            {[
+              ["AI Chat", "/chat"],
+              ["Memory", "/memory"],
+              ["Team", "/team"],
+              ["Pricing", "/pricing"]
+            ].map(([label, href]) => (
+              <Link
+                key={href}
+                href={href}
+                onClick={() => setMenuOpen(false)}
+                className="block rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-violet-50 hover:text-violet-700"
+              >
+                {label}
+              </Link>
+            ))}
+          </nav>
+        ) : null}
       </header>
 
       <main className="mx-auto flex min-h-[calc(100dvh-9rem)] w-full max-w-6xl flex-col px-4 pb-8 pt-10 sm:px-6 sm:pt-14">
@@ -64,7 +98,7 @@ export function GuestChatHome({ onLoginRequest, restoringSession = false }: Gues
               <Sparkles size={12} aria-hidden="true" />
               AI-DRIVEN DECISION INTELLIGENCE
             </p>
-            <h1 id="hero-title" className="mt-5 text-4xl font-extrabold leading-tight tracking-[-0.03em] sm:text-5xl">
+            <h1 id="hero-title" className="mt-5 text-[clamp(2rem,8vw,3rem)] font-extrabold leading-tight tracking-[-0.03em]">
               <span className="block text-slate-950">Better Decisions.</span>
               <span className="block bg-gradient-to-r from-violet-600 to-blue-600 bg-clip-text text-transparent">
                 Powered by AI.
@@ -205,7 +239,7 @@ export function GuestChatHome({ onLoginRequest, restoringSession = false }: Gues
             <span className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-violet-100 bg-white text-violet-600 shadow-sm">
               <Bot size={23} aria-hidden="true" />
             </span>
-            <h2 id="guest-chat-title" className="mt-5 text-3xl font-bold tracking-[-0.035em] text-slate-950 sm:text-4xl">
+            <h2 id="guest-chat-title" className="mt-5 text-[clamp(1.5rem,6vw,2.25rem)] font-bold tracking-[-0.035em] text-slate-950">
               무엇을 도와드릴까요?
             </h2>
             <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-slate-500 sm:text-base">

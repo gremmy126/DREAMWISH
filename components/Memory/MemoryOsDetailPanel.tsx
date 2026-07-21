@@ -289,7 +289,7 @@ export function MemoryOsDetailPanel({
               </section>
             ) : null}
 
-            <section className="grid grid-cols-3 gap-x-3 gap-y-2 rounded-2xl bg-app-soft/60 p-3.5 text-[10.5px]">
+            <section className="grid grid-cols-2 gap-x-3 gap-y-2 rounded-2xl bg-app-soft/60 p-3.5 text-[10.5px] sm:grid-cols-3">
               <MetaCell label="생성자" value={item.createdBy} />
               <MetaCell label="생성일" value={formatDate(item.createdAt)} />
               <MetaCell label="최종 수정" value={formatDate(item.updatedAt)} />

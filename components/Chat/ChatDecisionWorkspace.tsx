@@ -570,18 +570,18 @@ export function ChatDecisionWorkspace() {
             <Sparkles size={18} />
           </div>
           <div>
-            <h1 className="text-lg font-extrabold text-app-text">AI와 함께하는 의사결정 파트너</h1>
+            <h1 className="text-base font-extrabold text-app-text sm:text-lg">AI와 함께하는 의사결정 파트너</h1>
             <p className="text-xs text-app-muted">질문하고, 분석하고, 실행 가능한 결론을 얻어보세요.</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {mode === "decision" && history.length ? (
             <select
               value={decision?.id || ""}
               onChange={(event) => {
                 if (event.target.value) void openHistoryDecision(event.target.value);
               }}
-              className="h-10 max-w-[220px] rounded-2xl border border-app-border bg-white px-3 text-xs font-semibold text-app-muted"
+              className="h-10 max-w-[160px] rounded-2xl border border-app-border bg-white px-3 text-xs font-semibold text-app-muted sm:max-w-[220px]"
               aria-label="분석 기록"
             >
               <option value="">분석 기록 열기…</option>
@@ -661,7 +661,7 @@ export function ChatDecisionWorkspace() {
       ) : (
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_400px]">
           <div className="flex h-[calc(100dvh-220px)] min-h-[480px] flex-col rounded-app border border-app-border bg-white shadow-soft">
-            <div ref={scrollRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5 app-scrollbar">
+            <div ref={scrollRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 app-scrollbar sm:p-5">
               <AiBubble>
                 <p className="text-sm font-bold text-app-text">
                   안녕하세요! 저는 여러분의 AI 전략 분석 파트너입니다.
