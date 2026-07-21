@@ -193,6 +193,10 @@ export function LoginDialog(props: LoginDialogProps) {
             icon={<TicketPercent size={17} />}
             onChange={props.onCouponCodeChange}
           />
+          <p className="mt-1 text-[11px] leading-4 text-slate-500">
+            여기는 <b>이용권 쿠폰</b>(무료 이용기간·체험권) 입력란입니다. 결제 <b>할인
+            쿠폰</b>은 결제 화면에서 입력하세요.
+          </p>
 
           {!props.creatingAccount ? (
             <div className="flex justify-end">
