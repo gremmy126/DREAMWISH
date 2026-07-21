@@ -1,0 +1,134 @@
+<svg width="1440" height="900" viewBox="0 0 1440 900" xmlns="http://www.w3.org/2000/svg" font-family="Inter, 'Noto Sans KR', sans-serif">
+  <defs>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="16" flood-color="#0f172a" flood-opacity="0.06"/>
+    </filter>
+    <linearGradient id="violet" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6d5df6"/><stop offset="1" stop-color="#8b7cff"/>
+    </linearGradient>
+    <linearGradient id="memhero" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#f5f3ff"/><stop offset="1" stop-color="#ffffff"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1440" height="900" fill="#ffffff"/>
+
+  <!-- Sidebar -->
+  <rect x="0" y="0" width="232" height="900" fill="#ffffff"/>
+  <line x1="232" y1="0" x2="232" y2="900" stroke="#eef0f6"/>
+  <rect x="20" y="24" width="40" height="40" rx="14" fill="url(#violet)"/>
+  <text x="72" y="42" font-size="15" font-weight="800" fill="#111827">DREAMWISH</text>
+  <text x="72" y="58" font-size="10" fill="#8a92a6">AI Decision OS</text>
+  <circle cx="38" cy="118" r="8" fill="none" stroke="#98a1b3" stroke-width="2"/>
+  <text x="58" y="123" font-size="13.5" font-weight="600" fill="#5c6474">AI Chat</text>
+  <rect x="14" y="144" width="204" height="44" rx="14" fill="#f2f0ff"/>
+  <circle cx="38" cy="166" r="8" fill="none" stroke="#6d5df6" stroke-width="2"/>
+  <text x="58" y="171" font-size="13.5" font-weight="700" fill="#6d5df6">Memory</text>
+  <circle cx="38" cy="214" r="8" fill="none" stroke="#98a1b3" stroke-width="2"/>
+  <text x="58" y="219" font-size="13.5" font-weight="600" fill="#5c6474">Team</text>
+
+  <!-- Hero -->
+  <rect x="264" y="36" width="1144" height="120" rx="22" fill="url(#memhero)" stroke="#eef0f6" filter="url(#soft)"/>
+  <text x="296" y="82" font-size="22" font-weight="800" fill="#111827">Memory</text>
+  <text x="296" y="106" font-size="12.5" fill="#6b7280">결정과 결과가 쌓여 조직만의 의사결정 자산이 됩니다</text>
+  <g>
+    <circle cx="1240" cy="96" r="34" fill="none" stroke="#c7bfff" stroke-width="2"/>
+    <circle cx="1240" cy="96" r="20" fill="none" stroke="#8b7cff" stroke-width="2"/>
+    <circle cx="1240" cy="96" r="6" fill="#6d5df6"/>
+    <circle cx="1188" cy="70" r="5" fill="#c7bfff"/><circle cx="1298" cy="120" r="5" fill="#c7bfff"/>
+    <circle cx="1300" cy="64" r="4" fill="#e4e0fb"/><circle cx="1184" cy="126" r="4" fill="#e4e0fb"/>
+    <line x1="1240" y1="96" x2="1188" y2="70" stroke="#ddd7fd"/><line x1="1240" y1="96" x2="1298" y2="120" stroke="#ddd7fd"/>
+    <line x1="1240" y1="96" x2="1300" y2="64" stroke="#eceafd"/><line x1="1240" y1="96" x2="1184" y2="126" stroke="#eceafd"/>
+  </g>
+
+  <!-- Stat cards -->
+  <g filter="url(#soft)">
+    <rect x="264" y="180" width="272" height="96" rx="18" fill="#ffffff" stroke="#eef0f6"/>
+    <rect x="556" y="180" width="272" height="96" rx="18" fill="#ffffff" stroke="#eef0f6"/>
+    <rect x="848" y="180" width="272" height="96" rx="18" fill="#ffffff" stroke="#eef0f6"/>
+    <rect x="1140" y="180" width="268" height="96" rx="18" fill="#ffffff" stroke="#eef0f6"/>
+  </g>
+  <g font-size="11" font-weight="700" fill="#8a92a6">
+    <text x="288" y="210">승인된 메모리</text><text x="580" y="210">검토 대기</text><text x="872" y="210">이번 주 추가</text><text x="1164" y="210">지식 연결</text>
+  </g>
+  <g font-size="26" font-weight="800" fill="#111827">
+    <text x="288" y="248">128</text><text x="580" y="248">6</text><text x="872" y="248">14</text><text x="1164" y="248">342</text>
+  </g>
+  <g font-size="10.5" font-weight="700" fill="#16a34a">
+    <text x="288" y="266">+9 이번 주</text><text x="872" y="266">▲ 지난주 대비 40%</text>
+  </g>
+  <text x="580" y="266" font-size="10.5" font-weight="700" fill="#6d5df6">승인 필요 →</text>
+
+  <!-- Filter chips -->
+  <g font-size="11" font-weight="700">
+    <rect x="264" y="300" width="58" height="28" rx="14" fill="#6d5df6"/><text x="280" y="318" fill="#ffffff">전체</text>
+    <rect x="330" y="300" width="92" height="28" rx="14" fill="#ffffff" stroke="#e5e8f0"/><text x="345" y="318" fill="#5c6474">기업 컨텍스트</text>
+    <rect x="430" y="300" width="80" height="28" rx="14" fill="#ffffff" stroke="#e5e8f0"/><text x="445" y="318" fill="#5c6474">전략 목표</text>
+    <rect x="518" y="300" width="104" height="28" rx="14" fill="#ffffff" stroke="#e5e8f0"/><text x="533" y="318" fill="#5c6474">의사결정 원칙</text>
+    <rect x="630" y="300" width="80" height="28" rx="14" fill="#ffffff" stroke="#e5e8f0"/><text x="645" y="318" fill="#5c6474">결정 기록</text>
+  </g>
+  <rect x="1188" y="298" width="220" height="32" rx="12" fill="#ffffff" stroke="#e5e8f0"/>
+  <text x="1206" y="318" font-size="11" fill="#a2aabb">메모리 검색…</text>
+
+  <!-- Memory cards grid (2 rows x 3) -->
+  <g filter="url(#soft)">
+    <rect x="264" y="352" width="368" height="150" rx="18" fill="#ffffff" stroke="#eef0f6"/>
+    <rect x="652" y="352" width="368" height="150" rx="18" fill="#ffffff" stroke="#eef0f6"/>
+    <rect x="1040" y="352" width="368" height="150" rx="18" fill="#ffffff" stroke="#eef0f6"/>
+    <rect x="264" y="522" width="368" height="150" rx="18" fill="#ffffff" stroke="#eef0f6"/>
+    <rect x="652" y="522" width="368" height="150" rx="18" fill="#ffffff" stroke="#eef0f6"/>
+    <rect x="1040" y="522" width="368" height="150" rx="18" fill="#ffffff" stroke="#eef0f6"/>
+  </g>
+
+  <!-- card 1 -->
+  <rect x="286" y="372" width="86" height="20" rx="10" fill="#f2f0ff"/><text x="298" y="386" font-size="10" font-weight="700" fill="#6d5df6">전략 목표</text>
+  <text x="286" y="416" font-size="13.5" font-weight="800" fill="#111827">2026 신규 고객군 확장</text>
+  <text x="286" y="436" font-size="11.5" fill="#6b7280">B2B SMB 세그먼트 매출 비중 30% 달성.</text>
+  <text x="286" y="452" font-size="11.5" fill="#6b7280">제한 출시 → 검증 → 확대 원칙 유지.</text>
+  <text x="286" y="484" font-size="10.5" fill="#a2aabb">결정 3건에 사용 · 2일 전 갱신</text>
+
+  <!-- card 2 -->
+  <rect x="674" y="372" width="104" height="20" rx="10" fill="#eefdf3"/><text x="686" y="386" font-size="10" font-weight="700" fill="#16a34a">의사결정 원칙</text>
+  <text x="674" y="416" font-size="13.5" font-weight="800" fill="#111827">위험 성향: 검증 우선</text>
+  <text x="674" y="436" font-size="11.5" fill="#6b7280">되돌릴 수 없는 결정은 표본 실험 후 진행.</text>
+  <text x="674" y="452" font-size="11.5" fill="#6b7280">손실 한도: 분기 예산의 10%.</text>
+  <text x="674" y="484" font-size="10.5" fill="#a2aabb">결정 7건에 사용 · 1주 전 갱신</text>
+
+  <!-- card 3 -->
+  <rect x="1062" y="372" width="80" height="20" rx="10" fill="#fff3ec"/><text x="1074" y="386" font-size="10" font-weight="700" fill="#ea7c2f">결정 기록</text>
+  <text x="1062" y="416" font-size="13.5" font-weight="800" fill="#111827">신제품 A 제한 출시 승인</text>
+  <text x="1062" y="436" font-size="11.5" fill="#6b7280">Employee Signal 63점 · 시뮬레이션 1위.</text>
+  <text x="1062" y="452" font-size="11.5" fill="#6b7280">3개월 후 결과 회고 예정.</text>
+  <rect x="1062" y="468" width="112" height="20" rx="10" fill="#f6f7fb"/><text x="1074" y="482" font-size="10" font-weight="700" fill="#6d5df6">회고 알림 설정됨</text>
+
+  <!-- card 4 -->
+  <rect x="286" y="542" width="94" height="20" rx="10" fill="#eef6ff"/><text x="298" y="556" font-size="10" font-weight="700" fill="#2f7bea">기업 컨텍스트</text>
+  <text x="286" y="586" font-size="13.5" font-weight="800" fill="#111827">핵심 고객: 5~200인 SMB</text>
+  <text x="286" y="606" font-size="11.5" fill="#6b7280">구매 결정권자: 대표·사업기획. 평균 검토 2주.</text>
+  <text x="286" y="638" font-size="10.5" fill="#a2aabb">비즈니스 이전 데이터 · 승인됨</text>
+
+  <!-- card 5 (pending) -->
+  <rect x="652" y="522" width="368" height="150" rx="18" fill="#fbfaff" stroke="#e4defc" stroke-dasharray="6 4"/>
+  <rect x="674" y="542" width="86" height="20" rx="10" fill="#f2f0ff"/><text x="686" y="556" font-size="10" font-weight="700" fill="#6d5df6">검토 대기</text>
+  <text x="674" y="586" font-size="13.5" font-weight="800" fill="#111827">결과 회고: 광고 채널 재배분</text>
+  <text x="674" y="606" font-size="11.5" fill="#6b7280">예상 CPA 대비 실제 -12% — 가정 2건 수정 제안</text>
+  <rect x="674" y="622" width="76" height="28" rx="12" fill="url(#violet)"/><text x="694" y="640" font-size="11" font-weight="800" fill="#ffffff">승인</text>
+  <rect x="758" y="622" width="76" height="28" rx="12" fill="#ffffff" stroke="#e5e8f0"/><text x="778" y="640" font-size="11" font-weight="700" fill="#5c6474">거절</text>
+
+  <!-- card 6 -->
+  <rect x="1062" y="542" width="80" height="20" rx="10" fill="#f2f0ff"/><text x="1074" y="556" font-size="10" font-weight="700" fill="#6d5df6">결과 회고</text>
+  <text x="1062" y="586" font-size="13.5" font-weight="800" fill="#111827">공급사 교체 — 예측 적중</text>
+  <text x="1062" y="606" font-size="11.5" fill="#6b7280">리드타임 -18%, 품질 이슈 0건. 교훈 2건 축적.</text>
+  <text x="1062" y="638" font-size="10.5" fill="#a2aabb">다음 결정 추천에 자동 반영</text>
+
+  <!-- Timeline strip -->
+  <rect x="264" y="700" width="1144" height="150" rx="22" fill="#ffffff" stroke="#eef0f6" filter="url(#soft)"/>
+  <text x="296" y="734" font-size="13" font-weight="800" fill="#111827">결정 타임라인</text>
+  <line x1="296" y1="790" x2="1376" y2="790" stroke="#eef0f6" stroke-width="2"/>
+  <g>
+    <circle cx="380" cy="790" r="7" fill="#6d5df6"/><text x="352" y="770" font-size="10.5" font-weight="700" fill="#111827">신제품 A 승인</text><text x="360" y="816" font-size="9.5" fill="#a2aabb">7월 21일</text>
+    <circle cx="640" cy="790" r="7" fill="#8b7cff"/><text x="606" y="770" font-size="10.5" font-weight="700" fill="#111827">광고 채널 재배분</text><text x="622" y="816" font-size="9.5" fill="#a2aabb">7월 8일</text>
+    <circle cx="900" cy="790" r="7" fill="#c7bfff"/><text x="872" y="770" font-size="10.5" font-weight="700" fill="#111827">공급사 교체</text><text x="884" y="816" font-size="9.5" fill="#a2aabb">6월 24일</text>
+    <circle cx="1160" cy="790" r="7" fill="#e4e0fb"/><text x="1126" y="770" font-size="10.5" font-weight="700" fill="#111827">가격 정책 유지</text><text x="1146" y="816" font-size="9.5" fill="#a2aabb">6월 2일</text>
+  </g>
+</svg>

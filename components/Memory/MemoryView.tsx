@@ -159,24 +159,46 @@ export function MemoryView() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold text-app-text">{t("memory.title")}</h1>
-          <p className="mt-2 text-sm text-app-muted">
-            {t("memory.description")}
-          </p>
+      <div className="relative overflow-hidden rounded-app border border-app-border bg-gradient-to-r from-[#f5f3ff] to-white p-6 shadow-soft">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h1 className="text-xl font-extrabold text-app-text">{t("memory.title")}</h1>
+            <p className="mt-1.5 text-sm text-app-muted">
+              결정과 결과가 쌓여 조직만의 의사결정 자산이 됩니다
+            </p>
+          </div>
+          <div className="flex items-center gap-4">
+            <svg
+              width="96"
+              height="72"
+              viewBox="0 0 96 72"
+              className="hidden sm:block"
+              aria-hidden="true"
+            >
+              <line x1="48" y1="36" x2="16" y2="14" stroke="#ddd7fd" />
+              <line x1="48" y1="36" x2="82" y2="20" stroke="#ddd7fd" />
+              <line x1="48" y1="36" x2="20" y2="58" stroke="#eceafd" />
+              <line x1="48" y1="36" x2="80" y2="58" stroke="#eceafd" />
+              <circle cx="48" cy="36" r="17" fill="none" stroke="#c7bfff" strokeWidth="2" />
+              <circle cx="48" cy="36" r="5" fill="#6d5df6" />
+              <circle cx="16" cy="14" r="4" fill="#c7bfff" />
+              <circle cx="82" cy="20" r="4" fill="#c7bfff" />
+              <circle cx="20" cy="58" r="3.5" fill="#e4e0fb" />
+              <circle cx="80" cy="58" r="3.5" fill="#e4e0fb" />
+            </svg>
+            <button
+              type="button"
+              onClick={() => void loadDashboard()}
+              className="inline-flex h-10 items-center gap-2 rounded-2xl border border-app-border bg-white px-3 text-xs font-semibold text-app-text shadow-soft transition hover:bg-app-hover hover:text-app-primary"
+            >
+              <RefreshCw size={14} />
+              {t("memory.refresh")}
+            </button>
+          </div>
         </div>
-        <button
-          type="button"
-          onClick={() => void loadDashboard()}
-          className="inline-flex h-10 items-center gap-2 rounded-2xl border border-app-border bg-white px-3 text-xs font-semibold text-app-text shadow-soft transition hover:bg-app-hover hover:text-app-primary"
-        >
-          <RefreshCw size={14} />
-          {t("memory.refresh")}
-        </button>
       </div>
 
-      <div className="grid grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
         <Metric icon={Inbox} label={t("memory.inbox")} value={snapshot.statistics.totalCandidates} />
         <Metric icon={Brain} label={t("memory.approvedMemory")} value={snapshot.statistics.totalMemories} />
         <Metric icon={UserRound} label={t("memory.people")} value={snapshot.statistics.totalPeople} />

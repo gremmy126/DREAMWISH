@@ -33,25 +33,181 @@ export function GuestChatHome({ onLoginRequest, restoringSession = false }: Gues
               <span className="block text-[10px] font-semibold text-slate-500">개인두뇌 AI</span>
             </span>
           </Link>
-          <button
-            type="button"
-            onClick={onLoginRequest}
-            className="inline-flex h-10 items-center justify-center rounded-xl bg-slate-950 px-5 text-sm font-bold text-white transition hover:bg-violet-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-600"
-          >
-            Login
-          </button>
+          <nav aria-label="주요 메뉴" className="hidden items-center gap-5 text-sm font-semibold text-slate-600 md:flex">
+            <Link className="transition hover:text-violet-700" href="/chat">AI Chat</Link>
+            <Link className="transition hover:text-violet-700" href="/memory">Memory</Link>
+            <Link className="transition hover:text-violet-700" href="/team">Team</Link>
+            <Link className="transition hover:text-violet-700" href="/pricing">Pricing</Link>
+          </nav>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onLoginRequest}
+              className="inline-flex h-10 items-center justify-center rounded-xl bg-slate-950 px-5 text-sm font-bold text-white transition hover:bg-violet-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-600"
+            >
+              Login
+            </button>
+            <Link
+              href="/signup"
+              className="inline-flex h-10 items-center justify-center rounded-xl bg-violet-600 px-5 text-sm font-bold text-white transition hover:bg-violet-700"
+            >
+              Get Started
+            </Link>
+          </div>
         </div>
       </header>
 
-      <main className="mx-auto flex min-h-[calc(100dvh-9rem)] w-full max-w-5xl flex-col px-4 pb-8 pt-8 sm:px-6 sm:pt-12">
-        <section aria-labelledby="guest-chat-title" className="mx-auto flex w-full max-w-4xl flex-1 flex-col">
+      <main className="mx-auto flex min-h-[calc(100dvh-9rem)] w-full max-w-6xl flex-col px-4 pb-8 pt-10 sm:px-6 sm:pt-14">
+        <section aria-labelledby="hero-title" className="grid items-center gap-10 lg:grid-cols-2">
+          <div>
+            <p className="inline-flex items-center gap-2 rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-[11px] font-extrabold tracking-wide text-violet-700">
+              <Sparkles size={12} aria-hidden="true" />
+              AI-DRIVEN DECISION INTELLIGENCE
+            </p>
+            <h1 id="hero-title" className="mt-5 text-4xl font-extrabold leading-tight tracking-[-0.03em] sm:text-5xl">
+              <span className="block text-slate-950">Better Decisions.</span>
+              <span className="block bg-gradient-to-r from-violet-600 to-blue-600 bg-clip-text text-transparent">
+                Powered by AI.
+              </span>
+            </h1>
+            <p className="mt-5 max-w-xl text-sm leading-7 text-slate-600 sm:text-base">
+              DreamWish는 AI가 질문을 이해하고, 필요한 정보를 조사하며, 여러 가능성을
+              시뮬레이션하고, 팀의 의견과 과거의 기억을 연결해 더 나은 최종 결정을
+              돕는 AI 의사결정 파트너입니다.
+            </p>
+            <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+              <button
+                type="button"
+                onClick={onLoginRequest}
+                className="inline-flex h-12 items-center justify-center rounded-2xl bg-gradient-to-r from-violet-600 to-blue-600 px-7 text-sm font-bold text-white shadow-lg shadow-violet-200 transition hover:opacity-90"
+              >
+                무료로 시작하기 →
+              </button>
+              <a
+                href="#how-it-works"
+                className="inline-flex h-12 items-center justify-center rounded-2xl border border-slate-200 bg-white px-7 text-sm font-bold text-slate-700 transition hover:border-violet-300 hover:text-violet-700"
+              >
+                작동 방식 보기
+              </a>
+            </div>
+            <p className="mt-4 text-xs font-medium text-slate-500">
+              데이터는 사용자가 통제하며, 중요한 결정은 사용자의 최종 승인을 거칩니다.
+            </p>
+          </div>
+          <div className="mx-auto w-full max-w-md" aria-hidden="true">
+            <svg viewBox="0 0 400 340" className="h-auto w-full" role="img" aria-label="AI Chat, Deep Research, Team Intelligence, Simulation, Memory OS가 하나의 결정으로 수렴하는 Decision Core">
+              <defs>
+                <radialGradient id="core" cx="0.5" cy="0.45" r="0.6">
+                  <stop offset="0" stopColor="#8b7cff" />
+                  <stop offset="0.6" stopColor="#6d5df6" />
+                  <stop offset="1" stopColor="#4f46e5" />
+                </radialGradient>
+                <linearGradient id="orbit" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0" stopColor="#c7bfff" />
+                  <stop offset="1" stopColor="#93c5fd" />
+                </linearGradient>
+              </defs>
+              <ellipse cx="200" cy="170" rx="165" ry="70" fill="none" stroke="url(#orbit)" strokeOpacity="0.55" />
+              <ellipse cx="200" cy="170" rx="120" ry="115" fill="none" stroke="url(#orbit)" strokeOpacity="0.4" transform="rotate(-18 200 170)" />
+              <circle cx="200" cy="170" r="52" fill="url(#core)" opacity="0.16" />
+              <circle cx="200" cy="170" r="36" fill="url(#core)" />
+              <path d="M200 148 l7 15 16 2 -11.5 11 3 16 -14.5 -8 -14.5 8 3 -16 -11.5 -11 16 -2 z" fill="#ffffff" />
+              <g fontFamily="Inter, 'Noto Sans KR', sans-serif" fontSize="11" fontWeight="700">
+                <g><rect x="120" y="52" width="60" height="24" rx="12" fill="#ffffff" stroke="#e4defc" /><text x="150" y="68" textAnchor="middle" fill="#6d5df6">AI Chat</text></g>
+                <g><rect x="268" y="70" width="98" height="24" rx="12" fill="#ffffff" stroke="#e4defc" /><text x="317" y="86" textAnchor="middle" fill="#6d5df6">Deep Research</text></g>
+                <g><rect x="288" y="176" width="104" height="24" rx="12" fill="#ffffff" stroke="#e4defc" /><text x="340" y="192" textAnchor="middle" fill="#6d5df6">Team Intelligence</text></g>
+                <g><rect x="230" y="272" width="80" height="24" rx="12" fill="#ffffff" stroke="#e4defc" /><text x="270" y="288" textAnchor="middle" fill="#6d5df6">Memory OS</text></g>
+                <g><rect x="76" y="252" width="82" height="24" rx="12" fill="#ffffff" stroke="#e4defc" /><text x="117" y="268" textAnchor="middle" fill="#6d5df6">Simulation</text></g>
+                <g><rect x="18" y="150" width="96" height="24" rx="12" fill="#ffffff" stroke="#c7bfff" /><text x="66" y="166" textAnchor="middle" fill="#4f46e5">Final Decision</text></g>
+              </g>
+              <g stroke="#c7bfff" strokeOpacity="0.7" strokeDasharray="2 4">
+                <line x1="150" y1="76" x2="188" y2="140" /><line x1="310" y1="94" x2="228" y2="146" />
+                <line x1="316" y1="188" x2="248" y2="176" /><line x1="266" y1="272" x2="216" y2="204" />
+                <line x1="122" y1="252" x2="180" y2="202" /><line x1="98" y1="162" x2="152" y2="168" />
+              </g>
+            </svg>
+          </div>
+        </section>
+
+        <section id="how-it-works" aria-label="의사결정 흐름" className="mt-16 rounded-[26px] border border-slate-200 bg-white p-6 shadow-[0_20px_65px_rgba(15,23,42,0.06)] sm:p-8">
+          <h2 className="text-center text-lg font-extrabold text-slate-950">
+            질문에서 결정, 그리고 성장까지 하나의 흐름으로
+          </h2>
+          <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+            {[
+              ["질문", "결정하고 싶은 문제를 자연어로 입력하세요"],
+              ["AI 인터뷰", "AI가 목표·예산·조건·위험 수준을 질문합니다"],
+              ["딥리서치", "설정한 범위와 깊이로 근거를 수집합니다"],
+              ["팀 의견", "익명 설문으로 내부 의견을 반영합니다"],
+              ["시뮬레이션", "낙관·기준·비관 시나리오를 비교합니다"],
+              ["최종 결론", "추천안·반대 의견·리스크를 보고서로 제공합니다"],
+              ["Memory 학습", "결정과 결과를 기억해 다음 판단에 활용합니다"]
+            ].map(([title, description], index) => (
+              <div key={title} className="text-center">
+                <span className="mx-auto flex h-10 w-10 items-center justify-center rounded-2xl bg-violet-50 text-sm font-extrabold text-violet-700">
+                  {index + 1}
+                </span>
+                <p className="mt-2 text-sm font-bold text-slate-900">{title}</p>
+                <p className="mt-1 text-[11px] leading-4 text-slate-500">{description}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section aria-label="핵심 기능" className="mt-10 grid gap-4 lg:grid-cols-3">
+          {[
+            ["AI Chat", "AI가 먼저 필요한 질문을 하고 답변으로 문제를 구조화합니다. 딥리서치·팀 설문·시뮬레이션·최종 보고서가 하나의 흐름으로 진행됩니다.", "/chat"],
+            ["Memory", "대화·조사·결정·교훈과 실제 결과를 연결합니다. AI가 저장 후보를 제안하고, 사용자가 승인한 정보만 확정 Memory가 됩니다.", "/memory"],
+            ["Team", "AI가 설문을 만들고 익명 응답을 분석해 조직의 지지도·실행 가능성·반대 의견과 숨은 위험을 최종 결정에 반영합니다.", "/team"]
+          ].map(([title, description, href]) => (
+            <Link
+              key={title}
+              href={href}
+              className="rounded-[22px] border border-slate-200 bg-white p-6 shadow-[0_12px_40px_rgba(15,23,42,0.05)] transition hover:-translate-y-0.5 hover:border-violet-200"
+            >
+              <p className="text-base font-extrabold text-slate-950">{title}</p>
+              <p className="mt-2 text-xs leading-5 text-slate-600">{description}</p>
+              <p className="mt-3 text-xs font-bold text-violet-700">자세히 보기 →</p>
+            </Link>
+          ))}
+        </section>
+
+        <section aria-label="제품 미리보기" className="mt-10 rounded-[26px] border border-slate-200 bg-white p-5 shadow-[0_20px_65px_rgba(15,23,42,0.06)]">
+          <div className="grid gap-4 lg:grid-cols-3">
+            <div className="rounded-2xl bg-slate-50 p-4">
+              <p className="text-[11px] font-extrabold text-slate-500">AI 인터뷰</p>
+              <div className="mt-2 space-y-2">
+                <p className="rounded-xl bg-white p-2.5 text-[11px] font-semibold text-slate-700">이 결정의 가장 중요한 목표는 무엇인가요?</p>
+                <p className="ml-6 rounded-xl bg-violet-600 p-2.5 text-[11px] font-semibold text-white">여기에 답변이 이어집니다.</p>
+              </div>
+            </div>
+            <div className="rounded-2xl bg-slate-50 p-4">
+              <p className="text-[11px] font-extrabold text-slate-500">진행 단계</p>
+              <ul className="mt-2 space-y-1.5 text-[11px] font-semibold text-slate-600">
+                <li>✓ 질문 의도 파악</li><li>✓ 필요 정보 수집</li><li>◌ 딥리서치 진행</li><li>◌ 시뮬레이션 실행</li><li>◌ 조직 의견 수렴</li><li>◌ 결론 도출</li>
+              </ul>
+            </div>
+            <div className="rounded-2xl bg-slate-50 p-4">
+              <p className="text-[11px] font-extrabold text-slate-500">AI 분석 보고서</p>
+              <ul className="mt-2 space-y-1.5 text-[11px] leading-4 text-slate-600">
+                <li>· 핵심 결과가 여기에 정리됩니다.</li>
+                <li>· 조사한 근거와 출처가 표시됩니다.</li>
+                <li>· 시나리오별 차이를 확인할 수 있습니다.</li>
+                <li>· 팀의 익명 의견이 반영됩니다.</li>
+                <li>· 반대 의견과 주요 리스크가 표시됩니다.</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <section aria-labelledby="guest-chat-title" className="mx-auto mt-14 flex w-full max-w-4xl flex-1 flex-col">
           <div className="text-center">
             <span className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-violet-100 bg-white text-violet-600 shadow-sm">
               <Bot size={23} aria-hidden="true" />
             </span>
-            <h1 id="guest-chat-title" className="mt-5 text-3xl font-bold tracking-[-0.035em] text-slate-950 sm:text-4xl">
+            <h2 id="guest-chat-title" className="mt-5 text-3xl font-bold tracking-[-0.035em] text-slate-950 sm:text-4xl">
               무엇을 도와드릴까요?
-            </h1>
+            </h2>
             <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-slate-500 sm:text-base">
               로그인하면 내 일정, 문서, 고객, 프로젝트와 기억을 연결한 AI를 바로 사용할 수 있습니다.
             </p>
@@ -105,6 +261,22 @@ export function GuestChatHome({ onLoginRequest, restoringSession = false }: Gues
               {restoringSession ? "기존 로그인 정보를 확인하고 있습니다…" : "입력하거나 예시 질문을 선택하면 로그인 창이 열립니다."}
             </p>
           </div>
+        </section>
+
+        <section aria-label="시작하기" className="mt-14 overflow-hidden rounded-[26px] bg-gradient-to-r from-slate-950 via-[#312e81] to-violet-700 p-8 text-center sm:p-10">
+          <h2 className="text-xl font-extrabold text-white sm:text-2xl">
+            지금의 질문을, 더 나은 결정으로 바꾸세요.
+          </h2>
+          <p className="mx-auto mt-2 max-w-xl text-xs leading-6 text-violet-100 sm:text-sm">
+            AI가 조사하고, 비교하고, 팀의 의견을 반영하여 실행 가능한 결론까지 도와드립니다.
+          </p>
+          <button
+            type="button"
+            onClick={onLoginRequest}
+            className="mt-5 inline-flex h-12 items-center justify-center rounded-2xl bg-white px-8 text-sm font-extrabold text-violet-700 shadow-lg transition hover:bg-violet-50"
+          >
+            무료로 시작하기
+          </button>
         </section>
       </main>
 

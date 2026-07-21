@@ -3,15 +3,11 @@
 import { AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AutomationView } from "@/components/Automation/AutomationView";
-import { CalendarView } from "@/components/Calendar/CalendarView";
-import { ChatView } from "@/components/Chat/ChatView";
-import { BusinessHub } from "@/components/Business/BusinessHub";
-import { CRMView } from "@/components/CRM/CRMView";
+import { ChatDecisionWorkspace } from "@/components/Chat/ChatDecisionWorkspace";
 import { FilesView } from "@/components/Files/FilesView";
-import { IntegrationsView } from "@/components/integrations/IntegrationsView";
-import { MemoryView } from "@/components/Memory/MemoryView";
+import { MemoryOsView } from "@/components/Memory/MemoryOsView";
 import { SettingsView } from "@/components/Settings/SettingsView";
+import { TeamView } from "@/components/Team/TeamView";
 import { AuthGate } from "@/components/auth/AuthGate";
 import { PageTransition } from "@/components/Common/PageTransition";
 import { openCookieSettings } from "@/components/consent/consent";
@@ -25,9 +21,14 @@ import {
   resolveWorkspaceView
 } from "@/src/lib/navigation/workspace-view";
 
-export function AppShell({ hasServerSession }: { hasServerSession: boolean }) {
-  const [activeView, setActiveView] = useState<ViewId>("chat");
-  const [pendingConnectorId, setPendingConnectorId] = useState<string | null>(null);
+export function AppShell({
+  hasServerSession,
+  initialView = "chat"
+}: {
+  hasServerSession: boolean;
+  initialView?: ViewId;
+}) {
+  const [activeView, setActiveView] = useState<ViewId>(initialView);
 
   const navigateToView = useCallback((view: ViewId) => {
     setActiveView(view);
@@ -35,15 +36,15 @@ export function AppShell({ hasServerSession }: { hasServerSession: boolean }) {
   }, []);
 
   useEffect(() => {
-    setActiveView(resolveWorkspaceView(window.location.pathname, window.location.search));
-    if (window.location.pathname !== "/" || new URLSearchParams(window.location.search).has("view")) {
-      window.history.replaceState(null, "", "/");
+    const resolved = resolveWorkspaceView(window.location.pathname, window.location.search);
+    setActiveView(resolved);
+    if (new URLSearchParams(window.location.search).has("view")) {
+      window.history.replaceState(null, "", getWorkspaceViewUrl(resolved));
     }
 
     const handleNavigate = (event: Event) => {
-      const detail = (event as CustomEvent<{ view?: string; connectorId?: string }>).detail;
+      const detail = (event as CustomEvent<{ view?: string }>).detail;
       const requested = normalizeWorkspaceView(detail?.view);
-      if (requested === "integrations") setPendingConnectorId(detail?.connectorId || null);
       if (requested) navigateToView(requested);
     };
     window.addEventListener("dreamwish:navigate", handleNavigate);
@@ -53,35 +54,27 @@ export function AppShell({ hasServerSession }: { hasServerSession: boolean }) {
   const content = useMemo(() => {
     switch (activeView) {
       case "chat":
-        return <ChatView />;
+        return <ChatDecisionWorkspace />;
       case "memory":
-        return <MemoryView />;
-      case "business":
-        return <BusinessHub />;
-      case "crm":
-        return <CRMView />;
-      case "automation":
-        return <AutomationView />;
-      case "calendar":
-        return <CalendarView />;
+        return <MemoryOsView />;
+      case "team":
+        return <TeamView />;
       case "files":
         return <FilesView />;
-      case "integrations":
-        return <IntegrationsView selectedConnectorId={pendingConnectorId} />;
       case "settings":
         return <SettingsView />;
       default:
-        return <ChatView />;
+        return <ChatDecisionWorkspace />;
     }
-  }, [activeView, pendingConnectorId]);
+  }, [activeView]);
 
   return (
     <AuthGate hasServerSession={hasServerSession}>
       <div className="min-h-screen bg-app-bg">
         <Sidebar activeView={activeView} onViewChange={navigateToView} />
-        <div className="pl-[248px]">
+        <div className="md:pl-[248px]">
           <Topbar />
-          <main className="px-6 pb-6">
+          <main className="px-4 pb-6 md:px-6">
             <AnimatePresence mode="wait">
               <PageTransition key={activeView}>
                 <PaymentGate>
@@ -100,7 +93,30 @@ export function AppShell({ hasServerSession }: { hasServerSession: boolean }) {
 function AppFooter() {
   return (
     <footer className="px-6 pb-8 text-xs text-app-muted">
-      <div className="flex flex-wrap items-center gap-3 border-t border-app-border pt-5">
+      <nav
+        aria-label="주요 페이지"
+        className="flex flex-wrap items-center gap-3 border-t border-app-border pt-5"
+      >
+        <Link className="font-semibold transition hover:text-app-primary" href="/chat">
+          AI Chat
+        </Link>
+        <Link className="font-semibold transition hover:text-app-primary" href="/memory">
+          Memory
+        </Link>
+        <Link className="font-semibold transition hover:text-app-primary" href="/team">
+          Team
+        </Link>
+        <Link className="font-semibold transition hover:text-app-primary" href="/pricing">
+          Pricing
+        </Link>
+        <Link className="font-semibold transition hover:text-app-primary" href="/login">
+          Login
+        </Link>
+        <Link className="font-semibold transition hover:text-app-primary" href="/signup">
+          Get Started
+        </Link>
+      </nav>
+      <div className="mt-3 flex flex-wrap items-center gap-3">
         <Link className="font-medium transition hover:text-app-text" href="/privacy">
           Privacy Policy
         </Link>

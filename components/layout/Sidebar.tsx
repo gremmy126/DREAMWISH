@@ -2,15 +2,9 @@
 
 import {
   Brain,
-  BriefcaseBusiness,
-  CalendarDays,
-  Cable,
-  File,
   Home,
   Info,
   MessageSquareText,
-  ScrollText,
-  Settings,
   UsersRound
 } from "lucide-react";
 import { motion } from "framer-motion";
@@ -35,13 +29,7 @@ const primaryItems: Array<{
 }> = [
   { id: "chat", icon: MessageSquareText },
   { id: "memory", icon: Brain },
-  { id: "business", icon: BriefcaseBusiness },
-  { id: "crm", icon: UsersRound },
-  { id: "automation", icon: ScrollText },
-  { id: "calendar", icon: CalendarDays },
-  { id: "files", icon: File },
-  { id: "integrations", icon: Cable },
-  { id: "settings", icon: Settings }
+  { id: "team", icon: UsersRound }
 ];
 
 export function Sidebar({ activeView, onViewChange }: SidebarProps) {
@@ -49,7 +37,7 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
   const { language, t } = useAppLanguage();
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-30 flex h-dvh w-[248px] min-h-0 flex-col border-r border-app-border bg-white/88 px-4 py-5 backdrop-blur-xl">
+    <aside className="fixed inset-y-0 left-0 z-30 hidden h-dvh w-[248px] min-h-0 flex-col border-r border-app-border bg-white/88 px-4 py-5 backdrop-blur-xl md:flex">
       <button
         type="button"
         onClick={() => onViewChange("chat")}
@@ -67,7 +55,9 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
       <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1 app-scrollbar">
         {primaryItems.map((item) => {
           const Icon = item.icon;
-          const active = activeView === item.id;
+          const active =
+            activeView === item.id ||
+            (item.id === "memory" && activeView === "files");
 
           return (
             <motion.button

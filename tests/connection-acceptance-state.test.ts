@@ -8,14 +8,12 @@ test("connection acceptance requires verified auth and navigates to the exact co
   // actions; connection accept/disconnect lives in the chat context panel
   // and the Integrations workspace only.
   const memory = fs.readFileSync("components/Memory/MemoryView.tsx", "utf8");
-  const shell = fs.readFileSync("components/layout/AppShell.tsx", "utf8");
   assert.match(route, /getVerifiedConnectionStates/u);
   assert.match(route, /connectionRequired/u);
   assert.match(route, /status !== "connected"/u);
   assert.match(chat, /connectorId/u);
   assert.match(chat, /연결 해제/u);
   assert.doesNotMatch(memory, /recommendations/u);
-  assert.match(shell, /pendingConnectorId/u);
 });
 
 test("integration and automation use exact app fields without a generic quick token", () => {

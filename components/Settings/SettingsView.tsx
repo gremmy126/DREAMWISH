@@ -23,6 +23,7 @@ import { StorageStatus } from "@/components/Common/StorageStatus";
 import { SurfaceCard } from "@/components/Common/SurfaceCard";
 import { SubscriptionSettingsCard } from "@/components/billing/SubscriptionSettingsCard";
 import { AuthenticatorSettingsCard } from "@/components/Settings/AuthenticatorSettingsCard";
+import { OrganizationSettingsCard } from "@/components/Settings/OrganizationSettingsCard";
 import { openCookieSettings } from "@/components/consent/consent";
 import { useAppLanguage } from "@/src/lib/i18n/use-app-language";
 import { t as translate } from "@/src/lib/i18n/translations";
@@ -269,6 +270,8 @@ export function SettingsView() {
               </label>
             </div>
           </SurfaceCard>
+
+          <OrganizationSettingsCard />
 
           <SubscriptionSettingsCard />
 

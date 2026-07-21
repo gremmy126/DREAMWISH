@@ -7,9 +7,33 @@ export type ApiAccessDecision =
   | { allowed: true }
   | {
       allowed: false;
-      status: 401 | 402 | 403;
-      code: "UNAUTHORIZED" | "PAYMENT_REQUIRED" | "FORBIDDEN";
+      status: 401 | 402 | 403 | 410;
+      code: "UNAUTHORIZED" | "PAYMENT_REQUIRED" | "FORBIDDEN" | "FEATURE_RETIRED";
     };
+
+// Stage 1 retirement: automation, integrations, business, CRM, and calendar
+// left the product. Their stores stay readable (GET) for backup/export, but
+// every write is refused so no new data can be created. See
+// docs/stage-1-audit.md for the export procedure.
+const RETIRED_API_PREFIXES = [
+  "/api/automation",
+  "/api/integrations",
+  "/api/crm",
+  "/api/erp",
+  "/api/business",
+  "/api/calendar",
+  "/api/oauth",
+  "/api/workflow",
+  "/api/webhooks/automation"
+] as const;
+
+const WRITE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+
+export function isRetiredApiWrite(pathname: string, method: string): boolean {
+  const path = normalizePathname(pathname);
+  if (!WRITE_METHODS.has(method.toUpperCase())) return false;
+  return RETIRED_API_PREFIXES.some((prefix) => isPathOrChild(path, prefix));
+}
 
 type AccessClaims = Pick<SessionClaims, "email" | "paid"> &
   Partial<Pick<SessionClaims, "entitled" | "role">>;
@@ -61,8 +85,22 @@ export function classifyApiAccess(pathname: string): ApiAccessClass {
     return "public";
   }
   if (BILLING_API_PATHS.has(path) || isPathOrChild(path, "/api/billing")) return "billing";
+  // Survey member endpoints require sign-in but never a paid subscription:
+  // every targeted employee must be able to see and answer their surveys.
+  if (isPathOrChild(path, "/api/surveys/member")) return "billing";
   if (isPathOrChild(path, ADMIN_API_PREFIX)) return "admin";
   return "protected";
+}
+
+export function decideApiRequestAccess(
+  pathname: string,
+  method: string,
+  claims: AccessClaims | null
+): ApiAccessDecision {
+  if (isRetiredApiWrite(pathname, method)) {
+    return { allowed: false, status: 410, code: "FEATURE_RETIRED" };
+  }
+  return decideApiAccess(pathname, claims);
 }
 
 export function decideApiAccess(

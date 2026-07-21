@@ -26,7 +26,7 @@ const chatNode = {
 function assertStage16Contracts() {
   for (const language of languages) {
     APP_TRANSLATIONS[language].common.logout satisfies string;
-    getNavLabel("integrations", language) satisfies string;
+    getNavLabel("chat", language) satisfies string;
     getChatQuickActionText("todo", language).label satisfies string;
     t(language, "chat.actions.title") satisfies string;
   }

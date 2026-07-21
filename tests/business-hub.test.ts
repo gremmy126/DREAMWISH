@@ -3,18 +3,19 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { buildBusinessSummary } from "../src/lib/business/business-workspace";
 
-test("Business and CRM remain separate sidebar workspaces while legacy URLs return to AI Chat", async () => {
+test("Business and CRM are retired from every menu while legacy URLs return home", async () => {
   const sidebar = await read("components/layout/Sidebar.tsx");
   const shell = await read("components/layout/AppShell.tsx");
   const types = await read("components/layout/types.ts");
   const route = await read("app/business/[[...section]]/page.tsx");
 
-  assert.match(sidebar, /"business"/u);
-  assert.match(sidebar, /\{ id: "crm"/u);
+  assert.doesNotMatch(sidebar, /\{ id: "business"/u);
+  assert.doesNotMatch(sidebar, /\{ id: "crm"/u);
+  assert.match(types, /RETIRED_WORKSPACE_VIEWS/u);
   assert.match(types, /"business"/u);
   assert.match(types, /"crm"/u);
-  assert.match(shell, /case "business"/u);
-  assert.match(shell, /case "crm"/u);
+  assert.doesNotMatch(shell, /case "business"/u);
+  assert.doesNotMatch(shell, /case "crm"/u);
   assert.match(route, /permanentRedirect\("\/"\)/u);
 });
 

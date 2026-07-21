@@ -23,7 +23,11 @@ test("root renders a crawlable guest AI chat instead of a login or marketing pag
 
   assert.match(guestHome, /aria-disabled="true"/u);
   assert.match(guestHome, /onLoginRequest/u);
-  assert.doesNotMatch(guestHome, /주요 기능|Pricing|FAQ|Features|Docs|Blog/u);
+  // SEO 사이트링크: 주요 메뉴는 크롤러가 읽을 수 있는 내부 링크로 노출된다.
+  for (const href of ["/chat", "/memory", "/team", "/pricing", "/signup"]) {
+    assert.match(guestHome, new RegExp(`href="${href}"`, "u"));
+  }
+  assert.doesNotMatch(guestHome, /FAQ|Docs|Blog/u);
   assert.doesNotMatch(guestHome, /fetch\s*\(/u);
 });
 
@@ -79,15 +83,32 @@ test("guest ads are manual consent-aware and cannot render in the signed-in work
   assert.doesNotMatch(ad, /import Script from "next\/script"/u);
 });
 
-test("obsolete chat login and pricing URLs redirect while Polar success can refresh access", () => {
+test("primary menu URLs are real 200 pages with metadata for SEO sitelinks", () => {
+  // /chat /memory /team은 워크스페이스 뷰를 렌더링하는 실제 페이지다.
+  for (const [file, view] of [
+    ["app/chat/page.tsx", "chat"],
+    ["app/memory/page.tsx", "memory"],
+    ["app/team/page.tsx", "team"]
+  ] as const) {
+    const source = read(file);
+    assert.match(source, /export const metadata/u, file);
+    assert.match(source, new RegExp(`initialView="${view}"`, "u"), file);
+    assert.match(source, /BreadcrumbJsonLd/u, file);
+    assert.doesNotMatch(source, /permanentRedirect/u, file);
+  }
+  // /pricing /login /signup은 SSR 정적 랜딩(200 OK)이다.
+  for (const file of ["app/pricing/page.tsx", "app/login/page.tsx", "app/signup/page.tsx"]) {
+    const source = read(file);
+    assert.doesNotMatch(source, /permanentRedirect/u, file);
+    assert.match(source, /href="\/chat"/u, file);
+  }
+  assert.match(read("app/login/layout.tsx"), /Login \| DreamWish/u);
+  assert.match(read("app/pricing/layout.tsx"), /Pricing \| DreamWish/u);
+
   const redirects = new Map([
-    ["app/chat/page.tsx", 'permanentRedirect("/")'],
-    ["app/login/page.tsx", 'permanentRedirect("/?login=1")'],
-    ["app/pricing/page.tsx", 'permanentRedirect("/")'],
     ["app/payment/success/page.tsx", 'permanentRedirect("/")'],
     ["app/settings/billing/page.tsx", 'permanentRedirect("/")']
   ]);
-
   for (const [file, contract] of redirects) {
     assert.match(read(file), new RegExp(escapeRegExp(contract), "u"), file);
   }
@@ -120,7 +141,13 @@ test("public home publishes canonical social metadata schema robots and sitemap"
   assert.match(robots, /sitemap/u);
   assert.match(robots, /allow:\s*"\/"/u);
   assert.match(sitemap, /SITE_URL/u);
-  assert.doesNotMatch(sitemap, /pricing|billing|payment/u);
+  // SEO 사이트링크 대상 페이지가 모두 sitemap에 포함된다.
+  for (const path of ["/chat", "/memory", "/team", "/pricing", "/login", "/signup"]) {
+    assert.match(sitemap, new RegExp(escapeRegExp(path), "u"));
+  }
+  assert.doesNotMatch(sitemap, /billing|payment/u);
+  assert.match(page, /Organization/u);
+  assert.match(page, /SiteNavigationElement/u);
   assert.match(page, /\/images\/dreamwish-social-card\.png/u);
   assert.match(page, /width:\s*1200/u);
   assert.match(page, /height:\s*630/u);
@@ -170,9 +197,9 @@ test("Polar entitlement locks unpaid content while preserving the signed-in side
   const context = read("src/lib/auth/access-context.tsx");
 
   assert.match(appShell, /<Sidebar/u);
-  assert.match(appShell, /<ChatView/u);
-  assert.match(appShell, /<MemoryView/u);
-  assert.match(appShell, /<BusinessHub/u);
+  assert.match(appShell, /<ChatDecisionWorkspace/u);
+  assert.match(appShell, /<MemoryOsView/u);
+  assert.match(appShell, /<TeamView/u);
   assert.match(appShell, /<PaymentGate/u);
   assert.match(sidebar, /<UpgradeButton/u);
   assert.match(sidebar, /<UpgradeButton[\s\S]*<StorageStatus/u);

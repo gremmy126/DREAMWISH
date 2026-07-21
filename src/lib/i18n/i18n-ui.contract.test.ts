@@ -4,17 +4,7 @@ import { LANGUAGE_OPTIONS, resolveLanguagePreference } from "@/src/lib/settings/
 
 const languages: AppLanguage[] = ["ko", "en", "ja"];
 
-const expectedSidebarOrder: readonly [
-  "chat",
-  "memory",
-  "business",
-  "crm",
-  "automation",
-  "calendar",
-  "files",
-  "integrations",
-  "settings"
-] = SIDEBAR_NAV_ORDER;
+const expectedSidebarOrder: readonly ["chat", "memory", "team"] = SIDEBAR_NAV_ORDER;
 
 const languageOptions: readonly [
   { readonly value: "ko"; readonly label: "한국어"; readonly shortLabel: "한국어" },

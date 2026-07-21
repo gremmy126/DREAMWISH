@@ -1,0 +1,70 @@
+<svg width="1200" height="360" viewBox="0 0 1200 360" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="AI 의사결정 흐름: 채팅에서 결정과 회고까지">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="360" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6d5df6"/>
+      <stop offset="0.55" stop-color="#7c6bff"/>
+      <stop offset="1" stop-color="#4f46e5"/>
+    </linearGradient>
+    <radialGradient id="glow1" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(980 60) scale(300)">
+      <stop stop-color="#ffffff" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glow2" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(180 320) scale(260)">
+      <stop stop-color="#a5b4fc" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#a5b4fc" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="flow" x1="120" y1="180" x2="1080" y2="180" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffffff" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#c7d2fe" stop-opacity="0.9"/>
+    </linearGradient>
+    <filter id="soft" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="1200" height="360" rx="28" fill="url(#bg)"/>
+  <rect width="1200" height="360" rx="28" fill="url(#glow1)"/>
+  <rect width="1200" height="360" rx="28" fill="url(#glow2)"/>
+
+  <g stroke="#ffffff" stroke-opacity="0.08">
+    <path d="M0 90 H1200"/><path d="M0 180 H1200"/><path d="M0 270 H1200"/>
+    <path d="M150 0 V360"/><path d="M300 0 V360"/><path d="M450 0 V360"/>
+    <path d="M600 0 V360"/><path d="M750 0 V360"/><path d="M900 0 V360"/><path d="M1050 0 V360"/>
+  </g>
+
+  <path d="M120 200 C 220 120, 300 120, 380 170 S 540 250, 640 190 S 820 110, 920 160 S 1040 220, 1080 180"
+        stroke="url(#flow)" stroke-width="3" stroke-linecap="round" stroke-dasharray="1 10" filter="url(#soft)"/>
+
+  <g filter="url(#soft)">
+    <circle cx="120" cy="200" r="26" fill="#ffffff" fill-opacity="0.16" stroke="#ffffff" stroke-opacity="0.75" stroke-width="2"/>
+    <circle cx="380" cy="170" r="20" fill="#ffffff" fill-opacity="0.16" stroke="#ffffff" stroke-opacity="0.7" stroke-width="2"/>
+    <circle cx="640" cy="190" r="24" fill="#ffffff" fill-opacity="0.16" stroke="#ffffff" stroke-opacity="0.75" stroke-width="2"/>
+    <circle cx="920" cy="160" r="20" fill="#ffffff" fill-opacity="0.16" stroke="#ffffff" stroke-opacity="0.7" stroke-width="2"/>
+    <circle cx="1080" cy="180" r="28" fill="#ffffff" fill-opacity="0.22" stroke="#ffffff" stroke-width="2.5"/>
+  </g>
+
+  <g fill="#ffffff">
+    <circle cx="120" cy="200" r="5"/>
+    <circle cx="380" cy="170" r="4"/>
+    <circle cx="640" cy="190" r="5"/>
+    <circle cx="920" cy="160" r="4"/>
+    <path d="M1073 180 l5 5 l10 -11" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  </g>
+
+  <g font-family="Inter, 'Noto Sans KR', sans-serif" text-anchor="middle">
+    <text x="120" y="252" font-size="13" font-weight="600" fill="#ffffff" fill-opacity="0.92">AI 채팅·분석</text>
+    <text x="380" y="222" font-size="13" font-weight="600" fill="#ffffff" fill-opacity="0.92">딥리서치</text>
+    <text x="640" y="244" font-size="13" font-weight="600" fill="#ffffff" fill-opacity="0.92">조직 의견</text>
+    <text x="920" y="212" font-size="13" font-weight="600" fill="#ffffff" fill-opacity="0.92">시뮬레이션</text>
+    <text x="1080" y="236" font-size="13" font-weight="700" fill="#ffffff">최종 승인</text>
+  </g>
+
+  <g font-family="Inter, 'Noto Sans KR', sans-serif">
+    <text x="72" y="84" font-size="26" font-weight="800" fill="#ffffff">Decision Canvas</text>
+    <text x="72" y="112" font-size="14" font-weight="500" fill="#e0e7ff">막연한 고민을 근거 있는 결정으로 — 분석 · 리서치 · 익명 의견 · 시뮬레이션 · 승인</text>
+  </g>
+</svg>

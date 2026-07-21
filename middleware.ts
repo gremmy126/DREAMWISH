@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { decideApiAccess } from "@/src/lib/auth/api-access-policy";
+import { decideApiRequestAccess } from "@/src/lib/auth/api-access-policy";
 import {
   SESSION_COOKIE_NAME,
   verifySessionToken,
@@ -9,7 +9,9 @@ import {
 const ACCESS_ERROR_MESSAGES = {
   UNAUTHORIZED: "Authentication is required.",
   PAYMENT_REQUIRED: "An active subscription is required.",
-  FORBIDDEN: "Administrator access is required."
+  FORBIDDEN: "Administrator access is required.",
+  FEATURE_RETIRED:
+    "This feature has been retired. Existing data remains available read-only."
 } as const;
 
 export async function middleware(request: NextRequest) {
@@ -24,7 +26,11 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  const decision = decideApiAccess(request.nextUrl.pathname, claims);
+  const decision = decideApiRequestAccess(
+    request.nextUrl.pathname,
+    request.method,
+    claims
+  );
   if (decision.allowed) return NextResponse.next();
 
   return NextResponse.json(

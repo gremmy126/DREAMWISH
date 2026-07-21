@@ -27,14 +27,10 @@ const BASE_TRANSLATIONS = {
       japanese: "일본어"
     },
     nav: {
-      chat: "AI 채팅",
-      memory: "메모리",
-      business: "비즈니스",
-      crm: "CRM",
-      automation: "자동화",
-      calendar: "캘린더",
+      chat: "AI Chat",
+      memory: "Memory",
+      team: "Team",
       files: "파일",
-      integrations: "연동",
       settings: "설정",
       knowledge: "지식",
       workflow: "워크플로"
@@ -47,7 +43,7 @@ const BASE_TRANSLATIONS = {
       signedIn: "로그인됨"
     },
     sidebar: {
-      productSubtitle: "에이전트 AI OS",
+      productSubtitle: "AI",
       company: "사업자 정보",
       businessNumber: "사업자 번호",
       commerceNumber: "통신판매업신고번호",
@@ -211,12 +207,8 @@ const BASE_TRANSLATIONS = {
     nav: {
       chat: "AI Chat",
       memory: "Memory",
-      business: "Business",
-      crm: "CRM",
-      automation: "Automation",
-      calendar: "Calendar",
+      team: "Team",
       files: "Files",
-      integrations: "Integrations",
       settings: "Settings",
       knowledge: "Knowledge",
       workflow: "Workflow"
@@ -229,7 +221,7 @@ const BASE_TRANSLATIONS = {
       signedIn: "Signed in"
     },
     sidebar: {
-      productSubtitle: "Agentic AI OS",
+      productSubtitle: "AI",
       company: "Company info",
       businessNumber: "Business number",
       commerceNumber: "E-commerce registration",
@@ -393,14 +385,10 @@ const BASE_TRANSLATIONS = {
       japanese: "日本語"
     },
     nav: {
-      chat: "AIチャット",
-      memory: "メモリ",
-      business: "ビジネス",
-      crm: "CRM",
-      automation: "自動化",
-      calendar: "カレンダー",
+      chat: "AI Chat",
+      memory: "Memory",
+      team: "Team",
       files: "ファイル",
-      integrations: "連携",
       settings: "設定",
       knowledge: "知識",
       workflow: "ワークフロー"
@@ -413,7 +401,7 @@ const BASE_TRANSLATIONS = {
       signedIn: "ログイン中"
     },
     sidebar: {
-      productSubtitle: "エージェントAI OS",
+      productSubtitle: "AI",
       company: "会社情報",
       businessNumber: "事業者番号",
       commerceNumber: "通信販売届出番号",

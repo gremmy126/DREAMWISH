@@ -1,10 +1,9 @@
 "use client";
 
-import { Bell, Command, LogOut, Search, ShieldCheck, UserRound } from "lucide-react";
+import { Bell, Command, LogOut, Search, Settings, ShieldCheck, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { IconButton } from "@/components/Common/IconButton";
-import { LanguageSwitcher } from "@/components/layout/LanguageSwitcher";
 import { AUTH_SESSION_KEY } from "@/src/lib/auth/access-control";
 import { AUTH_SESSION_CLEARED_EVENT } from "@/src/lib/auth/auth-events";
 import { logoutFirebaseUser } from "@/src/lib/firebase/firebase-client";
@@ -46,7 +45,7 @@ export function Topbar() {
 
   return (
     <header className="sticky top-0 z-20 flex h-[72px] items-center justify-between bg-app-bg/88 px-6 backdrop-blur-xl">
-      <div className="flex h-11 w-[520px] items-center gap-3 rounded-2xl border border-app-border bg-white px-4 shadow-soft">
+      <div className="flex h-11 w-full max-w-[520px] items-center gap-3 rounded-2xl border border-app-border bg-white px-4 shadow-soft">
         <Search size={18} className="text-slate-400" />
         <input
           aria-label={t("topbar.searchAria")}
@@ -60,7 +59,6 @@ export function Topbar() {
       </div>
 
       <div className="flex items-center gap-3">
-        <LanguageSwitcher />
         <IconButton label={t("topbar.notifications")}>
           <Bell size={17} />
         </IconButton>
@@ -82,6 +80,19 @@ export function Topbar() {
                   {email || t("common.noAccount")}
                 </p>
               </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setProfileOpen(false);
+                  window.dispatchEvent(
+                    new CustomEvent("dreamwish:navigate", { detail: { view: "settings" } })
+                  );
+                }}
+                className="mt-2 flex w-full items-center gap-2 rounded-2xl px-3 py-2 text-left text-xs font-semibold text-app-text transition hover:bg-app-hover hover:text-app-primary"
+              >
+                <Settings size={14} />
+                {t("nav.settings")}
+              </button>
               {account?.role === "admin" ? (
                 <Link
                   href="/admin"

@@ -45,6 +45,26 @@ const structuredData = {
       inLanguage: "ko-KR"
     },
     {
+      "@type": "Organization",
+      "@id": `${SITE_URL}/#organization`,
+      name: SITE_NAME,
+      url: SITE_URL,
+      logo: `${SITE_URL}/icon.svg`
+    },
+    {
+      "@type": "SiteNavigationElement",
+      "@id": `${SITE_URL}/#nav`,
+      name: ["AI Chat", "Memory", "Team", "Pricing", "Login", "Get Started"],
+      url: [
+        `${SITE_URL}/chat`,
+        `${SITE_URL}/memory`,
+        `${SITE_URL}/team`,
+        `${SITE_URL}/pricing`,
+        `${SITE_URL}/login`,
+        `${SITE_URL}/signup`
+      ]
+    },
+    {
       "@type": "SoftwareApplication",
       "@id": `${SITE_URL}/#application`,
       name: SITE_NAME,
