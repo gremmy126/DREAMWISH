@@ -12,3 +12,10 @@ Backups
 .obsidian
 무제.md
 *.tar.gz
+*.tar.gz
+*.tar.gz
+mobile-companion/android/build/
+mobile-companion/android/app/build/
+*.tar.gz
+mobile-companion/android/build/
+mobile-companion/android/app/build/
