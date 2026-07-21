@@ -1,3 +1,4 @@
+import { isAdminEmail } from "./access-control";
 import { SESSION_COOKIE_NAME, verifySessionToken } from "./session-token";
 import { getOperationalAccount } from "../admin/account-admin.repository";
 
@@ -34,7 +35,9 @@ export async function getOwnerContext(request: Request): Promise<OwnerContext | 
   const owner: OwnerContext = {
     uid: claims.uid,
     email: claims.email,
-    role: account?.role || claims.role
+    // ADMIN_EMAILS는 항상 관리자다. 과거 로그인 시 "user"로 저장된 계정
+    // 레코드가 환경설정을 가리지 않도록 이메일 기준을 우선한다.
+    role: isAdminEmail(claims.email) ? "admin" : account?.role || claims.role
   };
   if (owner.role === "admin") {
     const { runOwnerV1Migration } = await import("../migrations/owner-v1");
