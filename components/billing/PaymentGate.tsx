@@ -24,7 +24,7 @@ export function PaymentGate({ children }: { children: ReactNode }) {
           <UpgradeButton />
         </div>
         <p className="mt-5 flex items-center justify-center gap-1.5 text-xs text-slate-400">
-          <ShieldCheck size={13} /> Polar의 안전한 결제 페이지에서 처리됩니다.
+          <ShieldCheck size={13} /> PortOne(국내 카드) 또는 Polar의 안전한 결제 페이지에서 처리됩니다.
         </p>
       </div>
     </section>

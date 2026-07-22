@@ -13,12 +13,15 @@ export function UpgradeButton({ compact = false }: { compact?: boolean }) {
   const [domesticOpen, setDomesticOpen] = useState(false);
   const [domesticMode, setDomesticMode] = useState<"sandbox" | "live">("sandbox");
   const [domesticFlow, setDomesticFlow] = useState<"v1" | "v2">("v2");
+  const [domesticEnabled, setDomesticEnabled] = useState(false);
 
   const admin = access.adminBypass;
   const paid = !admin && access.canUseApp && !access.requiresPayment;
 
-  // 결제는 국내 카드(PortOne)와 Polar 두 경로를 모두 지원한다. 국내 결제가
-  // 준비된 경우 선택 화면을 띄우고, 아니면 바로 Polar Checkout으로 이동한다.
+  // 결제는 국내 카드(PortOne)와 Polar 두 경로를 모두 지원한다. 결제하기를
+  // 누르면 항상 결제 수단 선택 화면을 먼저 보여주고, 사용자가 고른 방식으로
+  // 진행한다. PortOne이 서버에 설정되지 않은 경우에는 선택지에 준비 중임을
+  // 표시한다.
   async function openBilling() {
     if (admin) return;
     setLoading(true);
@@ -27,13 +30,11 @@ export function UpgradeButton({ compact = false }: { compact?: boolean }) {
       if (!paid) {
         const configResponse = await fetch("/api/billing/domestic/config");
         const domestic = (await configResponse.json().catch(() => null)) as { enabled?: boolean; environment?: "sandbox" | "live"; flow?: "v1" | "v2" } | null;
-        if (configResponse.ok && domestic?.enabled) {
-          setDomesticMode(domestic.environment || "sandbox");
-          setDomesticFlow(domestic.flow || "v2");
-          setChooserOpen(true);
-          return;
-        }
-        await startPolarCheckout();
+        const enabled = Boolean(configResponse.ok && domestic?.enabled);
+        setDomesticEnabled(enabled);
+        setDomesticMode(domestic?.environment || "sandbox");
+        setDomesticFlow(domestic?.flow || "v2");
+        setChooserOpen(true);
         return;
       }
       const response = await fetch("/api/billing/portal", { method: "POST" });
@@ -127,15 +128,22 @@ export function UpgradeButton({ compact = false }: { compact?: boolean }) {
           <div className="mt-5 space-y-3">
             <button
               type="button"
+              disabled={!domesticEnabled}
               onClick={chooseDomestic}
-              className="w-full rounded-2xl border border-violet-200 bg-violet-50 p-4 text-left transition hover:border-violet-400"
+              className={`w-full rounded-2xl border p-4 text-left transition ${
+                domesticEnabled
+                  ? "border-violet-200 bg-violet-50 hover:border-violet-400"
+                  : "cursor-not-allowed border-slate-200 bg-slate-50 opacity-70"
+              }`}
             >
               <p className="flex items-center gap-2 text-sm font-bold text-slate-900">
                 <CreditCard size={16} className="text-violet-600" />
                 국내 카드 결제 (PortOne)
               </p>
               <p className="mt-1 text-xs leading-5 text-slate-500">
-                국내 신용·체크카드로 월간 구독을 결제합니다. KPN·NHN KCP 정기결제.
+                {domesticEnabled
+                  ? "국내 신용·체크카드로 월간 구독을 결제합니다. KPN·NHN KCP 정기결제."
+                  : "준비 중입니다 — 서버에 PortOne 결제 설정이 완료되면 이용할 수 있습니다."}
               </p>
             </button>
             <button
