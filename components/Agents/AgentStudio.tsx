@@ -81,7 +81,24 @@ export function AgentStudio() {
   const [directory, setDirectory] = useState<FsDirectoryHandle | null>(null);
   const [folderFiles, setFolderFiles] = useState<string[] | null>(null);
   const [saving, setSaving] = useState(false);
+  const [providerOptions, setProviderOptions] = useState<Array<{ value: string; label: string }>>([]);
+  const [selectedModel, setSelectedModel] = useState<string>("");
   const scrollRef = useRef<HTMLDivElement | null>(null);
+
+  // 가장 성능 좋은 공급자를 고를 수 있게 연결된 모델 목록을 불러온다.
+  useEffect(() => {
+    void fetch("/api/ai/providers")
+      .then(async (response) => {
+        if (!response.ok) return;
+        const data = (await response.json()) as {
+          providers?: Array<{ provider: string; label: string; configured: boolean }>;
+        };
+        const configured = (data.providers || []).filter((item) => item.configured);
+        setProviderOptions(configured.map((item) => ({ value: item.provider, label: item.label })));
+        if (configured[0]) setSelectedModel(configured[0].provider);
+      })
+      .catch(() => undefined);
+  }, []);
 
   const folderSupported = useMemo(
     () => typeof window !== "undefined" && typeof (window as DirectoryPickerWindow).showDirectoryPicker === "function",
@@ -118,8 +135,14 @@ export function AgentStudio() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
           refine && artifact
-            ? { message: text, refine: true, previousCode: artifact.code, previousKind: artifact.kind }
-            : { message: text }
+            ? {
+                message: text,
+                refine: true,
+                previousCode: artifact.code,
+                previousKind: artifact.kind,
+                provider: selectedModel || undefined
+              }
+            : { message: text, provider: selectedModel || undefined }
         )
       });
       const body = (await response.json().catch(() => ({}))) as {
@@ -263,6 +286,21 @@ export function AgentStudio() {
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
+            {providerOptions.length > 1 ? (
+              <select
+                value={selectedModel}
+                onChange={(event) => setSelectedModel(event.target.value)}
+                title="생성에 사용할 AI 모델"
+                aria-label="생성 모델"
+                className="h-8 max-w-[110px] rounded-xl border border-app-border bg-white px-2 text-[11px] font-semibold text-app-muted outline-none"
+              >
+                {providerOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            ) : null}
             {directory ? (
               <>
                 <button
