@@ -138,6 +138,50 @@ textarea {
   background: rgba(23, 29, 35, 0.82);
 }
 
+/* Product demo player (landing) — scripted scene animations. */
+@keyframes dw-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes dw-grow-x {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes dw-grow-y {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+.dw-anim-fade-up {
+  animation: dw-fade-up 420ms var(--ease-standard) both;
+}
+
+.dw-anim-grow-x {
+  transform-origin: left center;
+  animation: dw-grow-x 700ms var(--ease-standard) both;
+}
+
+.dw-anim-grow-y {
+  transform-origin: center bottom;
+  animation: dw-grow-y 700ms var(--ease-standard) both;
+}
+
 /* DESIGN.md §7 — respect the user's reduced-motion preference globally. */
 @media (prefers-reduced-motion: reduce) {
   *,

@@ -1,10 +1,29 @@
 "use client";
 
-import { ArrowUp, Bot, CalendarDays, FileUp, Mail, Menu, Mic, Sparkles, UsersRound, X } from "lucide-react";
+import {
+  ArrowRight,
+  ArrowUp,
+  BarChart3,
+  Bot,
+  BrainCircuit,
+  CalendarDays,
+  FileUp,
+  Landmark,
+  Mail,
+  Menu,
+  MessageSquareText,
+  Mic,
+  ShieldCheck,
+  Sparkles,
+  UsersRound,
+  Wand2,
+  X
+} from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { GuestAdSlot } from "@/components/ads/GuestAdSlot";
 import { BrainLogo } from "@/components/brand/BrainLogo";
+import { ProductDemoPlayer } from "@/components/home/ProductDemoPlayer";
 import { openCookieSettings } from "@/components/consent/consent";
 
 const EXAMPLE_PROMPTS = [
@@ -13,6 +32,22 @@ const EXAMPLE_PROMPTS = [
   { label: "프로젝트를 생성해줘", icon: Sparkles },
   { label: "Gmail을 확인해줘", icon: Mail },
   { label: "CRM 고객을 찾아줘", icon: UsersRound }
+] as const;
+
+const NAV_LINKS = [
+  ["AI Chat", "/chat"],
+  ["Memory", "/memory"],
+  ["Team", "/team"],
+  ["Pricing", "/pricing"]
+] as const;
+
+const DECISION_FLOW = [
+  ["Ask", "질문", "결정하고 싶은 문제를 자연어로 입력합니다"],
+  ["Analyze", "분석", "AI가 조건을 확인하고 근거를 조사합니다"],
+  ["Compare", "비교", "선택지를 같은 기준으로 나란히 비교합니다"],
+  ["Simulate", "시뮬레이션", "낙관·기준·비관 시나리오를 검증합니다"],
+  ["Decide", "결정", "추천안·반대 의견·리스크를 보고서로 받습니다"],
+  ["Remember", "기억", "결정과 결과가 Memory에 학습됩니다"]
 ] as const;
 
 type GuestChatHomeProps = {
@@ -24,68 +59,63 @@ export function GuestChatHome({ onLoginRequest, restoringSession = false }: Gues
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <div className="min-h-dvh bg-[radial-gradient(circle_at_top,_rgba(124,58,237,0.10),_transparent_36%),linear-gradient(to_bottom,#ffffff,#f8fafc)] text-slate-950">
-      <header className="sticky top-0 z-30 border-b border-slate-200/70 bg-white/80 backdrop-blur-xl">
+    <div className="min-h-dvh bg-white text-slate-900">
+      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
-          <Link href="/" className="flex min-w-0 items-center gap-2.5 sm:gap-3" aria-label="DREAMWISH 홈">
-            <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-blue-600 text-white shadow-lg shadow-violet-200">
+          <Link href="/" className="flex min-w-0 items-center gap-2.5" aria-label="DreamWish 홈">
+            <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-violet-600 text-white">
               <BrainLogo className="h-6 w-6" />
             </span>
             <span className="min-w-0">
-              <span className="block truncate text-sm font-extrabold tracking-tight">DreamWish</span>
-              <span className="hidden text-[10px] font-semibold text-slate-500 sm:block">Better Decisions Powered by AI</span>
+              <span className="block truncate text-[15px] font-extrabold tracking-tight">DreamWish</span>
+              <span className="hidden text-[10px] font-semibold text-slate-400 sm:block">
+                Better Decisions Powered by AI
+              </span>
             </span>
           </Link>
-          <nav aria-label="주요 메뉴" className="hidden items-center gap-5 text-sm font-semibold text-slate-600 md:flex">
-            <Link className="transition hover:text-violet-700" href="/chat">AI Chat</Link>
-            <Link className="transition hover:text-violet-700" href="/memory">Memory</Link>
-            <Link className="transition hover:text-violet-700" href="/team">Team</Link>
-            <Link className="transition hover:text-violet-700" href="/pricing">Pricing</Link>
+          <nav aria-label="주요 메뉴" className="hidden items-center gap-7 text-sm font-semibold text-slate-600 md:flex">
+            {NAV_LINKS.map(([label, href]) => (
+              <Link key={href} className="transition hover:text-slate-950" href={href}>
+                {label}
+              </Link>
+            ))}
           </nav>
-          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             <Link
               href="/login"
               onClick={(event) => {
                 event.preventDefault();
                 onLoginRequest();
               }}
-              className="inline-flex h-10 items-center justify-center rounded-xl bg-slate-950 px-3.5 text-xs font-bold text-white transition hover:bg-violet-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-600 sm:px-5 sm:text-sm"
+              className="hidden h-10 items-center justify-center rounded-xl px-4 text-sm font-bold text-slate-600 transition hover:text-slate-950 sm:inline-flex"
             >
               Login
             </Link>
             <Link
               href="/signup"
-              className="inline-flex h-10 items-center justify-center rounded-xl bg-violet-600 px-3.5 text-xs font-bold text-white transition hover:bg-violet-700 sm:px-5 sm:text-sm"
+              className="inline-flex h-10 items-center justify-center rounded-xl bg-slate-900 px-4 text-xs font-bold text-white transition hover:bg-violet-700 sm:px-5 sm:text-sm"
             >
-              Get Started
+              시작하기
             </Link>
             <button
               type="button"
               aria-label={menuOpen ? "메뉴 닫기" : "메뉴 열기"}
               aria-expanded={menuOpen}
               onClick={() => setMenuOpen((open) => !open)}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-violet-300 hover:text-violet-700 md:hidden"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-600 transition hover:text-slate-950 md:hidden"
             >
               {menuOpen ? <X size={18} /> : <Menu size={18} />}
             </button>
           </div>
         </div>
         {menuOpen ? (
-          <nav
-            aria-label="모바일 메뉴"
-            className="border-t border-slate-200/70 bg-white/95 px-4 py-3 md:hidden"
-          >
-            {[
-              ["AI Chat", "/chat"],
-              ["Memory", "/memory"],
-              ["Team", "/team"],
-              ["Pricing", "/pricing"]
-            ].map(([label, href]) => (
+          <nav aria-label="모바일 메뉴" className="border-t border-slate-200 bg-white px-4 py-3 md:hidden">
+            {[...NAV_LINKS, ["Login", "/login"] as const].map(([label, href]) => (
               <Link
                 key={href}
                 href={href}
                 onClick={() => setMenuOpen(false)}
-                className="block rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-violet-50 hover:text-violet-700"
+                className="block rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 hover:text-slate-950"
               >
                 {label}
               </Link>
@@ -94,333 +124,372 @@ export function GuestChatHome({ onLoginRequest, restoringSession = false }: Gues
         ) : null}
       </header>
 
-      <main className="mx-auto flex min-h-[calc(100dvh-9rem)] w-full max-w-6xl flex-col px-4 pb-8 pt-10 sm:px-6 sm:pt-14">
-        <section aria-labelledby="hero-title" className="grid items-center gap-10 lg:grid-cols-2">
-          <div>
-            <p className="inline-flex items-center gap-2 rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-[11px] font-extrabold tracking-wide text-violet-700">
-              <Sparkles size={12} aria-hidden="true" />
-              AI-DRIVEN DECISION INTELLIGENCE
-            </p>
-            <h1 id="hero-title" className="mt-5 text-[clamp(2rem,8vw,3rem)] font-extrabold leading-tight tracking-[-0.03em]">
-              <span className="block text-slate-950">Better Decisions.</span>
-              <span className="block bg-gradient-to-r from-violet-600 to-blue-600 bg-clip-text text-transparent">
-                Powered by AI.
-              </span>
-            </h1>
-            <p className="mt-5 max-w-xl text-sm leading-7 text-slate-600 sm:text-base">
-              DreamWish는 AI가 질문을 이해하고, 필요한 정보를 조사하며, 여러 가능성을
-              시뮬레이션하고, 팀의 의견과 과거의 기억을 연결해 더 나은 최종 결정을
-              돕는 AI 의사결정 파트너입니다. 결정 이후에는 AI Agent가 웹사이트·앱·
-              프로그램·이미지까지 직접 만들어 실행을 돕습니다.
-            </p>
-            <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-              <button
-                type="button"
-                onClick={onLoginRequest}
-                className="inline-flex h-12 items-center justify-center rounded-2xl bg-gradient-to-r from-violet-600 to-blue-600 px-7 text-sm font-bold text-white shadow-lg shadow-violet-200 transition hover:opacity-90"
-              >
-                무료로 시작하기 →
-              </button>
-              <a
-                href="#how-it-works"
-                className="inline-flex h-12 items-center justify-center rounded-2xl border border-slate-200 bg-white px-7 text-sm font-bold text-slate-700 transition hover:border-violet-300 hover:text-violet-700"
-              >
-                작동 방식 보기
-              </a>
-            </div>
-            <p className="mt-4 text-xs font-medium text-slate-500">
-              데이터는 사용자가 통제하며, 중요한 결정은 사용자의 최종 승인을 거칩니다.
-            </p>
-          </div>
-          <div className="mx-auto w-full max-w-md" aria-hidden="true">
-            <svg viewBox="0 0 400 340" className="h-auto w-full" role="img" aria-label="AI Chat, Deep Research, Team Intelligence, Simulation, Memory OS가 하나의 결정으로 수렴하는 Decision Core">
-              <defs>
-                <radialGradient id="core" cx="0.5" cy="0.45" r="0.6">
-                  <stop offset="0" stopColor="#8b7cff" />
-                  <stop offset="0.6" stopColor="#6d5df6" />
-                  <stop offset="1" stopColor="#4f46e5" />
-                </radialGradient>
-                <linearGradient id="orbit" x1="0" y1="0" x2="1" y2="1">
-                  <stop offset="0" stopColor="#c7bfff" />
-                  <stop offset="1" stopColor="#93c5fd" />
-                </linearGradient>
-              </defs>
-              <ellipse cx="200" cy="170" rx="165" ry="70" fill="none" stroke="url(#orbit)" strokeOpacity="0.55" />
-              <ellipse cx="200" cy="170" rx="120" ry="115" fill="none" stroke="url(#orbit)" strokeOpacity="0.4" transform="rotate(-18 200 170)" />
-              <circle cx="200" cy="170" r="52" fill="url(#core)" opacity="0.16" />
-              <circle cx="200" cy="170" r="36" fill="url(#core)" />
-              <path d="M200 148 l7 15 16 2 -11.5 11 3 16 -14.5 -8 -14.5 8 3 -16 -11.5 -11 16 -2 z" fill="#ffffff" />
-              <g fontFamily="Inter, 'Noto Sans KR', sans-serif" fontSize="11" fontWeight="700">
-                <g><rect x="120" y="52" width="60" height="24" rx="12" fill="#ffffff" stroke="#e4defc" /><text x="150" y="68" textAnchor="middle" fill="#6d5df6">AI Chat</text></g>
-                <g><rect x="268" y="70" width="98" height="24" rx="12" fill="#ffffff" stroke="#e4defc" /><text x="317" y="86" textAnchor="middle" fill="#6d5df6">Deep Research</text></g>
-                <g><rect x="288" y="176" width="104" height="24" rx="12" fill="#ffffff" stroke="#e4defc" /><text x="340" y="192" textAnchor="middle" fill="#6d5df6">Team Intelligence</text></g>
-                <g><rect x="230" y="272" width="80" height="24" rx="12" fill="#ffffff" stroke="#e4defc" /><text x="270" y="288" textAnchor="middle" fill="#6d5df6">Memory OS</text></g>
-                <g><rect x="76" y="252" width="82" height="24" rx="12" fill="#ffffff" stroke="#e4defc" /><text x="117" y="268" textAnchor="middle" fill="#6d5df6">Simulation</text></g>
-                <g><rect x="18" y="150" width="96" height="24" rx="12" fill="#ffffff" stroke="#c7bfff" /><text x="66" y="166" textAnchor="middle" fill="#4f46e5">Final Decision</text></g>
-              </g>
-              <g stroke="#c7bfff" strokeOpacity="0.7" strokeDasharray="2 4">
-                <line x1="150" y1="76" x2="188" y2="140" /><line x1="310" y1="94" x2="228" y2="146" />
-                <line x1="316" y1="188" x2="248" y2="176" /><line x1="266" y1="272" x2="216" y2="204" />
-                <line x1="122" y1="252" x2="180" y2="202" /><line x1="98" y1="162" x2="152" y2="168" />
-              </g>
-            </svg>
-          </div>
-        </section>
-
-        <section id="how-it-works" aria-label="의사결정 흐름" className="mt-16 rounded-[26px] border border-slate-200 bg-white p-6 shadow-[0_20px_65px_rgba(15,23,42,0.06)] sm:p-8">
-          <h2 className="text-center text-lg font-extrabold text-slate-950">
-            질문에서 결정, 그리고 성장까지 하나의 흐름으로
-          </h2>
-          <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
-            {[
-              ["질문", "결정하고 싶은 문제를 자연어로 입력하세요"],
-              ["AI 인터뷰", "AI가 목표·예산·조건·위험 수준을 질문합니다"],
-              ["딥리서치", "설정한 범위와 깊이로 근거를 수집합니다"],
-              ["팀 의견", "익명 설문으로 내부 의견을 반영합니다"],
-              ["시뮬레이션", "낙관·기준·비관 시나리오를 비교합니다"],
-              ["최종 결론", "추천안·반대 의견·리스크를 보고서로 제공합니다"],
-              ["Memory 학습", "결정과 결과를 기억해 다음 판단에 활용합니다"]
-            ].map(([title, description], index) => (
-              <div key={title} className="text-center">
-                <span className="mx-auto flex h-10 w-10 items-center justify-center rounded-2xl bg-violet-50 text-sm font-extrabold text-violet-700">
-                  {index + 1}
-                </span>
-                <p className="mt-2 text-sm font-bold text-slate-900">{title}</p>
-                <p className="mt-1 text-[11px] leading-4 text-slate-500">{description}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section aria-label="핵심 기능" className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {[
-            ["AI Chat", "AI가 먼저 필요한 질문을 하고 답변으로 문제를 구조화합니다. 딥리서치·팀 설문·시뮬레이션·최종 보고서가 하나의 흐름으로 진행됩니다.", "/chat"],
-            ["AI Agent", "만들고 싶은 것을 설명하면 AI가 웹사이트·앱·프로그램·이미지를 직접 생성합니다. 미리보기로 확인하고 수정 요청 후 파일로 내려받으세요.", "/chat"],
-            ["Memory", "대화·조사·결정·교훈과 실제 결과를 연결합니다. AI가 저장 후보를 제안하고, 사용자가 승인한 정보만 확정 Memory가 됩니다.", "/memory"],
-            ["Team", "AI가 설문을 만들고 익명 응답을 분석해 조직의 지지도·실행 가능성·반대 의견과 숨은 위험을 최종 결정에 반영합니다.", "/team"]
-          ].map(([title, description, href]) => (
-            <Link
-              key={title}
-              href={href}
-              className="rounded-[22px] border border-slate-200 bg-white p-6 shadow-[0_12px_40px_rgba(15,23,42,0.05)] transition hover:-translate-y-0.5 hover:border-violet-200"
-            >
-              <p className="text-base font-extrabold text-slate-950">{title}</p>
-              <p className="mt-2 text-xs leading-5 text-slate-600">{description}</p>
-              <p className="mt-3 text-xs font-bold text-violet-700">자세히 보기 →</p>
-            </Link>
-          ))}
-        </section>
-
-        <section aria-label="제품 미리보기" className="mt-10 rounded-[26px] border border-slate-200 bg-white p-5 shadow-[0_20px_65px_rgba(15,23,42,0.06)]">
-          <div className="grid gap-4 lg:grid-cols-3">
-            <div className="rounded-2xl bg-slate-50 p-4">
-              <p className="text-[11px] font-extrabold text-slate-500">AI 인터뷰</p>
-              <div className="mt-2 space-y-2">
-                <p className="rounded-xl bg-white p-2.5 text-[11px] font-semibold text-slate-700">이 결정의 가장 중요한 목표는 무엇인가요?</p>
-                <p className="ml-6 rounded-xl bg-violet-600 p-2.5 text-[11px] font-semibold text-white">여기에 답변이 이어집니다.</p>
-              </div>
-            </div>
-            <div className="rounded-2xl bg-slate-50 p-4">
-              <p className="text-[11px] font-extrabold text-slate-500">진행 단계</p>
-              <ul className="mt-2 space-y-1.5 text-[11px] font-semibold text-slate-600">
-                <li>✓ 질문</li><li>✓ 인터뷰</li><li>◌ 딥리서치</li><li>◌ 팀 의견 수렴</li><li>◌ 시뮬레이션</li><li>◌ 최종 결론</li><li>◌ 메모리 기억 학습</li>
-              </ul>
-            </div>
-            <div className="rounded-2xl bg-slate-50 p-4">
-              <p className="text-[11px] font-extrabold text-slate-500">AI 분석 보고서</p>
-              <ul className="mt-2 space-y-1.5 text-[11px] leading-4 text-slate-600">
-                <li>· 핵심 결과가 여기에 정리됩니다.</li>
-                <li>· 조사한 근거와 출처가 표시됩니다.</li>
-                <li>· 시나리오별 차이를 확인할 수 있습니다.</li>
-                <li>· 팀의 익명 의견이 반영됩니다.</li>
-                <li>· 반대 의견과 주요 리스크가 표시됩니다.</li>
-              </ul>
-            </div>
-          </div>
-        </section>
-
-        <section aria-labelledby="design-agent-title" className="mt-10 rounded-[26px] border border-slate-200 bg-white p-6 shadow-[0_20px_65px_rgba(15,23,42,0.06)] sm:p-8">
-          <div className="grid items-center gap-8 lg:grid-cols-2">
+      <main>
+        {/* Hero + 제품 데모 */}
+        <section aria-labelledby="hero-title" className="border-b border-slate-100">
+          <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 pb-16 pt-14 sm:px-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:pb-20 lg:pt-20">
             <div>
-              <p className="inline-flex items-center gap-2 rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-[11px] font-extrabold tracking-wide text-violet-700">
-                <Sparkles size={12} aria-hidden="true" />
-                AI DESIGN AGENT
+              <p className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-bold tracking-wide text-slate-600">
+                <Sparkles size={12} className="text-violet-600" aria-hidden="true" />
+                AI 의사결정 플랫폼
               </p>
-              <h2 id="design-agent-title" className="mt-4 text-xl font-extrabold text-slate-950 sm:text-2xl">
-                말하면 디자인이 됩니다
-              </h2>
-              <p className="mt-3 text-sm leading-6 text-slate-600">
-                "카페 랜딩 페이지 만들어줘"라고 말하면 AI Agent가 디자인 스킬을 골라
-                웹사이트·앱·이미지를 생성합니다. 격리된 미리보기에서 확인하고, AI 디자인
-                평가를 받아 개선한 뒤, 승인한 결과물만 보관함에 버전으로 저장됩니다.
+              <h1 id="hero-title" className="mt-5 text-[clamp(2rem,6vw,2.9rem)] font-extrabold leading-[1.15] tracking-[-0.03em] text-slate-950">
+                복잡한 결정을,
+                <br />
+                확신 있는 실행으로.
+              </h1>
+              <p className="mt-5 max-w-xl text-[15px] leading-7 text-slate-600">
+                DreamWish는 질문을 이해하고, 근거를 조사하고, 시나리오를 시뮬레이션해
+                더 나은 결정을 돕습니다. 결정 이후에는 AI Agent가 웹사이트·앱·이미지 같은
+                실행물을 직접 만들어 검토와 승인까지 한 흐름으로 이어줍니다.
               </p>
-              <ul className="mt-4 space-y-1.5 text-xs font-semibold text-slate-600">
-                <li>· 생성 → 미리보기 → AI 평가 → 개선 → 승인 → 저장의 안전한 루프</li>
-                <li>· DreamWish 디자인 시스템(DESIGN.md)을 따르는 일관된 결과물</li>
-                <li>· 생성 코드는 보안 검사를 통과해야 미리보기에 표시됩니다</li>
-              </ul>
+              <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={onLoginRequest}
+                  className="inline-flex h-12 items-center justify-center gap-1.5 rounded-xl bg-violet-600 px-6 text-sm font-bold text-white transition hover:bg-violet-700"
+                >
+                  무료로 시작하기
+                  <ArrowRight size={15} aria-hidden="true" />
+                </button>
+                <a
+                  href="#demo"
+                  className="inline-flex h-12 items-center justify-center rounded-xl border border-slate-200 px-6 text-sm font-bold text-slate-700 transition hover:border-slate-300 hover:text-slate-950"
+                >
+                  제품 데모 보기
+                </a>
+              </div>
+              <p className="mt-4 text-xs font-medium text-slate-400">
+                데이터는 사용자가 통제하며, 중요한 실행은 항상 사용자의 승인을 거칩니다.
+              </p>
             </div>
-            <ol className="grid grid-cols-2 gap-3" aria-label="Design Agent 진행 단계">
-              {[
-                ["생성", "브리프에 맞는 디자인 스킬로 결과물 생성"],
-                ["미리보기", "sandbox iframe에서 기기별 확인"],
-                ["AI 평가", "DESIGN.md 기준 디자인 크리틱"],
-                ["승인·저장", "승인한 버전만 보관함에 기록"]
-              ].map(([title, description], index) => (
-                <li key={title} className="rounded-2xl bg-slate-50 p-4">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-violet-600 text-xs font-extrabold text-white">
-                    {index + 1}
-                  </span>
-                  <p className="mt-2 text-sm font-bold text-slate-900">{title}</p>
-                  <p className="mt-1 text-[11px] leading-4 text-slate-500">{description}</p>
+            <div id="demo" className="w-full scroll-mt-24">
+              <ProductDemoPlayer />
+            </div>
+          </div>
+        </section>
+
+        {/* 의사결정 흐름 */}
+        <section aria-labelledby="flow-title" className="border-b border-slate-100 bg-slate-50/60">
+          <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6">
+            <h2 id="flow-title" className="text-center text-xl font-extrabold tracking-tight text-slate-950 sm:text-2xl">
+              질문에서 실행까지, 하나의 흐름
+            </h2>
+            <ol className="mt-8 grid gap-4 sm:grid-cols-3 lg:grid-cols-6">
+              {DECISION_FLOW.map(([en, ko, description], index) => (
+                <li key={en} className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <p className="text-[10px] font-extrabold tracking-widest text-violet-600">
+                    {String(index + 1).padStart(2, "0")} · {en.toUpperCase()}
+                  </p>
+                  <p className="mt-1.5 text-sm font-extrabold text-slate-900">{ko}</p>
+                  <p className="mt-1 text-[11.5px] leading-4 text-slate-500">{description}</p>
                 </li>
               ))}
             </ol>
           </div>
         </section>
 
-        <section aria-label="보안과 신뢰" className="mt-10 grid gap-4 sm:grid-cols-3">
-          {[
-            ["사용자 승인 중심", "외부 실행·저장·적용은 항상 사용자의 확인을 거칩니다. AI가 임의로 운영 데이터를 바꾸지 않습니다."],
-            ["격리된 미리보기", "AI가 만든 코드는 sandbox iframe에서만 실행되고, 위험 패턴은 보안 검사로 차단됩니다."],
-            ["암호화와 감사 로그", "연동 토큰은 서버에서 암호화 저장되며, MCP 등 외부 호출은 감사 로그로 기록됩니다."]
-          ].map(([title, description]) => (
-            <div key={title} className="rounded-[22px] border border-slate-200 bg-white p-6 shadow-[0_12px_40px_rgba(15,23,42,0.05)]">
-              <p className="text-sm font-extrabold text-slate-950">{title}</p>
-              <p className="mt-2 text-xs leading-5 text-slate-600">{description}</p>
+        {/* 핵심 기능 */}
+        <section aria-labelledby="features-title" className="border-b border-slate-100">
+          <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
+            <div className="max-w-2xl">
+              <h2 id="features-title" className="text-xl font-extrabold tracking-tight text-slate-950 sm:text-2xl">
+                결정에 필요한 모든 것이 한곳에
+              </h2>
+              <p className="mt-3 text-sm leading-6 text-slate-600">
+                흩어진 도구 대신, 조사·비교·팀 의견·기억·실행이 하나의 작업 공간에서 이어집니다.
+              </p>
             </div>
-          ))}
-        </section>
-
-        <section aria-labelledby="faq-title" className="mt-10 rounded-[26px] border border-slate-200 bg-white p-6 shadow-[0_20px_65px_rgba(15,23,42,0.06)] sm:p-8">
-          <h2 id="faq-title" className="text-lg font-extrabold text-slate-950">자주 묻는 질문</h2>
-          <div className="mt-4 space-y-2">
-            {[
-              ["어떤 AI 모델을 사용하나요?", "관리자가 연결한 AI 공급자(예: Gemini, OpenRouter, Groq 등)의 모델만 사용합니다. 설정에서 연결 상태를 확인할 수 있고, 미연결 모델은 표시되지 않습니다."],
-              ["AI가 만든 결과물은 안전한가요?", "모든 생성 코드는 격리된 sandbox 미리보기에서만 실행되며, 부모 창 접근·쿠키 접근·추적 스크립트 같은 위험 패턴은 자동 검사로 차단됩니다."],
-              ["내 데이터는 어떻게 관리되나요?", "데이터는 계정 단위로 격리 저장되며, Memory에 저장되는 정보는 사용자가 승인한 항목만 확정됩니다. 자세한 내용은 개인정보처리방침을 확인하세요."],
-              ["요금제는 어떻게 되나요?", "Pricing 페이지에서 플랜별 기능과 결제 방식을 확인할 수 있습니다. 구독 관리와 환불 정책도 함께 안내합니다."]
-            ].map(([question, answer]) => (
-              <details key={question} className="group rounded-2xl border border-slate-200 bg-white">
-                <summary className="cursor-pointer list-none rounded-2xl px-4 py-3 text-sm font-bold text-slate-800 transition hover:text-violet-700">
-                  {question}
-                </summary>
-                <p className="border-t border-slate-100 px-4 py-3 text-xs leading-5 text-slate-600">{answer}</p>
-              </details>
-            ))}
-          </div>
-          <div className="mt-5 text-center">
-            <Link
-              href="/pricing"
-              className="inline-flex h-11 items-center justify-center rounded-2xl border border-violet-200 bg-violet-50 px-6 text-sm font-bold text-violet-700 transition hover:bg-violet-100"
-            >
-              요금제 살펴보기 →
-            </Link>
-          </div>
-        </section>
-
-        <section aria-labelledby="guest-chat-title" className="mx-auto mt-14 flex w-full max-w-4xl flex-1 flex-col">
-          <div className="text-center">
-            <span className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-violet-100 bg-white text-violet-600 shadow-sm">
-              <Bot size={23} aria-hidden="true" />
-            </span>
-            <h2 id="guest-chat-title" className="mt-5 text-[clamp(1.5rem,6vw,2.25rem)] font-bold tracking-[-0.035em] text-slate-950">
-              무엇을 도와드릴까요?
-            </h2>
-            <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-slate-500 sm:text-base">
-              로그인하면 내 일정, 문서, 고객, 프로젝트와 기억을 연결한 AI를 바로 사용할 수 있습니다.
-            </p>
-          </div>
-
-          <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-            {EXAMPLE_PROMPTS.map(({ label, icon: Icon }) => (
-              <button
-                key={label}
-                type="button"
-                onClick={onLoginRequest}
-                className="group min-h-28 rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-[0_8px_28px_rgba(15,23,42,0.045)] transition hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-[0_14px_34px_rgba(109,40,217,0.10)]"
-              >
-                <Icon size={18} className="text-violet-600" aria-hidden="true" />
-                <span className="mt-5 block text-sm font-bold leading-5 text-slate-700 group-hover:text-violet-700">
-                  {label}
-                </span>
-              </button>
-            ))}
-          </div>
-
-          <div className="mt-auto pt-8 sm:pt-12">
-            <div className="rounded-[26px] border border-slate-200 bg-white p-3 shadow-[0_20px_65px_rgba(15,23,42,0.10)]">
-              <input
-                type="text"
-                readOnly
-                aria-disabled="true"
-                aria-label="AI 메시지 입력"
-                placeholder="로그인 후 AI를 사용할 수 있습니다."
-                onClick={onLoginRequest}
-                onFocus={onLoginRequest}
-                className="h-12 w-full cursor-pointer bg-transparent px-3 text-sm font-medium text-slate-700 outline-none placeholder:text-slate-400"
-              />
-              <div className="flex items-center justify-between border-t border-slate-100 pt-3">
-                <div className="flex items-center gap-1">
-                  <GuestControl label="파일 업로드" onClick={onLoginRequest}><FileUp size={18} /></GuestControl>
-                  <GuestControl label="음성 입력" onClick={onLoginRequest}><Mic size={18} /></GuestControl>
-                </div>
-                <button
-                  type="button"
-                  aria-disabled="true"
-                  aria-label="메시지 전송"
-                  onClick={onLoginRequest}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-slate-200 text-slate-500 transition hover:bg-violet-600 hover:text-white"
+            <div className="mt-8 grid gap-4 sm:grid-cols-2">
+              {[
+                {
+                  icon: BarChart3,
+                  title: "결정 분석",
+                  description:
+                    "AI가 먼저 필요한 조건을 질문하고, 딥리서치·시나리오 시뮬레이션·반대 의견까지 담긴 결정 보고서를 만듭니다.",
+                  href: "/chat"
+                },
+                {
+                  icon: Wand2,
+                  title: "AI Agent",
+                  description:
+                    "만들고 싶은 것을 설명하면 웹사이트·앱·프로그램·이미지를 생성합니다. 격리된 미리보기에서 확인하고 승인한 버전만 저장됩니다.",
+                  href: "/chat"
+                },
+                {
+                  icon: BrainCircuit,
+                  title: "Memory",
+                  description:
+                    "대화·조사·결정·결과가 연결되어 쌓입니다. AI가 저장 후보를 제안하고, 사용자가 승인한 정보만 확정 기억이 됩니다.",
+                  href: "/memory"
+                },
+                {
+                  icon: UsersRound,
+                  title: "Team",
+                  description:
+                    "익명 설문으로 팀의 진짜 의견을 모으고, 지지도와 숨은 위험을 분석해 최종 결정에 반영합니다.",
+                  href: "/team"
+                }
+              ].map(({ icon: Icon, title, description, href }) => (
+                <Link
+                  key={title}
+                  href={href}
+                  className="group rounded-2xl border border-slate-200 bg-white p-6 transition hover:border-violet-300"
                 >
-                  <ArrowUp size={18} />
-                </button>
-              </div>
+                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-700 transition group-hover:bg-violet-50 group-hover:text-violet-700">
+                    <Icon size={18} aria-hidden="true" />
+                  </span>
+                  <p className="mt-4 text-base font-extrabold text-slate-950">{title}</p>
+                  <p className="mt-2 text-[13px] leading-6 text-slate-600">{description}</p>
+                  <p className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-violet-700">
+                    자세히 보기
+                    <ArrowRight size={12} aria-hidden="true" />
+                  </p>
+                </Link>
+              ))}
             </div>
-            <p className="mt-3 text-center text-xs font-medium text-slate-400" aria-live="polite">
-              {restoringSession ? "기존 로그인 정보를 확인하고 있습니다…" : "입력하거나 예시 질문을 선택하면 로그인 창이 열립니다."}
-            </p>
           </div>
         </section>
 
-        <section aria-label="시작하기" className="mt-14 overflow-hidden rounded-[26px] bg-gradient-to-r from-slate-950 via-[#312e81] to-violet-700 p-8 text-center sm:p-10">
-          <h2 className="text-xl font-extrabold text-white sm:text-2xl">
-            지금의 질문을, 더 나은 결정으로 바꾸세요.
-          </h2>
-          <p className="mx-auto mt-2 max-w-xl text-xs leading-6 text-violet-100 sm:text-sm">
-            AI가 조사하고, 비교하고, 팀의 의견을 반영하여 실행 가능한 결론까지 도와드립니다.
-          </p>
-          <button
-            type="button"
-            onClick={onLoginRequest}
-            className="mt-5 inline-flex h-12 items-center justify-center rounded-2xl bg-white px-8 text-sm font-extrabold text-violet-700 shadow-lg transition hover:bg-violet-50"
-          >
-            무료로 시작하기
-          </button>
+        {/* Design Agent */}
+        <section aria-labelledby="design-agent-title" className="border-b border-slate-100 bg-slate-50/60">
+          <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-16 sm:px-6 lg:grid-cols-2">
+            <div>
+              <p className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-bold tracking-wide text-slate-600">
+                <Wand2 size={12} className="text-violet-600" aria-hidden="true" />
+                AI Design Agent
+              </p>
+              <h2 id="design-agent-title" className="mt-4 text-xl font-extrabold tracking-tight text-slate-950 sm:text-2xl">
+                말하면 디자인이 됩니다
+              </h2>
+              <p className="mt-3 text-sm leading-6 text-slate-600">
+                "카페 랜딩 페이지 만들어줘"라고 말하면 AI Agent가 디자인 스킬을 골라
+                결과물을 생성합니다. 격리된 미리보기에서 확인하고, 디자인 계약(DESIGN.md)
+                기준의 AI 평가를 받아 개선한 뒤, 승인한 결과물만 보관함에 버전으로 저장됩니다.
+              </p>
+              <ul className="mt-4 space-y-1.5 text-[13px] font-medium text-slate-600">
+                <li className="flex gap-2"><span className="text-violet-600">·</span>생성 → 미리보기 → AI 평가 → 개선 → 승인 → 저장의 안전한 루프</li>
+                <li className="flex gap-2"><span className="text-violet-600">·</span>DreamWish 디자인 시스템을 따르는 일관된 결과물</li>
+                <li className="flex gap-2"><span className="text-violet-600">·</span>생성 코드는 보안 검사를 통과해야 미리보기에 표시</li>
+              </ul>
+            </div>
+            <ol className="grid grid-cols-2 gap-3" aria-label="Design Agent 진행 단계">
+              {[
+                ["생성", "브리프에 맞는 디자인 스킬로 결과물 생성"],
+                ["미리보기", "sandbox iframe에서 기기별 확인"],
+                ["AI 평가", "디자인 계약 기준의 자동 크리틱"],
+                ["승인·저장", "승인한 버전만 보관함에 기록"]
+              ].map(([title, description], index) => (
+                <li key={title} className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <span className="text-[10px] font-extrabold tracking-widest text-violet-600">
+                    STEP {index + 1}
+                  </span>
+                  <p className="mt-1.5 text-sm font-extrabold text-slate-900">{title}</p>
+                  <p className="mt-1 text-[11.5px] leading-4 text-slate-500">{description}</p>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </section>
+
+        {/* 보안 */}
+        <section aria-labelledby="security-title" className="border-b border-slate-100">
+          <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
+            <h2 id="security-title" className="text-xl font-extrabold tracking-tight text-slate-950 sm:text-2xl">
+              신뢰를 전제로 설계했습니다
+            </h2>
+            <div className="mt-8 grid gap-4 sm:grid-cols-3">
+              {[
+                {
+                  icon: ShieldCheck,
+                  title: "사용자 승인 중심",
+                  description:
+                    "외부 실행·저장·적용은 항상 사용자의 확인을 거칩니다. AI가 임의로 운영 데이터를 바꾸지 않습니다."
+                },
+                {
+                  icon: MessageSquareText,
+                  title: "격리된 미리보기",
+                  description:
+                    "AI가 만든 코드는 sandbox iframe에서만 실행되고, 위험 패턴은 자동 보안 검사로 차단됩니다."
+                },
+                {
+                  icon: Landmark,
+                  title: "암호화와 감사 로그",
+                  description:
+                    "연동 토큰은 서버에서 암호화 저장되며, MCP 등 외부 호출은 감사 로그로 기록됩니다."
+                }
+              ].map(({ icon: Icon, title, description }) => (
+                <div key={title} className="rounded-2xl border border-slate-200 bg-white p-6">
+                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-700">
+                    <Icon size={18} aria-hidden="true" />
+                  </span>
+                  <p className="mt-4 text-sm font-extrabold text-slate-950">{title}</p>
+                  <p className="mt-2 text-[13px] leading-6 text-slate-600">{description}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* 자주 묻는 질문 */}
+        <section aria-labelledby="questions-title" className="border-b border-slate-100 bg-slate-50/60">
+          <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
+            <h2 id="questions-title" className="text-center text-xl font-extrabold tracking-tight text-slate-950 sm:text-2xl">
+              자주 묻는 질문
+            </h2>
+            <div className="mt-7 space-y-2">
+              {[
+                ["어떤 AI 모델을 사용하나요?", "관리자가 연결한 AI 공급자의 모델만 사용합니다. 설정에서 연결 상태를 확인할 수 있고, 연결되지 않은 모델은 표시되지 않습니다."],
+                ["AI가 만든 결과물은 안전한가요?", "모든 생성 코드는 격리된 sandbox 미리보기에서만 실행되며, 부모 창 접근·쿠키 접근·추적 스크립트 같은 위험 패턴은 자동 검사로 차단됩니다."],
+                ["내 데이터는 어떻게 관리되나요?", "데이터는 계정 단위로 격리 저장되며, Memory에 저장되는 정보는 사용자가 승인한 항목만 확정됩니다. 자세한 내용은 개인정보처리방침을 확인하세요."],
+                ["요금제는 어떻게 되나요?", "Pricing 페이지에서 플랜별 기능과 결제 방식을 확인할 수 있습니다. 구독 관리와 환불 정책도 함께 안내합니다."]
+              ].map(([question, answer]) => (
+                <details key={question} className="group rounded-2xl border border-slate-200 bg-white">
+                  <summary className="cursor-pointer list-none rounded-2xl px-5 py-4 text-sm font-bold text-slate-800 transition hover:text-violet-700">
+                    {question}
+                  </summary>
+                  <p className="border-t border-slate-100 px-5 py-4 text-[13px] leading-6 text-slate-600">{answer}</p>
+                </details>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* 게스트 체험 */}
+        <section aria-labelledby="guest-chat-title">
+          <div className="mx-auto flex w-full max-w-3xl flex-col px-4 py-16 sm:px-6">
+            <div className="text-center">
+              <span className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white text-violet-600">
+                <Bot size={22} aria-hidden="true" />
+              </span>
+              <h2 id="guest-chat-title" className="mt-5 text-[clamp(1.5rem,5vw,2rem)] font-extrabold tracking-[-0.03em] text-slate-950">
+                무엇을 도와드릴까요?
+              </h2>
+              <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-slate-500">
+                로그인하면 내 일정, 문서, 고객, 프로젝트와 기억을 연결한 AI를 바로 사용할 수 있습니다.
+              </p>
+            </div>
+
+            <div className="mt-7 flex flex-wrap justify-center gap-2">
+              {EXAMPLE_PROMPTS.map(({ label, icon: Icon }) => (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={onLoginRequest}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-[12.5px] font-semibold text-slate-600 transition hover:border-violet-300 hover:text-violet-700"
+                >
+                  <Icon size={14} className="text-violet-600" aria-hidden="true" />
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-7">
+              <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_16px_50px_rgba(15,23,42,0.08)]">
+                <input
+                  type="text"
+                  readOnly
+                  aria-disabled="true"
+                  aria-label="AI 메시지 입력"
+                  placeholder="로그인 후 AI를 사용할 수 있습니다."
+                  onClick={onLoginRequest}
+                  onFocus={onLoginRequest}
+                  className="h-12 w-full cursor-pointer bg-transparent px-3 text-sm font-medium text-slate-700 outline-none placeholder:text-slate-400"
+                />
+                <div className="flex items-center justify-between border-t border-slate-100 pt-3">
+                  <div className="flex items-center gap-1">
+                    <GuestControl label="파일 업로드" onClick={onLoginRequest}><FileUp size={18} /></GuestControl>
+                    <GuestControl label="음성 입력" onClick={onLoginRequest}><Mic size={18} /></GuestControl>
+                  </div>
+                  <button
+                    type="button"
+                    aria-disabled="true"
+                    aria-label="메시지 전송"
+                    onClick={onLoginRequest}
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-slate-200 text-slate-500 transition hover:bg-violet-600 hover:text-white"
+                  >
+                    <ArrowUp size={18} />
+                  </button>
+                </div>
+              </div>
+              <p className="mt-3 text-center text-xs font-medium text-slate-400" aria-live="polite">
+                {restoringSession ? "기존 로그인 정보를 확인하고 있습니다…" : "입력하거나 예시 질문을 선택하면 로그인 창이 열립니다."}
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* CTA */}
+        <section aria-label="시작하기" className="bg-slate-950">
+          <div className="mx-auto max-w-6xl px-4 py-16 text-center sm:px-6">
+            <h2 className="text-xl font-extrabold tracking-tight text-white sm:text-2xl">
+              지금의 질문을, 더 나은 결정으로 바꾸세요.
+            </h2>
+            <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-slate-400">
+              AI가 조사하고, 비교하고, 팀의 의견을 반영하여 실행 가능한 결론까지 도와드립니다.
+            </p>
+            <button
+              type="button"
+              onClick={onLoginRequest}
+              className="mt-6 inline-flex h-12 items-center justify-center gap-1.5 rounded-xl bg-violet-600 px-8 text-sm font-bold text-white transition hover:bg-violet-500"
+            >
+              무료로 시작하기
+              <ArrowRight size={15} aria-hidden="true" />
+            </button>
+          </div>
         </section>
       </main>
 
       {!restoringSession ? <GuestAdSlot /> : null}
 
-      <footer className="border-t border-slate-200/80 bg-white/70">
-        <div className="mx-auto max-w-6xl px-4 pt-5 sm:px-6">
-          <nav className="flex flex-wrap items-center gap-4 text-xs font-semibold text-slate-600" aria-label="주요 페이지">
-            <Link href="/chat" className="hover:text-violet-700">AI Chat</Link>
-            <Link href="/memory" className="hover:text-violet-700">Memory</Link>
-            <Link href="/team" className="hover:text-violet-700">Team</Link>
-            <Link href="/pricing" className="hover:text-violet-700">Pricing</Link>
-            <Link href="/login" className="hover:text-violet-700">Login</Link>
-            <Link href="/signup" className="hover:text-violet-700">Get Started</Link>
+      <footer className="border-t border-slate-200 bg-white">
+        <div className="mx-auto grid max-w-6xl gap-8 px-4 py-12 sm:grid-cols-2 sm:px-6 lg:grid-cols-4">
+          <div>
+            <div className="flex items-center gap-2.5">
+              <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-violet-600 text-white">
+                <BrainLogo className="h-5 w-5" />
+              </span>
+              <span className="text-sm font-extrabold text-slate-950">DreamWish</span>
+            </div>
+            <p className="mt-3 max-w-xs text-xs leading-5 text-slate-500">
+              Better Decisions Powered by AI. 질문에서 결정, 실행까지 하나의 흐름으로.
+            </p>
+          </div>
+          <nav aria-label="Product">
+            <p className="text-xs font-extrabold uppercase tracking-widest text-slate-400">Product</p>
+            <ul className="mt-3 space-y-2 text-sm font-semibold text-slate-600">
+              <li><Link className="transition hover:text-slate-950" href="/chat">AI Chat</Link></li>
+              <li><Link className="transition hover:text-slate-950" href="/memory">Memory</Link></li>
+              <li><Link className="transition hover:text-slate-950" href="/team">Team</Link></li>
+              <li><Link className="transition hover:text-slate-950" href="/pricing">Pricing</Link></li>
+            </ul>
+          </nav>
+          <nav aria-label="Company">
+            <p className="text-xs font-extrabold uppercase tracking-widest text-slate-400">Company</p>
+            <ul className="mt-3 space-y-2 text-sm font-semibold text-slate-600">
+              <li><Link className="transition hover:text-slate-950" href="/login">Login</Link></li>
+              <li><Link className="transition hover:text-slate-950" href="/signup">Get Started</Link></li>
+            </ul>
+          </nav>
+          <nav aria-label="Legal">
+            <p className="text-xs font-extrabold uppercase tracking-widest text-slate-400">Legal</p>
+            <ul className="mt-3 space-y-2 text-sm font-semibold text-slate-600">
+              <li><Link className="transition hover:text-slate-950" href="/privacy">개인정보처리방침</Link></li>
+              <li><Link className="transition hover:text-slate-950" href="/cookies">쿠키 정책</Link></li>
+              <li><Link className="transition hover:text-slate-950" href="/terms">이용약관</Link></li>
+              <li><Link className="transition hover:text-slate-950" href="/refunds">환불 정책</Link></li>
+              <li>
+                <button type="button" onClick={openCookieSettings} className="font-semibold transition hover:text-slate-950">
+                  쿠키 설정
+                </button>
+              </li>
+            </ul>
           </nav>
         </div>
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-5 text-xs text-slate-500 sm:px-6">
-          <span>© {new Date().getFullYear()} DreamWish</span>
-          <nav className="flex flex-wrap items-center gap-4" aria-label="정책">
-            <Link href="/privacy" className="hover:text-slate-950">Privacy</Link>
-            <Link href="/cookies" className="hover:text-slate-950">Cookies</Link>
-            <Link href="/terms" className="hover:text-slate-950">Terms</Link>
-            <Link href="/refunds" className="hover:text-slate-950">Refunds</Link>
-            <button type="button" onClick={openCookieSettings} className="hover:text-slate-950">쿠키 설정</button>
-          </nav>
+        <div className="border-t border-slate-100">
+          <p className="mx-auto max-w-6xl px-4 py-5 text-xs text-slate-400 sm:px-6">
+            © {new Date().getFullYear()} DreamWish. All rights reserved.
+          </p>
         </div>
       </footer>
     </div>
@@ -434,7 +503,7 @@ function GuestControl({ label, onClick, children }: { label: string; onClick: ()
       aria-disabled="true"
       aria-label={label}
       onClick={onClick}
-      className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-slate-400 transition hover:bg-violet-50 hover:text-violet-600"
+      className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-100 hover:text-violet-600"
     >
       {children}
     </button>
