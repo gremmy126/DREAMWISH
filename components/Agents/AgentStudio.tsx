@@ -224,7 +224,10 @@ export function AgentStudio() {
       error?: string;
     };
     if (!response.ok || !body.ok || !body.code || !body.kind) {
-      throw new Error(body.error || "생성에 실패했습니다.");
+      throw new Error(
+        body.error ||
+          "생성에 실패했습니다. 응답이 지연되었을 수 있어요 — 다른(더 빠른) 모델을 선택하거나 잠시 후 다시 시도해 주세요."
+      );
     }
     setGuard(body.guard ?? null);
     setLastSkillId(body.skillId ?? null);

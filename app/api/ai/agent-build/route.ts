@@ -14,10 +14,19 @@ import { inspectGeneratedHtml } from "@/src/lib/design/html-guard";
 
 export const maxDuration = 300;
 
-// 완성형 단일 파일 결과물은 출력이 길고 오래 걸린다: 기본 60초/기본 토큰
-// 한도로는 긴 프롬프트에서 시간 초과·잘림이 발생하므로 넉넉하게 준다.
-const BUILD_AI_OPTIONS = { timeoutMs: 150_000, maxTokens: 16_000, temperature: 0.7 };
-const POLISH_AI_OPTIONS = { timeoutMs: 120_000, maxTokens: 16_000, temperature: 0.7 };
+// 전체 시간 예산. 앞단 프록시/CDN(예: Cloudflare 524는 100초)에서 요청이
+// 잘려 JSON이 아닌 오류 페이지가 반환되면, 클라이언트에는 원인 없는
+// "생성에 실패했습니다"만 뜬다. 그래서 어떤 모델을 골라도 이 예산 안에서
+// 반드시 JSON 응답을 돌려주도록, 메인 생성 타임아웃을 제한하고 2차(폴리시)
+// 패스는 남은 예산이 넉넉할 때만 실행한다.
+const OVERALL_BUDGET_MS = 85_000;
+const MAIN_TIMEOUT_MS = 70_000;
+const POLISH_MIN_REMAINING_MS = 30_000;
+const POLISH_MAX_TIMEOUT_MS = 45_000;
+
+// 완성형 단일 파일 결과물은 출력이 길다: 토큰 한도는 넉넉히 주되(공급자별로
+// 자동 클램프됨), 시간은 위 예산으로 통제한다.
+const BUILD_AI_OPTIONS = { maxTokens: 16_000, temperature: 0.7 };
 
 // 미리보기 iframe에서 로드가 허용되는 검증된 오픈소스 CDN만 사용을 허용한다.
 const OPEN_SOURCE_LIBRARIES =
@@ -187,18 +196,34 @@ export async function POST(request: Request) {
             : { role: "user" as const, content: `${contextPrefix}${message}` }
         ];
 
-    const raw = await chatWithAI(messages, provider, BUILD_AI_OPTIONS);
+    const startedAt = Date.now();
+    const raw = await chatWithAI(messages, provider, {
+      ...BUILD_AI_OPTIONS,
+      timeoutMs: MAIN_TIMEOUT_MS
+    });
     let code = extractArtifact(raw, kind);
     if (!code) {
       return NextResponse.json(
-        { ok: false, error: "생성 결과를 해석하지 못했습니다. 다시 시도해 주세요." },
+        {
+          ok: false,
+          code: "AGENT_RESPONSE_INVALID",
+          retryable: true,
+          error: "생성 결과를 해석하지 못했습니다. 다시 시도해 주세요."
+        },
         { status: 502 }
       );
     }
 
-    // 새로 만든 웹사이트·앱은 디자인 폴리시 패스를 한 번 더 거친다.
-    // 실패하면 초안을 그대로 사용한다 (품질 향상은 best-effort).
-    if (!refine && !redesign && (kind === "website" || kind === "app")) {
+    // 새로 만든 웹사이트·앱은 디자인 폴리시 패스를 한 번 더 거친다. 단,
+    // 전체 시간 예산이 넉넉히 남아 있을 때만 실행해 게이트웨이 타임아웃을
+    // 방지한다. 실패하거나 예산이 부족하면 초안을 그대로 사용한다.
+    const remainingBudgetMs = OVERALL_BUDGET_MS - (Date.now() - startedAt);
+    if (
+      !refine &&
+      !redesign &&
+      (kind === "website" || kind === "app") &&
+      remainingBudgetMs > POLISH_MIN_REMAINING_MS
+    ) {
       try {
         const polished = await chatWithAI(
           [
@@ -209,7 +234,10 @@ export async function POST(request: Request) {
             }
           ],
           provider,
-          POLISH_AI_OPTIONS
+          {
+            ...BUILD_AI_OPTIONS,
+            timeoutMs: Math.min(POLISH_MAX_TIMEOUT_MS, remainingBudgetMs - 10_000)
+          }
         );
         const polishedCode = extractArtifact(polished, kind);
         // 짧게 잘려 나온 결과로 멀쩡한 초안을 덮어쓰지 않는다.
@@ -237,21 +265,25 @@ export async function POST(request: Request) {
   } catch (error) {
     const detail = error instanceof Error ? error.message : "";
     console.error("[agent-build] failed:", detail);
-    let message = "생성에 실패했습니다. 잠시 후 다시 시도해 주세요.";
+    let message = "생성에 실패했습니다. 다른 모델을 선택하거나 잠시 후 다시 시도해 주세요.";
+    let code = "AGENT_UNKNOWN_ERROR";
     if (/All configured AI providers failed/iu.test(detail)) {
+      code = "AGENT_PROVIDER_AUTH_FAILED";
       message =
         "연결된 모든 AI 공급자 호출이 실패했습니다. 다른 모델을 선택해 다시 시도하거나, " +
         "설정에서 공급자 API 키와 사용량 한도를 확인해 주세요.";
-    } else if (/timed out|timeout/iu.test(detail)) {
+    } else if (/timed out|timeout|aborted/iu.test(detail)) {
+      code = "AGENT_PROVIDER_TIMEOUT";
       message =
-        "생성 시간이 초과되었습니다. 요청을 두 단계로 나눠(핵심 구조 먼저 → 세부 기능은 수정 요청으로) 시도해 주세요.";
+        "생성 시간이 초과되었습니다. 다른(더 빠른) 모델을 선택하거나, 요청을 나눠(핵심 구조 먼저 → 세부는 수정 요청으로) 시도해 주세요.";
     } else if (/rate|429|quota/iu.test(detail)) {
+      code = "AGENT_USAGE_LIMIT_EXCEEDED";
       message = "AI 공급자 사용량 한도에 걸렸습니다. 잠시 후 다시 시도하거나 다른 모델을 선택해 주세요.";
     } else if (/not configured|provider/iu.test(detail)) {
+      code = "AGENT_MODEL_NOT_AVAILABLE";
       message = "연결된 AI 공급자가 없습니다. 설정에서 AI 공급자 키를 등록해 주세요.";
-    } else if (detail) {
-      message = detail;
     }
-    return NextResponse.json({ ok: false, error: message }, { status: 502 });
+    // 사용자에게는 안전한 안내 메시지만, 서버 로그에는 원인(detail)을 남긴다.
+    return NextResponse.json({ ok: false, code, retryable: true, error: message }, { status: 502 });
   }
 }
