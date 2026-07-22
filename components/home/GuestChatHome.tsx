@@ -22,6 +22,7 @@ import {
 import Link from "next/link";
 import { useState } from "react";
 import { GuestAdSlot } from "@/components/ads/GuestAdSlot";
+import { InFeedAdSlot } from "@/components/ads/InFeedAdSlot";
 import { BrainLogo } from "@/components/brand/BrainLogo";
 import { ProductDemoPlayer } from "@/components/home/ProductDemoPlayer";
 import { openCookieSettings } from "@/components/consent/consent";
@@ -250,6 +251,8 @@ export function GuestChatHome({ onLoginRequest, restoringSession = false }: Gues
             </div>
           </div>
         </section>
+
+        {!restoringSession ? <InFeedAdSlot /> : null}
 
         {/* Design Agent */}
         <section aria-labelledby="design-agent-title" className="border-b border-slate-100 bg-slate-50/60">
