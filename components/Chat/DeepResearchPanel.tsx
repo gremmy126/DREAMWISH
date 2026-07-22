@@ -104,8 +104,6 @@ export function DeepResearchDock({
   const [maxQueries, setMaxQueries] = useState("10");
   const [maxPages, setMaxPages] = useState("15");
   const [minSources, setMinSources] = useState("4");
-  const [includeCrm, setIncludeCrm] = useState(false);
-  const [includeErp, setIncludeErp] = useState(false);
   const [includeLocalDocs, setIncludeLocalDocs] = useState(false);
   const [preferOfficial, setPreferOfficial] = useState(true);
   const [preferRecent, setPreferRecent] = useState(true);
@@ -176,8 +174,6 @@ export function DeepResearchDock({
             maxSearchQueries: parseIntOr(maxQueries, 10),
             maxPages: parseIntOr(maxPages, 15),
             minSources: parseIntOr(minSources, 4),
-            includeCrm,
-            includeErp,
             includeLocalDocs,
             preferOfficial,
             preferRecent,
@@ -353,8 +349,6 @@ export function DeepResearchDock({
           </div>
 
           <div className="mt-3 flex flex-wrap gap-3">
-            <Toggle label="내부 CRM 데이터 포함" checked={includeCrm} onChange={setIncludeCrm} />
-            <Toggle label="내부 ERP 데이터 포함" checked={includeErp} onChange={setIncludeErp} />
             <Toggle label="로컬 문서 포함" checked={includeLocalDocs} onChange={setIncludeLocalDocs} />
             <Toggle label="공식 자료 우선" checked={preferOfficial} onChange={setPreferOfficial} />
             <Toggle label="최신 자료 우선" checked={preferRecent} onChange={setPreferRecent} />

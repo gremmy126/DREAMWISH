@@ -171,7 +171,8 @@ export async function fetchPublicPageText(
         throw new Error("HTML 또는 텍스트 문서만 열람합니다.");
       }
 
-      const body = await readBodyWithLimit(response, MAX_BODY_BYTES);
+      const rawBytes = await readBytesWithLimit(response, MAX_BODY_BYTES);
+      const body = decodeBytes(rawBytes, detectCharset(rawBytes, contentType));
       const title = extractTitle(body);
       const text = extractReadableText(body);
       return {
@@ -190,30 +191,129 @@ export async function fetchPublicPageText(
   throw new UnsafeUrlError("리디렉션이 너무 많습니다.");
 }
 
-async function readBodyWithLimit(response: Response, maxBytes: number): Promise<string> {
+async function readBytesWithLimit(response: Response, maxBytes: number): Promise<Uint8Array> {
   const reader = response.body?.getReader();
-  if (!reader) return "";
+  if (!reader) return new Uint8Array(0);
   const chunks: Uint8Array[] = [];
   let total = 0;
   for (;;) {
     const { done, value } = await reader.read();
     if (done) break;
+    chunks.push(value);
     total += value.byteLength;
-    if (total > maxBytes) {
+    if (total >= maxBytes) {
       await reader.cancel().catch(() => undefined);
       break;
     }
-    chunks.push(value);
   }
-  const merged = new Uint8Array(Math.min(total, maxBytes));
+  const cap = Math.min(total, maxBytes);
+  const merged = new Uint8Array(cap);
   let offset = 0;
   for (const chunk of chunks) {
-    const slice = chunk.subarray(0, Math.min(chunk.byteLength, merged.byteLength - offset));
+    if (offset >= cap) break;
+    const slice = chunk.subarray(0, Math.min(chunk.byteLength, cap - offset));
     merged.set(slice, offset);
     offset += slice.byteLength;
-    if (offset >= merged.byteLength) break;
   }
-  return new TextDecoder("utf-8", { fatal: false }).decode(merged);
+  return merged;
+}
+
+// Not every page is UTF-8: Korean (EUC-KR/CP949), Chinese (GBK/Big5) and
+// Japanese (Shift_JIS) sites still ship legacy encodings. Decoding those bytes
+// as UTF-8 produces the garbled replacement-character mojibake the research
+// summary was showing, so we detect the real charset first — from the BOM, the
+// Content-Type header, then a `<meta charset>` sniff — and fall back to UTF-8
+// only when the charset is unknown.
+export function detectCharset(bytes: Uint8Array, contentTypeHeader: string): string {
+  if (bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
+    return "utf-8";
+  }
+  if (bytes.length >= 2 && bytes[0] === 0xff && bytes[1] === 0xfe) return "utf-16le";
+  if (bytes.length >= 2 && bytes[0] === 0xfe && bytes[1] === 0xff) return "utf-16be";
+
+  const fromHeader = charsetFromMarkup(contentTypeHeader);
+  if (fromHeader) return fromHeader;
+
+  // Sniff the document head (meta tags are ASCII) without committing to an
+  // encoding yet; latin1 maps every byte 1:1 so the tag survives intact.
+  const head = new TextDecoder("latin1").decode(bytes.subarray(0, 4_096));
+  const fromMeta = charsetFromMarkup(head);
+  if (fromMeta) return fromMeta;
+
+  return "utf-8";
+}
+
+/** Extracts and normalizes a `charset=` label from a header value or HTML head. */
+function charsetFromMarkup(value: string): string | null {
+  const match = /charset\s*=\s*["']?\s*([a-z0-9._:-]+)/iu.exec(value || "");
+  return match ? normalizeCharsetLabel(match[1]) : null;
+}
+
+const CHARSET_ALIASES: Record<string, string> = {
+  utf8: "utf-8",
+  "utf-8": "utf-8",
+  ascii: "utf-8",
+  "us-ascii": "utf-8",
+  "unicode-1-1-utf-8": "utf-8",
+  euckr: "euc-kr",
+  "euc-kr": "euc-kr",
+  cp949: "euc-kr",
+  uhc: "euc-kr",
+  ms949: "euc-kr",
+  ksc5601: "euc-kr",
+  "ks_c_5601-1987": "euc-kr",
+  korean: "euc-kr",
+  gb2312: "gbk",
+  "gb_2312-80": "gbk",
+  csgb2312: "gbk",
+  chinese: "gbk",
+  "x-gbk": "gbk",
+  gbk: "gbk",
+  gb18030: "gb18030",
+  big5: "big5",
+  "big5-hkscs": "big5",
+  "cn-big5": "big5",
+  "csbig5": "big5",
+  sjis: "shift_jis",
+  "shift-jis": "shift_jis",
+  shift_jis: "shift_jis",
+  "x-sjis": "shift_jis",
+  ms932: "shift_jis",
+  "windows-31j": "shift_jis",
+  eucjp: "euc-jp",
+  "euc-jp": "euc-jp",
+  "iso-2022-jp": "iso-2022-jp",
+  "windows-1250": "windows-1250",
+  "windows-1251": "windows-1251",
+  "windows-1252": "windows-1252",
+  cp1252: "windows-1252",
+  latin1: "windows-1252",
+  "iso-8859-1": "windows-1252",
+  "iso-8859-15": "iso-8859-15",
+  "iso-8859-2": "iso-8859-2"
+};
+
+function normalizeCharsetLabel(label: string): string | null {
+  const lower = label.trim().toLowerCase();
+  if (!lower) return null;
+  return CHARSET_ALIASES[lower] || lower;
+}
+
+/** Decodes bytes with the detected charset, falling back to UTF-8. */
+export function decodeBytes(bytes: Uint8Array, charset: string): string {
+  const primary = tryDecode(bytes, charset);
+  if (primary !== null) return primary;
+  return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+}
+
+function tryDecode(bytes: Uint8Array, label: string): string | null {
+  try {
+    return new TextDecoder(label, { fatal: false }).decode(bytes);
+  } catch {
+    // Unsupported label (e.g. a mislabeled/exotic charset) — let the caller
+    // fall back to UTF-8 rather than throwing away the page.
+    return null;
+  }
 }
 
 export function extractTitle(html: string): string {

@@ -522,7 +522,8 @@ function buildPlanMessages(query: string, settings: ResearchSettings) {
         `Generate at most 6 sub-questions and at most ${Math.min(settings.maxSearchQueries, 8)} web search queries. ` +
         (settings.preferOfficial ? "Prefer official documentation and primary sources. " : "") +
         (settings.resultLanguage === "ko"
-          ? "Mix Korean and English queries when useful."
+          ? "Write the queries in Korean so the results are Korean-language sources. " +
+            "Only add an English query when the topic is inherently English (e.g. a product or API name) and a Korean source is unlikely."
           : "Use English queries.")
     },
     { role: "user" as const, content: query }
@@ -671,10 +672,15 @@ export function computeCredibility(url: string, preferOfficial: boolean): {
     domain === "github.com" ||
     domain.endsWith(".github.io");
   const community = /(blog|tistory|velog|medium|reddit|dcinside|fmkorea)\./u.test(domain);
+  // A Korean product wants Korean sources: rank clearly foreign-language
+  // regional domains below Korean/global ones without hard-filtering them, so
+  // niche topics still get evidence when no Korean source exists.
+  const foreignRegional = /\.(cn|com\.cn|jp|co\.jp|tw|com\.tw|hk|ru|vn|th|id)$/u.test(domain);
   let score = 0.5;
   if (official) score = 0.9;
   else if (community) score = 0.35;
   if (preferOfficial && official) score = Math.min(1, score + 0.05);
+  if (foreignRegional && !official) score = Math.max(0.15, score - 0.25);
   return { official, score };
 }
 

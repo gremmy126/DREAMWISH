@@ -3,7 +3,7 @@ import {
   parseResearchReportSections,
   stripMarkdownEmphasis
 } from "../src/lib/deep-research/research-report";
-import { buildDeterministicConclusion } from "../src/lib/decisions/decision-conclusion";
+import { buildDeterministicConclusion, clampText } from "../src/lib/decisions/decision-conclusion";
 import type { Decision } from "../src/lib/decisions/decision.types";
 
 test("markdown emphasis is stripped while line structure is preserved", () => {
@@ -50,4 +50,43 @@ test("the deterministic conclusion always includes a switch condition and first 
   // 사람다운 조건부 권고: 영구 선택이 아니라 검증을 권한다.
   assert.match(conclusion.coreConclusion, /검증/u);
   assert.ok(!/%\s*확신|점수는\s*\d+점입니다/u.test(conclusion.coreConclusion));
+});
+
+test("clampText never cuts a Korean word in half and marks truncation", () => {
+  const text =
+    "인플루언서와 협력하여 콘텐츠를 공유하고, 브랜드 인지도를 높입니다. " +
+    "이후 후속 캠페인으로 확장할 수 있습니다.";
+  const clamped = clampText(text, 30);
+  assert.ok(clamped.length <= 32, clamped);
+  // The raw slice would have ended on "브랜"; a boundary clamp must not.
+  assert.ok(!clamped.endsWith("브랜"), clamped);
+  assert.ok(clamped.endsWith("…"), clamped);
+  // Whatever survives must be whole words separated by the original spaces.
+  const body = clamped.replace(/\s*…$/u, "");
+  assert.ok(text.replace(/\s+/gu, " ").startsWith(body.trim()), clamped);
+});
+
+test("clampText returns short text unchanged without an ellipsis", () => {
+  assert.equal(clampText("짧은 문장입니다.", 100), "짧은 문장입니다.");
+});
+
+test("the deterministic conclusion embeds the research summary without a mid-word cut", () => {
+  const decision = {
+    id: "d2",
+    title: "마케팅을 어떻게 해야 할까",
+    problem: { statement: "광고할 돈은 없고 어떻게 홍보하지" },
+    criteria: [{ id: "c1" }],
+    simulationResult: { ranking: [{ title: "단계적·제한 추진", total: 80 }], gap: 6 },
+    research: {
+      summary:
+        "광고를 할 돈이 없다면, 홍보를 위한 비용이 없는 방법을 찾아야 합니다. " +
+        "블로그, 소셜 미디어, 인플루언서 마케팅 등 다양한 방법을 고려할 수 있습니다. " +
+        "인플루언서와 협력하여 콘텐츠를 공유하고, 브랜드 인지도를 높이는 전략도 있습니다."
+    },
+    employeeSignalWeight: 0.15
+  } as unknown as Decision;
+
+  const conclusion = buildDeterministicConclusion(decision, null);
+  assert.ok(!conclusion.rationale.endsWith("브랜"), conclusion.rationale);
+  assert.ok(/리서치 요약:/u.test(conclusion.rationale));
 });

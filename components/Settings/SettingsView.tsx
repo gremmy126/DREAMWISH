@@ -7,9 +7,11 @@ import {
   HardDrive,
   KeyRound,
   Languages,
+  Loader2,
   LockKeyhole,
   Moon,
   Palette,
+  RotateCw,
   Save,
   ShieldCheck,
   SlidersHorizontal,
@@ -18,7 +20,7 @@ import {
   UserRound,
   Workflow
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { StorageStatus } from "@/components/Common/StorageStatus";
 import { SurfaceCard } from "@/components/Common/SurfaceCard";
 import { SubscriptionSettingsCard } from "@/components/billing/SubscriptionSettingsCard";
@@ -47,6 +49,24 @@ type ProviderMode =
   | "cloudflare";
 type LanguageMode = "ko" | "en" | "ja";
 type BackupInterval = "manual" | "hourly" | "daily" | "weekly";
+
+type AccountProfile = {
+  email: string;
+  name: string | null;
+  role: string;
+  accountStatus: string;
+};
+type AccountState =
+  | { status: "loading" }
+  | { status: "loaded"; account: AccountProfile }
+  | { status: "error"; message: string };
+
+const ACCOUNT_STATUS_LABELS: Record<string, string> = {
+  active: "정상",
+  suspended: "정지됨",
+  pending: "대기 중",
+  disabled: "비활성화"
+};
 
 const SETTINGS_KEY = APP_SETTINGS_STORAGE_KEY;
 
@@ -140,25 +160,59 @@ export function SettingsView() {
     error: string | null;
   }>({ loading: false, message: null, error: null });
   const [languageNotice, setLanguageNotice] = useState<string | null>(null);
-  const [account, setAccount] = useState<{ email: string; role: string } | null>(null);
+  const [accountState, setAccountState] = useState<AccountState>({ status: "loading" });
+  // Monotonic token so a slow/duplicate request or a request that resolves
+  // after the component unmounts can never overwrite a newer result.
+  const accountRequestRef = useRef(0);
   const { t } = useAppLanguage();
 
-  useEffect(() => {
-    void (async () => {
-      try {
-        const response = await fetch("/api/auth/session");
-        if (!response.ok) return;
-        const data = (await response.json()) as {
-          access?: { email?: string; role?: string };
-        };
-        if (data.access?.email) {
-          setAccount({ email: data.access.email, role: data.access.role || "user" });
-        }
-      } catch {
-        setAccount(null);
+  const loadAccount = useCallback(async () => {
+    const token = ++accountRequestRef.current;
+    setAccountState({ status: "loading" });
+    try {
+      // The account card only reads the signed-in profile, so it must call the
+      // GET-only /api/auth/me endpoint. Calling /api/auth/session (POST-only)
+      // with GET returned 405 and left the card stuck on "불러오는 중".
+      const response = await fetch("/api/auth/me", { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error(
+          response.status === 401
+            ? "로그인이 필요합니다. 다시 로그인해 주세요."
+            : `계정 정보를 불러오지 못했습니다. (HTTP ${response.status})`
+        );
       }
-    })();
+      const data = (await response.json()) as {
+        account?: { email?: string; name?: string | null; role?: string; status?: string };
+      };
+      if (!data.account?.email) {
+        throw new Error("계정 정보를 불러오지 못했습니다.");
+      }
+      if (token !== accountRequestRef.current) return;
+      setAccountState({
+        status: "loaded",
+        account: {
+          email: data.account.email,
+          name: data.account.name || null,
+          role: data.account.role || "user",
+          accountStatus: data.account.status || "active"
+        }
+      });
+    } catch (error) {
+      if (token !== accountRequestRef.current) return;
+      setAccountState({
+        status: "error",
+        message: error instanceof Error ? error.message : "계정 정보를 불러오지 못했습니다."
+      });
+    }
   }, []);
+
+  useEffect(() => {
+    void loadAccount();
+    // Invalidate any in-flight request when the view unmounts.
+    return () => {
+      accountRequestRef.current += 1;
+    };
+  }, [loadAccount]);
 
   useEffect(() => {
     try {
@@ -261,12 +315,44 @@ export function SettingsView() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="rounded-2xl border border-app-border bg-app-bg p-4">
                 <p className="text-[11px] font-semibold text-app-muted">로그인 계정</p>
-                <p className="mt-1 truncate text-sm font-semibold text-app-text">
-                  {account?.email || "계정 정보를 불러오는 중"}
-                </p>
-                <p className="mt-1 text-[11px] text-app-muted">
-                  권한: {account?.role === "admin" ? "관리자" : "일반 사용자"}
-                </p>
+                {accountState.status === "loading" ? (
+                  <p className="mt-1.5 flex items-center gap-1.5 text-sm font-semibold text-app-muted">
+                    <Loader2 size={13} className="animate-spin" />
+                    계정 정보를 불러오는 중…
+                  </p>
+                ) : accountState.status === "error" ? (
+                  <div className="mt-1.5">
+                    <p className="text-xs font-semibold text-red-600">{accountState.message}</p>
+                    <button
+                      type="button"
+                      onClick={() => void loadAccount()}
+                      className="mt-2 inline-flex items-center gap-1.5 rounded-xl border border-app-border bg-app-card px-2.5 py-1.5 text-[11px] font-semibold text-app-text transition hover:bg-app-hover hover:text-app-primary"
+                    >
+                      <RotateCw size={12} />
+                      다시 시도
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    {accountState.account.name ? (
+                      <p className="mt-1 truncate text-sm font-semibold text-app-text">
+                        {accountState.account.name}
+                      </p>
+                    ) : null}
+                    <p
+                      className={`truncate text-app-text ${
+                        accountState.account.name ? "mt-0.5 text-[11px] text-app-muted" : "mt-1 text-sm font-semibold"
+                      }`}
+                    >
+                      {accountState.account.email}
+                    </p>
+                    <p className="mt-1 text-[11px] text-app-muted">
+                      권한: {accountState.account.role === "admin" ? "관리자" : "일반 사용자"}
+                      {" · "}
+                      상태: {ACCOUNT_STATUS_LABELS[accountState.account.accountStatus] || accountState.account.accountStatus}
+                    </p>
+                  </>
+                )}
               </div>
               <label className="rounded-2xl border border-app-border bg-app-bg p-4">
                 <span className="text-[11px] font-semibold text-app-muted">기본 시간대</span>

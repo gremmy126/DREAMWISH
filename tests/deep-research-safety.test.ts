@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import {
   assertPublicDns,
   assertSafeUrlFormat,
+  decodeBytes,
+  detectCharset,
   extractReadableText,
   extractTitle,
   isPrivateAddress
@@ -83,4 +85,33 @@ test("extracted page text keeps injected instructions as inert data", () => {
   const text = extractReadableText(html);
   assert.match(text, /ignore all previous instructions/u);
   assert.doesNotMatch(text, /</u);
+});
+
+test("charset detection reads Content-Type, BOM and meta tags", () => {
+  assert.equal(detectCharset(new Uint8Array([0x41, 0x42]), "text/html; charset=euc-kr"), "euc-kr");
+  assert.equal(detectCharset(new Uint8Array([0x41]), "text/html; charset=GB2312"), "gbk");
+  assert.equal(detectCharset(new Uint8Array([0xef, 0xbb, 0xbf, 0x41]), "text/html; charset=euc-kr"), "utf-8");
+  const metaHtml = new TextEncoder().encode('<html><head><meta charset="Shift_JIS"></head>');
+  assert.equal(detectCharset(metaHtml, "text/html"), "shift_jis");
+  const httpEquiv = new TextEncoder().encode(
+    '<meta http-equiv="Content-Type" content="text/html; charset=big5">'
+  );
+  assert.equal(detectCharset(httpEquiv, "text/html"), "big5");
+  assert.equal(detectCharset(new Uint8Array([0x41]), "text/html"), "utf-8");
+});
+
+test("legacy-encoded bytes decode correctly instead of turning into mojibake", () => {
+  // "한글" in EUC-KR/CP949 and "中文" in GBK — decoding either as UTF-8 yields
+  // replacement characters, which is exactly the garbled summary users saw.
+  const eucKrHangul = new Uint8Array([0xc7, 0xd1, 0xb1, 0xdb]);
+  assert.equal(decodeBytes(eucKrHangul, "euc-kr"), "한글");
+  assert.match(decodeBytes(eucKrHangul, "utf-8"), /�/u);
+
+  const gbkChinese = new Uint8Array([0xd6, 0xd0, 0xce, 0xc4]);
+  assert.equal(decodeBytes(gbkChinese, "gbk"), "中文");
+
+  // UTF-8 content is untouched, and an unsupported label falls back to UTF-8.
+  const utf8 = new TextEncoder().encode("안녕하세요");
+  assert.equal(decodeBytes(utf8, "utf-8"), "안녕하세요");
+  assert.equal(decodeBytes(utf8, "x-unknown-charset"), "안녕하세요");
 });

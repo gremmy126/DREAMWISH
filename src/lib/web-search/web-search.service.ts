@@ -76,6 +76,9 @@ async function searchDuckDuckGoInstant(query: string): Promise<WebSearchResult[]
   url.searchParams.set("format", "json");
   url.searchParams.set("no_html", "1");
   url.searchParams.set("skip_disambig", "1");
+  // DreamWish is a Korean product: bias results to the Korea region so the
+  // sources users get back are Korean rather than foreign-language pages.
+  url.searchParams.set("kl", "kr-kr");
 
   const response = await fetch(url, {
     headers: REQUEST_HEADERS,
@@ -113,9 +116,13 @@ async function searchDuckDuckGoInstant(query: string): Promise<WebSearchResult[]
 async function searchBingHtml(query: string): Promise<WebSearchResult[]> {
   const url = new URL("https://www.bing.com/search");
   url.searchParams.set("q", query);
+  // Korea market + Korean UI language so the organic results are Korean.
+  url.searchParams.set("mkt", "ko-KR");
+  url.searchParams.set("setlang", "ko");
+  url.searchParams.set("cc", "KR");
 
   const response = await fetch(url, {
-    headers: REQUEST_HEADERS,
+    headers: { ...REQUEST_HEADERS, "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.6" },
     cache: "no-store"
   });
 

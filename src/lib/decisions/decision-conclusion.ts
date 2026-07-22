@@ -30,9 +30,12 @@ const CONCLUSION_SYSTEM_PROMPT =
   "말하기 규칙 (사람다운 조언):\n" +
   "- coreConclusion: 2~3문장. 어느 안을 권하는지 숨기지 말고 먼저 말하되, '영구 선택'이 아니라 " +
   "'기간·조건을 둔 검증'의 형태로 권고한다 (예: 앞으로 8주 동안 조건부로 A안을 검증하는 것을 권합니다).\n" +
-  "- rationale: 점수 나열이 아니라 이유를 설명한다. 이 선택이 사용자가 바라는 방향에 왜 더 가까운지, " +
-  "다른 안을 골랐을 때 남을 후회, 실패했을 때 되돌릴 수 있는지(회복 가능성), 결정하지 않을 때의 비용을 " +
-  "자연스러운 문단으로 쓴다. 점수는 근거를 뒷받침할 때만 짧게 언급한다.\n" +
+  "- rationale: 점수 나열이 아니라 이유를 한 단계 더 깊이 설명한다. 딥리서치 요약에서 확인된 사실과 " +
+  "시뮬레이션 순위·민감도(1·2위 격차), 조직 신호를 실제로 엮어서 근거로 삼는다. 이 선택이 사용자가 바라는 " +
+  "방향에 왜 더 가까운지, 다른 안을 골랐을 때 남을 후회, 실패했을 때 되돌릴 수 있는지(회복 가능성), " +
+  "결정하지 않을 때의 비용, 그리고 눈에 보이는 1차 효과 너머의 2차 효과와 최악의 시나리오까지 짚는다. " +
+  "가장 강한 반대 근거를 회피하지 말고 정면으로 다룬 뒤 왜 그럼에도 이 권고가 타당한지 밝힌다. " +
+  "점수는 근거를 뒷받침할 때만 짧게 언급한다.\n" +
   "- switchCondition: 결론이 뒤집히는 구체적 조건 한 문장 (예: 3개월 안에 유료 전환이 확인되지 않으면 결론을 바꿔야 합니다).\n" +
   "- firstAction: 오늘 바로 할 수 있는 가장 작은 첫 행동 한 문장.\n" +
   "금지: 마크다운 기호(**, ##, 목록 기호), 퍼센트 확신(87% 등), '종합적으로 고려하면', '각각 장단점이 있습니다', " +
@@ -90,7 +93,7 @@ export function buildDeterministicConclusion(
       `${decision.problem.statement || decision.title}에 대해 ` +
       `${ranking.length}개 대안을 ${decision.criteria.length || 4}개 기준으로 비교했습니다.` +
       `${top ? ` ${top.title}이(가) 앞선 이유는 점수 자체보다, 실패했을 때 되돌릴 여지가 있으면서 원하는 방향에 더 가깝기 때문입니다.` : ""}` +
-      `${decision.research?.summary ? ` 리서치 요약: ${stripMarkdownEmphasis(decision.research.summary).slice(0, 300)}` : ""}` +
+      `${decision.research?.summary ? ` 리서치 요약: ${clampText(stripMarkdownEmphasis(decision.research.summary), 360)}` : ""}` +
       signalNote,
     confidence,
     counterpoints,
@@ -147,12 +150,13 @@ export async function concludeDecision(
     ) as Partial<DecisionConclusion>;
     if (!parsed.coreConclusion || typeof parsed.coreConclusion !== "string") return fallback;
     return {
-      coreConclusion: stripMarkdownEmphasis(
-        limitSentences(parsed.coreConclusion, 3)
-      ).slice(0, 700),
+      coreConclusion: clampText(
+        stripMarkdownEmphasis(limitSentences(parsed.coreConclusion, 3)),
+        700
+      ),
       rationale:
         typeof parsed.rationale === "string"
-          ? stripMarkdownEmphasis(parsed.rationale).slice(0, 2400)
+          ? clampText(stripMarkdownEmphasis(parsed.rationale), 2400)
           : fallback.rationale,
       confidence:
         parsed.confidence === "low" || parsed.confidence === "medium" || parsed.confidence === "high"
@@ -172,11 +176,11 @@ export async function concludeDecision(
         : fallback.counterpoints,
       switchCondition:
         typeof parsed.switchCondition === "string" && parsed.switchCondition.trim()
-          ? stripMarkdownEmphasis(parsed.switchCondition).slice(0, 300)
+          ? clampText(stripMarkdownEmphasis(parsed.switchCondition), 300)
           : fallback.switchCondition,
       firstAction:
         typeof parsed.firstAction === "string" && parsed.firstAction.trim()
-          ? stripMarkdownEmphasis(parsed.firstAction).slice(0, 300)
+          ? clampText(stripMarkdownEmphasis(parsed.firstAction), 300)
           : fallback.firstAction,
       source: "ai"
     };
@@ -208,4 +212,30 @@ function limitSentences(text: string, count: number): string {
     .filter(Boolean)
     .slice(0, count);
   return sentences.join(" ").trim() || text.trim();
+}
+
+/**
+ * Truncates to a clean boundary so the conclusion never ends mid-word (the
+ * report was cutting the embedded research summary at exactly 300 chars, e.g.
+ * "…공유하고, 브랜"). Prefers a sentence end, then a Korean 어절/word space,
+ * and appends an ellipsis only when text was actually dropped.
+ */
+export function clampText(text: string, max: number): string {
+  const trimmed = (text || "").replace(/\s+/gu, " ").trim();
+  if (trimmed.length <= max) return trimmed;
+  const slice = trimmed.slice(0, max);
+  const floor = Math.floor(max * 0.5);
+  const sentenceEnd = Math.max(
+    slice.lastIndexOf("다. "),
+    slice.lastIndexOf("요. "),
+    slice.lastIndexOf(". "),
+    slice.lastIndexOf("! "),
+    slice.lastIndexOf("? ")
+  );
+  if (sentenceEnd >= floor) {
+    return `${slice.slice(0, sentenceEnd + 1).trim()} …`;
+  }
+  const lastSpace = slice.lastIndexOf(" ");
+  const base = lastSpace >= floor ? slice.slice(0, lastSpace) : slice;
+  return `${base.trim()}…`;
 }

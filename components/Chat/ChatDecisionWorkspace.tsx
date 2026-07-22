@@ -219,11 +219,13 @@ export function ChatDecisionWorkspace() {
   const [signal, setSignal] = useState<DecisionEmployeeSignal | null>(null);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const [followUpThinking, setFollowUpThinking] = useState(false);
   const [approving, setApproving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsSaved, setSettingsSaved] = useState(false);
-  const [researchMode, setResearchMode] = useState<"standard" | "deep">("standard");
+  // 결정 분석은 기본적으로 심층 조사로 시작해 더 많은 출처를 교차 확인한다.
+  const [researchMode, setResearchMode] = useState<"standard" | "deep">("deep");
   const [researchMinutes, setResearchMinutes] = useState(10);
   const [includeLocalDocs, setIncludeLocalDocs] = useState(true);
   const [researchProgress, setResearchProgress] = useState<{ percent: number; step: string } | null>(null);
@@ -540,7 +542,9 @@ export function ChatDecisionWorkspace() {
               maxDurationMs: researchMinutes * 60_000,
               includeLocalDocs,
               resultLanguage: "ko",
-              reportLength: "short"
+              // 결론의 근거가 되므로 한 문단 요약(short)보다 깊이 있는 medium
+              // 보고서로 시장·경쟁·리스크를 더 폭넓게 정리한다.
+              reportLength: "medium"
             }
           })
         }
@@ -764,6 +768,33 @@ export function ChatDecisionWorkspace() {
     }
   }
 
+  // 분석이 끝난 뒤에도 결정 맥락(문제·리서치·시뮬레이션·결론) 위에서 후속
+  // 질문에 계속 답한다. "자유 대화에서 이어가라"고 넘기지 않는다.
+  async function askFollowUp(text: string) {
+    if (!decision) return;
+    const history = messages.map((message) => ({ role: message.role, text: message.text }));
+    pushUser(text);
+    setBusy(true);
+    setFollowUpThinking(true);
+    setNotice(null);
+    try {
+      const body = await api<{ answer: string }>(`/api/decisions/${decision.id}/discuss`, {
+        method: "POST",
+        body: JSON.stringify({ question: text, history })
+      });
+      pushAi(body.answer);
+    } catch (caught) {
+      pushAi(
+        caught instanceof Error
+          ? `답변을 생성하지 못했습니다 (${caught.message}). 잠시 후 다시 질문해 주세요.`
+          : "답변을 생성하지 못했습니다. 잠시 후 다시 질문해 주세요."
+      );
+    } finally {
+      setFollowUpThinking(false);
+      setBusy(false);
+    }
+  }
+
   function submitInput() {
     const text = input.trim();
     if (!text || busy) return;
@@ -786,11 +817,7 @@ export function ChatDecisionWorkspace() {
         pushAi("말씀하신 내용을 분석 참고사항으로 반영했습니다. 준비되면 '실행'을 입력하거나 버튼을 눌러주세요.", {});
       }
     } else if (phase === "done") {
-      pushUser(text);
-      pushAi(
-        "이 분석은 완료되었습니다. 추가 질문은 '자유 대화'에서 이어가거나, '새 대화'로 새 결정 분석을 시작하세요.",
-        {}
-      );
+      void askFollowUp(text);
     } else {
       pushUser(text);
     }
@@ -1198,6 +1225,15 @@ export function ChatDecisionWorkspace() {
                 </AiBubble>
               ) : null}
 
+              {followUpThinking ? (
+                <AiBubble>
+                  <p className="flex items-center gap-2 text-xs font-semibold text-app-muted">
+                    <Loader2 size={13} className="animate-spin text-app-primary" />
+                    분석 맥락을 바탕으로 답변을 작성하고 있습니다…
+                  </p>
+                </AiBubble>
+              ) : null}
+
               {notice ? (
                 <p className="text-center text-[11px] font-semibold text-red-500">{notice}</p>
               ) : null}
@@ -1216,7 +1252,9 @@ export function ChatDecisionWorkspace() {
                       ? "답변을 입력하세요…"
                       : phase === "research-config"
                         ? "'실행' 또는 '건너뛰기'를 입력하거나 위 버튼을 누르세요…"
-                        : "무엇이든 물어보세요…"
+                        : phase === "done"
+                          ? "결론에 대해 더 깊이 물어보세요 (예: 최악의 시나리오는?)…"
+                          : "무엇이든 물어보세요…"
                   }
                   className="h-9 min-w-0 flex-1 bg-transparent text-sm text-app-text outline-none placeholder:text-slate-400"
                 />
