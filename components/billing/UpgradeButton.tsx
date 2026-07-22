@@ -3,6 +3,7 @@
 import { CreditCard, Globe2, Loader2, Sparkles, X } from "lucide-react";
 import { useState } from "react";
 import { useAccess } from "@/src/lib/auth/access-context";
+import { CouponField } from "@/components/billing/CouponField";
 import { DomesticCheckoutDialog } from "@/components/billing/DomesticCheckoutDialog";
 
 export function UpgradeButton({ compact = false }: { compact?: boolean }) {
@@ -132,7 +133,14 @@ export function UpgradeButton({ compact = false }: { compact?: boolean }) {
               <X size={20} />
             </button>
           </div>
-          <div className="mt-5 space-y-3">
+          <div className="mt-5 rounded-2xl border border-violet-100 bg-violet-50/40 p-3">
+            <CouponField />
+            <p className="mt-2 text-[11px] leading-4 text-slate-500">
+              할인 쿠폰은 결제 금액에 적용되고, 이용권 쿠폰은 결제 없이 바로 이용 기간이 부여됩니다.
+            </p>
+          </div>
+
+          <div className="mt-3 space-y-3">
             <button
               type="button"
               disabled={!domesticEnabled}
