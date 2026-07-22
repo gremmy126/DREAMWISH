@@ -8,6 +8,9 @@ import {
 import { chatWithAI } from "@/src/lib/ai/ai.service";
 import { parseProviderName } from "@/src/lib/ai/provider-options";
 import { requireOwnerContext } from "@/src/lib/auth/owner-context";
+import { renderDesignContextForPrompt } from "@/src/lib/design/design-md";
+import { getDesignSkill, matchDesignSkill } from "@/src/lib/design/design-skills";
+import { inspectGeneratedHtml } from "@/src/lib/design/html-guard";
 
 export const maxDuration = 300;
 
@@ -101,6 +104,8 @@ export async function POST(request: Request) {
       previousKind?: unknown;
       provider?: unknown;
       history?: unknown;
+      skillId?: unknown;
+      useDesignSystem?: unknown;
     };
     const message = typeof body.message === "string" ? body.message.trim().slice(0, 4000) : "";
     const provider = parseProviderName(body.provider);
@@ -122,6 +127,27 @@ export async function POST(request: Request) {
       ? previousKind!
       : classifyAgentRequest(message) || "website";
 
+    // Design Skills Registry: 명시 선택 > 자연어 자동 매칭. 선택된 스킬의
+    // 지시문이 시스템 프롬프트에 추가된다 (Open Design Skills 개념 참고).
+    const requestedSkill =
+      typeof body.skillId === "string" ? getDesignSkill(body.skillId) : null;
+    const skill =
+      requestedSkill && requestedSkill.mode === "generate"
+        ? requestedSkill
+        : !refine && !redesign
+          ? matchDesignSkill(message)
+          : null;
+    const applicableSkill = skill && skill.supportedArtifactTypes.includes(kind) ? skill : null;
+
+    // DreamWish 디자인 시스템 모드: DESIGN.md 계약을 미학 방향으로 사용한다.
+    const useDesignSystem = body.useDesignSystem === true;
+    const designSystemBlock = useDesignSystem
+      ? "\nAesthetic direction OVERRIDE — use the DreamWish design contract below instead of picking your own direction:\n" +
+        renderDesignContextForPrompt() + "\n"
+      : "";
+    const skillBlock = applicableSkill ? `\nSkill directive (${applicableSkill.name}): ${applicableSkill.promptDirective}\n` : "";
+    const promptExtras = designSystemBlock + skillBlock;
+
     // 최근 대화 맥락을 함께 전달해 "아까 말한 대로" 같은 지시도 이해한다.
     const historyBlock = Array.isArray(body.history)
       ? body.history
@@ -139,7 +165,7 @@ export async function POST(request: Request) {
 
     const messages = redesign
       ? [
-          { role: "system" as const, content: REDESIGN_PROMPT },
+          { role: "system" as const, content: REDESIGN_PROMPT + promptExtras },
           {
             role: "user" as const,
             content:
@@ -149,7 +175,7 @@ export async function POST(request: Request) {
           }
         ]
       : [
-          { role: "system" as const, content: SYSTEM_PROMPTS[kind] },
+          { role: "system" as const, content: SYSTEM_PROMPTS[kind] + promptExtras },
           refine
             ? {
                 role: "user" as const,
@@ -176,7 +202,7 @@ export async function POST(request: Request) {
       try {
         const polished = await chatWithAI(
           [
-            { role: "system" as const, content: POLISH_PROMPT },
+            { role: "system" as const, content: POLISH_PROMPT + promptExtras },
             {
               role: "user" as const,
               content: `원래 요청: ${message}\n\n현재 코드:\n${code.slice(0, 60_000)}`
@@ -195,7 +221,19 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({ ok: true, kind, code, refined: refine, redesigned: redesign });
+    // 생성 결과 보안 검사 — 미리보기 전에 위험 패턴을 클라이언트에 알린다.
+    const guard =
+      kind === "website" || kind === "app" ? inspectGeneratedHtml(code) : { safe: true, findings: [] };
+
+    return NextResponse.json({
+      ok: true,
+      kind,
+      code,
+      refined: refine,
+      redesigned: redesign,
+      skillId: applicableSkill?.id ?? null,
+      guard
+    });
   } catch (error) {
     const detail = error instanceof Error ? error.message : "";
     console.error("[agent-build] failed:", detail);

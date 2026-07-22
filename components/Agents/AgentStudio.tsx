@@ -2,6 +2,9 @@
 
 import {
   Bot,
+  CheckCircle2,
+  ClipboardCheck,
+  CloudUpload,
   Code2,
   Copy,
   Download,
@@ -10,13 +13,17 @@ import {
   FolderCheck,
   HardDriveDownload,
   ImageDown,
+  LibraryBig,
   Loader2,
   Monitor,
+  Palette,
   RotateCcw,
   Send,
+  ShieldAlert,
   Smartphone,
   Sparkles,
   Tablet,
+  Trash2,
   Undo2,
   Wand2,
   X
@@ -40,6 +47,30 @@ type Artifact = {
   kind: AgentBuildKind;
   code: string;
   fileName: string;
+};
+
+type GuardFinding = {
+  code: string;
+  severity: "critical" | "warning";
+  message: string;
+  evidence: string;
+};
+
+type GuardReport = { safe: boolean; findings: GuardFinding[] };
+
+type CritiqueResult = {
+  score: number;
+  summary: string;
+  findings: Array<{ severity: "high" | "medium" | "low"; area: string; message: string }>;
+};
+
+type LibraryItem = {
+  id: string;
+  type: AgentBuildKind;
+  title: string;
+  status: string;
+  updatedAt: string;
+  versionCount: number;
 };
 
 // File System Access API 최소 타입 (Chromium 전용, lib.dom 미포함 부분).
@@ -94,6 +125,17 @@ export function AgentStudio() {
   // 이전 결과물 버전 스택 — '되돌리기'로 언제든 직전 버전으로 복귀한다.
   const [versions, setVersions] = useState<Artifact[]>([]);
   const [device, setDevice] = useState<"desktop" | "tablet" | "mobile">("desktop");
+  // DreamWish 디자인 시스템 모드 — DESIGN.md 계약을 미학 방향으로 사용한다.
+  const [designMode, setDesignMode] = useState(false);
+  const [lastSkillId, setLastSkillId] = useState<string | null>(null);
+  // 생성 결과 보안 검사 리포트 — critical이면 미리보기를 차단한다.
+  const [guard, setGuard] = useState<GuardReport | null>(null);
+  const [critique, setCritique] = useState<CritiqueResult | null>(null);
+  const [critiqueBusy, setCritiqueBusy] = useState(false);
+  // 서버에 저장된 결과물 id — 저장 후 수정은 새 버전으로 쌓인다.
+  const [artifactId, setArtifactId] = useState<string | null>(null);
+  const [savingCloud, setSavingCloud] = useState(false);
+  const [library, setLibrary] = useState<LibraryItem[] | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   function applyArtifact(next: Artifact) {
@@ -120,6 +162,10 @@ export function AgentStudio() {
     setVersions([]);
     setInput("");
     setShowCode(false);
+    setGuard(null);
+    setCritique(null);
+    setArtifactId(null);
+    setLastSkillId(null);
   }
 
   // 가장 성능 좋은 공급자를 고를 수 있게 연결된 모델 목록을 불러온다.
@@ -167,6 +213,7 @@ export function AgentStudio() {
       body: JSON.stringify({
         ...payload,
         provider: selectedModel || undefined,
+        useDesignSystem: designMode,
         history: historyPayload()
       })
     });
@@ -176,12 +223,23 @@ export function AgentStudio() {
       code?: string;
       refined?: boolean;
       redesigned?: boolean;
+      skillId?: string | null;
+      guard?: GuardReport;
       error?: string;
     };
     if (!response.ok || !body.ok || !body.code || !body.kind) {
       throw new Error(body.error || "생성에 실패했습니다.");
     }
-    return body as { kind: AgentBuildKind; code: string; refined?: boolean; redesigned?: boolean };
+    setGuard(body.guard ?? null);
+    setLastSkillId(body.skillId ?? null);
+    setCritique(null);
+    return body as {
+      kind: AgentBuildKind;
+      code: string;
+      refined?: boolean;
+      redesigned?: boolean;
+      skillId?: string | null;
+    };
   }
 
   async function send(rawText?: string) {
@@ -317,6 +375,145 @@ export function AgentStudio() {
     }
   }
 
+  // 내 계정 보관함(서버)에 저장 — 처음이면 생성, 이후에는 새 버전으로 쌓인다.
+  async function saveToCloud() {
+    if (!artifact || savingCloud) return;
+    setSavingCloud(true);
+    try {
+      const title =
+        messages.find((item) => item.role === "user")?.text.slice(0, 80) || artifact.fileName;
+      const response = await fetch(
+        artifactId ? `/api/design/artifacts/${artifactId}` : "/api/design/artifacts",
+        {
+          method: artifactId ? "PATCH" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(
+            artifactId
+              ? { code: artifact.code, versionNote: "스튜디오에서 수정" }
+              : {
+                  type: artifact.kind,
+                  title,
+                  code: artifact.code,
+                  source: "internal-engine",
+                  skillId: lastSkillId
+                }
+          )
+        }
+      );
+      const body = (await response.json().catch(() => ({}))) as {
+        ok?: boolean;
+        artifact?: { id: string };
+        error?: string;
+      };
+      if (!response.ok || !body.ok || !body.artifact) {
+        throw new Error(body.error || "저장에 실패했습니다.");
+      }
+      setArtifactId(body.artifact.id);
+      pushAi(
+        artifactId
+          ? "보관함에 새 버전으로 저장했습니다."
+          : "보관함에 저장했습니다. 로그인한 어느 기기에서든 다시 열 수 있어요."
+      );
+    } catch (caught) {
+      pushAi(caught instanceof Error ? caught.message : "저장에 실패했습니다.");
+    } finally {
+      setSavingCloud(false);
+    }
+  }
+
+  async function openLibrary() {
+    if (library) {
+      setLibrary(null);
+      return;
+    }
+    try {
+      const response = await fetch("/api/design/artifacts");
+      const body = (await response.json().catch(() => ({}))) as {
+        ok?: boolean;
+        artifacts?: LibraryItem[];
+      };
+      if (!response.ok || !body.ok) throw new Error();
+      setLibrary(body.artifacts ?? []);
+    } catch {
+      pushAi("보관함을 불러오지 못했습니다.");
+    }
+  }
+
+  async function loadFromLibrary(id: string) {
+    setLibrary(null);
+    try {
+      const response = await fetch(`/api/design/artifacts/${id}`);
+      const body = (await response.json().catch(() => ({}))) as {
+        ok?: boolean;
+        artifact?: { id: string; type: AgentBuildKind; title: string; code: string };
+      };
+      if (!response.ok || !body.ok || !body.artifact) throw new Error();
+      applyArtifact({
+        kind: body.artifact.type,
+        code: body.artifact.code,
+        fileName: AGENT_DEFAULT_FILENAMES[body.artifact.type]
+      });
+      setArtifactId(body.artifact.id);
+      setGuard(null);
+      setCritique(null);
+      pushAi(`보관함에서 '${body.artifact.title}'을(를) 불러왔습니다. 수정할 내용을 말씀해 주세요.`);
+    } catch {
+      pushAi("결과물을 불러오지 못했습니다.");
+    }
+  }
+
+  async function deleteFromLibrary(id: string) {
+    try {
+      const response = await fetch(`/api/design/artifacts/${id}`, { method: "DELETE" });
+      if (!response.ok) throw new Error();
+      setLibrary((current) => current?.filter((item) => item.id !== id) ?? null);
+      if (artifactId === id) setArtifactId(null);
+    } catch {
+      pushAi("삭제하지 못했습니다.");
+    }
+  }
+
+  // Design Agent 루프의 Critique 단계 — DESIGN.md 기준 AI 평가를 받는다.
+  async function runCritique() {
+    if (!artifact || critiqueBusy || artifact.kind === "program") return;
+    setCritiqueBusy(true);
+    try {
+      const response = await fetch("/api/design/critique", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: artifact.code,
+          kind: artifact.kind,
+          provider: selectedModel || undefined
+        })
+      });
+      const body = (await response.json().catch(() => ({}))) as {
+        ok?: boolean;
+        critique?: CritiqueResult;
+        error?: string;
+      };
+      if (!response.ok || !body.ok || !body.critique) {
+        throw new Error(body.error || "평가에 실패했습니다.");
+      }
+      setCritique(body.critique);
+    } catch (caught) {
+      pushAi(caught instanceof Error ? caught.message : "평가에 실패했습니다.");
+    } finally {
+      setCritiqueBusy(false);
+    }
+  }
+
+  // Critique 지적사항을 수정 요청으로 반영한다 (Revise 단계).
+  async function applyCritique() {
+    if (!critique || !artifact || busy) return;
+    const instructions = critique.findings
+      .slice(0, 6)
+      .map((finding) => `- (${finding.area}) ${finding.message}`)
+      .join("\n");
+    setCritique(null);
+    await send(`AI 평가에서 나온 다음 지적사항을 반영해서 개선해줘:\n${instructions}`);
+  }
+
   function download() {
     if (!artifact) return;
     const mime = artifact.kind === "image"
@@ -401,6 +598,24 @@ export function AgentStudio() {
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setDesignMode((value) => !value)}
+              aria-pressed={designMode}
+              title={
+                designMode
+                  ? "DreamWish 디자인 시스템(DESIGN.md)을 따라 생성합니다"
+                  : "자유 스타일로 생성합니다 — 누르면 DreamWish 스타일로 전환"
+              }
+              className={`flex h-8 items-center gap-1 rounded-xl border px-2.5 text-[11px] font-semibold transition ${
+                designMode
+                  ? "border-app-primary bg-app-primary-soft text-app-primary"
+                  : "border-app-border bg-app-card text-app-muted hover:text-app-primary"
+              }`}
+            >
+              <Palette size={12} />
+              DW 스타일
+            </button>
             {providerOptions.length > 1 ? (
               <select
                 value={selectedModel}
@@ -578,7 +793,17 @@ export function AgentStudio() {
               </span>
             ) : null}
           </p>
-          {artifact ? (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => void openLibrary()}
+              title="저장한 결과물 보관함 열기"
+              className="flex h-8 items-center gap-1 rounded-xl border border-app-border bg-white px-2.5 text-[11px] font-semibold text-app-muted transition hover:bg-app-hover hover:text-app-primary"
+            >
+              <LibraryBig size={12} />
+              보관함
+            </button>
+            {artifact ? (
             <div className="flex flex-wrap items-center gap-1.5">
               {previewAsPage && !showCode ? (
                 <div className="mr-1 inline-flex rounded-xl border border-app-border bg-white p-0.5">
@@ -631,6 +856,32 @@ export function AgentStudio() {
                   다시 디자인
                 </button>
               ) : null}
+              {artifact.kind !== "program" ? (
+                <button
+                  type="button"
+                  disabled={critiqueBusy || busy}
+                  onClick={() => void runCritique()}
+                  title="DESIGN.md 기준으로 AI 디자인 평가를 받습니다"
+                  className="flex h-8 items-center gap-1 rounded-xl border border-app-border bg-white px-2.5 text-[11px] font-semibold text-app-muted transition hover:bg-app-hover hover:text-app-primary disabled:opacity-50"
+                >
+                  {critiqueBusy ? (
+                    <Loader2 size={12} className="animate-spin" />
+                  ) : (
+                    <ClipboardCheck size={12} />
+                  )}
+                  평가
+                </button>
+              ) : null}
+              <button
+                type="button"
+                disabled={savingCloud}
+                onClick={() => void saveToCloud()}
+                title="내 계정 보관함에 저장 (버전 관리)"
+                className="flex h-8 items-center gap-1 rounded-xl border border-app-border bg-white px-2.5 text-[11px] font-semibold text-app-muted transition hover:bg-app-hover hover:text-app-primary disabled:opacity-50"
+              >
+                {savingCloud ? <Loader2 size={12} className="animate-spin" /> : <CloudUpload size={12} />}
+                저장
+              </button>
               <button
                 type="button"
                 onClick={openInNewTab}
@@ -687,9 +938,117 @@ export function AgentStudio() {
                 </button>
               ) : null}
             </div>
-          ) : null}
+            ) : null}
+          </div>
         </div>
-        <div className="min-h-0 flex-1 overflow-auto app-scrollbar">
+        <div className="relative min-h-0 flex-1 overflow-auto app-scrollbar">
+          {library ? (
+            <div className="absolute inset-0 z-30 overflow-y-auto bg-app-card p-4 app-scrollbar">
+              <div className="mb-3 flex items-center justify-between">
+                <p className="text-sm font-bold text-app-text">보관함</p>
+                <button
+                  type="button"
+                  aria-label="보관함 닫기"
+                  onClick={() => setLibrary(null)}
+                  className="flex h-8 w-8 items-center justify-center rounded-xl border border-app-border text-app-muted transition hover:text-app-primary"
+                >
+                  <X size={12} />
+                </button>
+              </div>
+              {library.length === 0 ? (
+                <div className="flex flex-col items-center gap-2 py-12 text-center">
+                  <LibraryBig size={22} className="text-app-muted" />
+                  <p className="text-xs font-semibold text-app-text">저장된 결과물이 없습니다</p>
+                  <p className="text-[11px] text-app-muted">
+                    결과물을 만든 뒤 '저장'을 누르면 이곳에 보관됩니다.
+                  </p>
+                </div>
+              ) : (
+                <ul className="space-y-2">
+                  {library.map((item) => (
+                    <li
+                      key={item.id}
+                      className="flex items-center gap-2 rounded-app-lg border border-app-border bg-app-card p-3"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => void loadFromLibrary(item.id)}
+                        className="min-w-0 flex-1 text-left"
+                      >
+                        <p className="truncate text-xs font-bold text-app-text">{item.title}</p>
+                        <p className="mt-0.5 text-[10.5px] text-app-muted">
+                          {AGENT_KIND_LABELS[item.type]} · 버전 {item.versionCount + 1} ·{" "}
+                          {new Date(item.updatedAt).toLocaleDateString("ko-KR")}
+                          {item.status === "approved" ? " · 승인됨" : ""}
+                        </p>
+                      </button>
+                      {item.status === "approved" ? (
+                        <CheckCircle2 size={14} className="shrink-0 text-app-success" />
+                      ) : null}
+                      <button
+                        type="button"
+                        aria-label={`${item.title} 삭제`}
+                        onClick={() => void deleteFromLibrary(item.id)}
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-app-border text-app-muted transition hover:border-app-danger hover:text-app-danger"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ) : null}
+
+          {critique ? (
+            <div className="absolute inset-x-0 bottom-0 z-20 max-h-[60%] overflow-y-auto border-t border-app-border bg-app-card p-4 shadow-overlay app-scrollbar">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="flex items-center gap-2 text-xs font-bold text-app-text">
+                  <ClipboardCheck size={13} className="text-app-primary" />
+                  AI 디자인 평가 — {critique.score}점
+                </p>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void applyCritique()}
+                    className="flex h-8 items-center gap-1 rounded-xl bg-app-primary px-2.5 text-[11px] font-bold text-white transition hover:opacity-90 disabled:opacity-50"
+                  >
+                    <Wand2 size={12} />
+                    지적사항 반영
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="평가 닫기"
+                    onClick={() => setCritique(null)}
+                    className="flex h-8 w-8 items-center justify-center rounded-xl border border-app-border text-app-muted transition hover:text-app-primary"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              </div>
+              <p className="text-[11.5px] font-semibold text-app-text">{critique.summary}</p>
+              <ul className="mt-2 space-y-1.5">
+                {critique.findings.map((finding, index) => (
+                  <li key={index} className="flex items-start gap-2 text-[11px] leading-4">
+                    <span
+                      className={`mt-0.5 shrink-0 rounded-md px-1.5 py-0.5 text-[9.5px] font-bold ${
+                        finding.severity === "high"
+                          ? "bg-app-danger-soft text-app-danger"
+                          : finding.severity === "medium"
+                            ? "bg-app-warning-soft text-app-warning"
+                            : "bg-app-info-soft text-app-info"
+                      }`}
+                    >
+                      {finding.area}
+                    </span>
+                    <span className="text-app-text">{finding.message}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
           {!artifact ? (
             <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
               <span className="flex h-14 w-14 items-center justify-center rounded-3xl bg-app-hover text-app-primary">
@@ -714,17 +1073,43 @@ export function AgentStudio() {
                 className="max-h-full max-w-full rounded-2xl bg-white shadow-soft"
               />
             </div>
+          ) : previewAsPage && guard && !guard.safe ? (
+            <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
+              <span className="flex h-14 w-14 items-center justify-center rounded-3xl bg-app-danger-soft text-app-danger">
+                <ShieldAlert size={26} />
+              </span>
+              <p className="text-sm font-bold text-app-text">보안 검사로 미리보기가 차단되었습니다</p>
+              <ul className="max-w-md space-y-1 text-left text-[11px] leading-4 text-app-muted">
+                {guard.findings
+                  .filter((finding) => finding.severity === "critical")
+                  .map((finding) => (
+                    <li key={finding.code}>• {finding.message}</li>
+                  ))}
+              </ul>
+              <p className="text-[11px] text-app-muted">
+                채팅으로 "위험 요소를 제거해줘"라고 요청하거나 코드를 직접 확인해 주세요.
+              </p>
+            </div>
           ) : previewAsPage ? (
-            <div className={`flex h-full justify-center ${device === "desktop" ? "" : "bg-slate-100 py-3"}`}>
-              <iframe
-                title="AI Agent 미리보기"
-                sandbox="allow-scripts"
-                srcDoc={artifact.code}
-                style={device === "desktop" ? undefined : { width: device === "tablet" ? 768 : 390 }}
-                className={`h-full border-0 bg-white ${
-                  device === "desktop" ? "w-full" : "max-w-full rounded-2xl shadow-app"
-                }`}
-              />
+            <div className={`flex h-full flex-col ${device === "desktop" ? "" : "bg-slate-100"}`}>
+              {guard && guard.findings.length > 0 ? (
+                <p className="flex items-center gap-1.5 border-b border-app-border bg-app-warning-soft px-3 py-1.5 text-[10.5px] font-semibold text-app-warning">
+                  <ShieldAlert size={11} className="shrink-0" />
+                  {guard.findings[0].message}
+                  {guard.findings.length > 1 ? ` 외 ${guard.findings.length - 1}건` : ""}
+                </p>
+              ) : null}
+              <div className={`flex min-h-0 flex-1 justify-center ${device === "desktop" ? "" : "py-3"}`}>
+                <iframe
+                  title="AI Agent 미리보기"
+                  sandbox="allow-scripts"
+                  srcDoc={artifact.code}
+                  style={device === "desktop" ? undefined : { width: device === "tablet" ? 768 : 390 }}
+                  className={`h-full border-0 bg-white ${
+                    device === "desktop" ? "w-full" : "max-w-full rounded-2xl shadow-app"
+                  }`}
+                />
+              </div>
             </div>
           ) : (
             <pre className="h-full overflow-auto whitespace-pre-wrap break-words bg-slate-950 p-5 text-[11px] leading-5 text-slate-100">

@@ -239,6 +239,86 @@ export function GuestChatHome({ onLoginRequest, restoringSession = false }: Gues
           </div>
         </section>
 
+        <section aria-labelledby="design-agent-title" className="mt-10 rounded-[26px] border border-slate-200 bg-white p-6 shadow-[0_20px_65px_rgba(15,23,42,0.06)] sm:p-8">
+          <div className="grid items-center gap-8 lg:grid-cols-2">
+            <div>
+              <p className="inline-flex items-center gap-2 rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-[11px] font-extrabold tracking-wide text-violet-700">
+                <Sparkles size={12} aria-hidden="true" />
+                AI DESIGN AGENT
+              </p>
+              <h2 id="design-agent-title" className="mt-4 text-xl font-extrabold text-slate-950 sm:text-2xl">
+                말하면 디자인이 됩니다
+              </h2>
+              <p className="mt-3 text-sm leading-6 text-slate-600">
+                "카페 랜딩 페이지 만들어줘"라고 말하면 AI Agent가 디자인 스킬을 골라
+                웹사이트·앱·이미지를 생성합니다. 격리된 미리보기에서 확인하고, AI 디자인
+                평가를 받아 개선한 뒤, 승인한 결과물만 보관함에 버전으로 저장됩니다.
+              </p>
+              <ul className="mt-4 space-y-1.5 text-xs font-semibold text-slate-600">
+                <li>· 생성 → 미리보기 → AI 평가 → 개선 → 승인 → 저장의 안전한 루프</li>
+                <li>· DreamWish 디자인 시스템(DESIGN.md)을 따르는 일관된 결과물</li>
+                <li>· 생성 코드는 보안 검사를 통과해야 미리보기에 표시됩니다</li>
+              </ul>
+            </div>
+            <ol className="grid grid-cols-2 gap-3" aria-label="Design Agent 진행 단계">
+              {[
+                ["생성", "브리프에 맞는 디자인 스킬로 결과물 생성"],
+                ["미리보기", "sandbox iframe에서 기기별 확인"],
+                ["AI 평가", "DESIGN.md 기준 디자인 크리틱"],
+                ["승인·저장", "승인한 버전만 보관함에 기록"]
+              ].map(([title, description], index) => (
+                <li key={title} className="rounded-2xl bg-slate-50 p-4">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-violet-600 text-xs font-extrabold text-white">
+                    {index + 1}
+                  </span>
+                  <p className="mt-2 text-sm font-bold text-slate-900">{title}</p>
+                  <p className="mt-1 text-[11px] leading-4 text-slate-500">{description}</p>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </section>
+
+        <section aria-label="보안과 신뢰" className="mt-10 grid gap-4 sm:grid-cols-3">
+          {[
+            ["사용자 승인 중심", "외부 실행·저장·적용은 항상 사용자의 확인을 거칩니다. AI가 임의로 운영 데이터를 바꾸지 않습니다."],
+            ["격리된 미리보기", "AI가 만든 코드는 sandbox iframe에서만 실행되고, 위험 패턴은 보안 검사로 차단됩니다."],
+            ["암호화와 감사 로그", "연동 토큰은 서버에서 암호화 저장되며, MCP 등 외부 호출은 감사 로그로 기록됩니다."]
+          ].map(([title, description]) => (
+            <div key={title} className="rounded-[22px] border border-slate-200 bg-white p-6 shadow-[0_12px_40px_rgba(15,23,42,0.05)]">
+              <p className="text-sm font-extrabold text-slate-950">{title}</p>
+              <p className="mt-2 text-xs leading-5 text-slate-600">{description}</p>
+            </div>
+          ))}
+        </section>
+
+        <section aria-labelledby="faq-title" className="mt-10 rounded-[26px] border border-slate-200 bg-white p-6 shadow-[0_20px_65px_rgba(15,23,42,0.06)] sm:p-8">
+          <h2 id="faq-title" className="text-lg font-extrabold text-slate-950">자주 묻는 질문</h2>
+          <div className="mt-4 space-y-2">
+            {[
+              ["어떤 AI 모델을 사용하나요?", "관리자가 연결한 AI 공급자(예: Gemini, OpenRouter, Groq 등)의 모델만 사용합니다. 설정에서 연결 상태를 확인할 수 있고, 미연결 모델은 표시되지 않습니다."],
+              ["AI가 만든 결과물은 안전한가요?", "모든 생성 코드는 격리된 sandbox 미리보기에서만 실행되며, 부모 창 접근·쿠키 접근·추적 스크립트 같은 위험 패턴은 자동 검사로 차단됩니다."],
+              ["내 데이터는 어떻게 관리되나요?", "데이터는 계정 단위로 격리 저장되며, Memory에 저장되는 정보는 사용자가 승인한 항목만 확정됩니다. 자세한 내용은 개인정보처리방침을 확인하세요."],
+              ["요금제는 어떻게 되나요?", "Pricing 페이지에서 플랜별 기능과 결제 방식을 확인할 수 있습니다. 구독 관리와 환불 정책도 함께 안내합니다."]
+            ].map(([question, answer]) => (
+              <details key={question} className="group rounded-2xl border border-slate-200 bg-white">
+                <summary className="cursor-pointer list-none rounded-2xl px-4 py-3 text-sm font-bold text-slate-800 transition hover:text-violet-700">
+                  {question}
+                </summary>
+                <p className="border-t border-slate-100 px-4 py-3 text-xs leading-5 text-slate-600">{answer}</p>
+              </details>
+            ))}
+          </div>
+          <div className="mt-5 text-center">
+            <Link
+              href="/pricing"
+              className="inline-flex h-11 items-center justify-center rounded-2xl border border-violet-200 bg-violet-50 px-6 text-sm font-bold text-violet-700 transition hover:bg-violet-100"
+            >
+              요금제 살펴보기 →
+            </Link>
+          </div>
+        </section>
+
         <section aria-labelledby="guest-chat-title" className="mx-auto mt-14 flex w-full max-w-4xl flex-1 flex-col">
           <div className="text-center">
             <span className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-violet-100 bg-white text-violet-600 shadow-sm">
