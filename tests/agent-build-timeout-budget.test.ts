@@ -1,47 +1,54 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 
-// AI Agent 생성이 앞단 프록시/CDN(예: Cloudflare 524는 100초) 타임아웃 안에
-// 반드시 JSON을 돌려주도록, 라우트가 단일 패스 + 짧은 데드라인을 지키는지
-// 검증한다. (예산을 넘겨 하드 실패하면 클라이언트에는 원인 없는 "생성에
-// 실패했습니다"만 뜬다.)
-test("agent-build uses a short single-pass timeout and a hard deadline", () => {
+// AI Agent 생성이 앞단 프록시/CDN(예: Cloudflare 524는 100초)에서 "응답 시작"을
+// 기다리다 502/504로 끊기던 문제: 이제 응답을 SSE 스트림으로 즉시 열고
+// 하트비트를 보내며 생성한다. 준비/인증 오류만 일반 JSON으로 즉시 응답한다.
+test("agent-build streams the response with heartbeats so proxies never time out", () => {
   const route = fs.readFileSync("app/api/ai/agent-build/route.ts", "utf8");
+  assert.match(route, /new ReadableStream/u);
+  assert.match(route, /text\/event-stream/u);
+  assert.match(route, /: ping/u);
+  assert.match(route, /setInterval\(/u);
+  assert.match(route, /X-Accel-Buffering/u);
+  // 최종 결과는 'result' 이벤트로 보낸다.
+  assert.match(route, /event: result/u);
+});
 
+test("agent-build still uses a single short-timeout pass under a hard deadline", () => {
+  const route = fs.readFileSync("app/api/ai/agent-build/route.ts", "utf8");
   const mainTimeout = Number(route.match(/MAIN_TIMEOUT_MS\s*=\s*([0-9_]+)/u)?.[1]?.replace(/_/gu, ""));
   const deadline = Number(route.match(/GENERATION_DEADLINE_MS\s*=\s*([0-9_]+)/u)?.[1]?.replace(/_/gu, ""));
   assert.ok(mainTimeout > 0 && mainTimeout <= 60_000, `main timeout must be short, got ${mainTimeout}`);
-  assert.ok(deadline > mainTimeout && deadline <= 90_000, `deadline must sit above the timeout and under the gateway, got ${deadline}`);
-
-  // 메인 생성은 제한된 타임아웃 + 데드라인으로 호출된다.
+  assert.ok(deadline > mainTimeout, "deadline must sit above the main timeout");
   assert.match(route, /timeoutMs:\s*MAIN_TIMEOUT_MS/u);
   assert.match(route, /withDeadline\(/u);
-  assert.match(route, /GENERATION_DEADLINE_MS/u);
-  // 예전의 과도한 고정 타임아웃(150s/120s)은 더 이상 사용하지 않는다.
+  // 자동 2차(폴리시) 패스는 없다 — chatWithAI 는 정확히 한 번 호출된다.
+  assert.doesNotMatch(route, /POLISH_PROMPT/u);
+  assert.equal((route.match(/chatWithAI\(/gu) || []).length, 1);
   assert.doesNotMatch(route, /150_000/u);
   assert.doesNotMatch(route, /120_000/u);
 });
 
-test("agent-build no longer runs an automatic second (polish) AI pass", () => {
-  const route = fs.readFileSync("app/api/ai/agent-build/route.ts", "utf8");
-  // 자동 2차 패스를 제거해 웹사이트 생성도 단일 호출로 끝난다(게이트웨이
-  // 타임아웃 방지). 품질은 강한 시스템 프롬프트로 확보한다.
-  assert.doesNotMatch(route, /POLISH_PROMPT/u);
-  // 라우트 전체에서 chatWithAI 는 정확히 한 번만 호출된다(자동 2차 패스 없음).
-  assert.equal((route.match(/chatWithAI\(/gu) || []).length, 1);
-});
-
-test("agent-build always returns a JSON error with a code and retryable flag", () => {
+test("agent-build maps every failure to a standard code and message", () => {
   const route = fs.readFileSync("app/api/ai/agent-build/route.ts", "utf8");
   assert.match(route, /AgentDeadlineError/u);
   assert.match(route, /AGENT_PROVIDER_TIMEOUT/u);
   assert.match(route, /AGENT_PROVIDER_AUTH_FAILED/u);
   assert.match(route, /AGENT_USAGE_LIMIT_EXCEEDED/u);
   assert.match(route, /AGENT_RESPONSE_INVALID/u);
-  assert.match(route, /ok:\s*false,\s*code,\s*retryable:\s*true/u);
+  assert.match(route, /AGENT_VALIDATION_FAILED/u);
+  assert.match(route, /function mapAgentError/u);
 });
 
-test("the client surfaces the HTTP status when the server returns no JSON error", () => {
+test("the client reads the SSE stream and handles both string and object errors", () => {
   const view = fs.readFileSync("components/Agents/AgentStudio.tsx", "utf8");
+  assert.match(view, /readAgentBuildStream/u);
+  assert.match(view, /text\/event-stream/u);
+  assert.match(view, /getReader\(\)/u);
+  // 스트리밍 응답은 200이므로 body.ok로 성공을 판정한다.
+  assert.match(view, /body\.ok !== true/u);
   assert.match(view, /HTTP \$\{response\.status\}/u);
+  // 문자열/객체 두 형태의 error를 모두 처리한다.
+  assert.match(view, /typeof body\.error === "string"/u);
 });

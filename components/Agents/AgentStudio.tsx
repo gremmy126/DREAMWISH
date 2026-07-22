@@ -106,6 +106,38 @@ function nextId() {
   return `a-${Date.now()}-${agentSeq}`;
 }
 
+// agent-build의 SSE 스트림을 끝까지 읽어 최종 'result' 이벤트의 JSON을
+// 돌려준다. 하트비트(': ping')는 무시된다. 스트림이 result 없이 끝나면
+// 연결이 중간에 끊긴 것으로 보고 null을 반환한다.
+async function readAgentBuildStream(stream: ReadableStream<Uint8Array>): Promise<unknown> {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let result: unknown = null;
+
+  const consume = (block: string) => {
+    if (!/^event:\s*result/mu.test(block)) return;
+    const dataLine = block.split("\n").find((line) => line.startsWith("data:"));
+    if (!dataLine) return;
+    try {
+      result = JSON.parse(dataLine.slice("data:".length).trim());
+    } catch {
+      // Ignore malformed chunks; a later/complete block may still arrive.
+    }
+  };
+
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const blocks = buffer.split("\n\n");
+    buffer = blocks.pop() || "";
+    for (const block of blocks) consume(block);
+  }
+  if (buffer.trim()) consume(buffer);
+  return result ?? {};
+}
+
 // AI Agent 스튜디오 — 채팅으로 "웹사이트 만들어줘"처럼 말하면 종류를
 // 추론해 생성하고, 옆 미리보기에서 즉시 확인·수정한다. 내 PC 폴더를
 // 연결하면(Chromium 브라우저) 생성물을 폴더에 저장하고 기존 파일을
@@ -213,7 +245,14 @@ export function AgentStudio() {
         history: historyPayload()
       })
     });
-    const body = (await response.json().catch(() => ({}))) as {
+    // 생성 결과는 SSE 스트림(text/event-stream)으로 온다. 준비/인증 오류는
+    // 일반 JSON으로 온다. 둘 다 지원한다.
+    const contentType = response.headers.get("content-type") || "";
+    const body = (
+      contentType.includes("text/event-stream") && response.body
+        ? await readAgentBuildStream(response.body)
+        : await response.json().catch(() => ({}))
+    ) as {
       ok?: boolean;
       kind?: AgentBuildKind;
       code?: string;
@@ -225,7 +264,8 @@ export function AgentStudio() {
       // 객체로 준다. 둘 다 사람이 읽을 수 있게 처리한다.
       error?: string | { code?: string; message?: string };
     };
-    if (!response.ok || !body.ok || !body.code || !body.kind) {
+    // 스트리밍 응답은 HTTP 200이고 실패 여부는 body.ok로 판단한다.
+    if (!response.ok || body.ok !== true || !body.code || !body.kind) {
       const serverMessage =
         typeof body.error === "string"
           ? body.error
@@ -233,10 +273,11 @@ export function AgentStudio() {
             ? body.error.message
             : "";
       if (serverMessage) throw new Error(serverMessage);
-      // 서버가 JSON 오류조차 못 준 경우(게이트웨이 타임아웃 등): HTTP 상태를
-      // 함께 알려 원인 파악을 돕는다.
+      // 서버가 결과를 못 준 경우(게이트웨이 오류 등): 오류 응답일 때만 HTTP
+      // 상태를 함께 알려 원인 파악을 돕는다(스트림 중단은 200이라 숨긴다).
+      const statusHint = response.ok ? "" : ` (HTTP ${response.status})`;
       throw new Error(
-        `생성에 실패했습니다 (HTTP ${response.status}). 응답이 지연되었을 수 있어요 — 다른(더 빠른) 모델을 선택하거나 잠시 후 다시 시도해 주세요.`
+        `생성에 실패했습니다${statusHint}. 응답이 지연되었을 수 있어요 — 다른(더 빠른) 모델을 선택하거나 잠시 후 다시 시도해 주세요.`
       );
     }
     setGuard(body.guard ?? null);

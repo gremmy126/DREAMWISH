@@ -7,7 +7,7 @@ import {
 } from "@/src/lib/agent/agent-build";
 import { chatWithAI } from "@/src/lib/ai/ai.service";
 import { parseProviderName } from "@/src/lib/ai/provider-options";
-import { requireOwnerContext } from "@/src/lib/auth/owner-context";
+import { OwnerContextError, requireOwnerContext } from "@/src/lib/auth/owner-context";
 import { renderDesignContextForPrompt } from "@/src/lib/design/design-md";
 import { getDesignSkill, matchDesignSkill } from "@/src/lib/design/design-skills";
 import { inspectGeneratedHtml } from "@/src/lib/design/html-guard";
@@ -111,158 +111,247 @@ const REDESIGN_PROMPT =
   AESTHETIC_DIRECTIONS + "\n" + OPEN_SOURCE_LIBRARIES + "\n" + DESIGN_BAR + "\n" +
   "Reply with ONLY the complete rewritten HTML document — no explanation, no markdown fences.";
 
-// 채팅 한 문장으로 웹사이트·앱·프로그램·이미지를 생성/수정한다. 종류는
-// 메시지에서 추론하고, 웹사이트·앱은 초안 생성 후 디자인 폴리시 패스를
-// 한 번 더 거쳐 완성도를 끌어올린다.
+type AgentGenerationPlan = {
+  messages: { role: "system" | "user"; content: string }[];
+  provider: ReturnType<typeof parseProviderName>;
+  kind: AgentBuildKind;
+  refine: boolean;
+  redesign: boolean;
+  skillId: string | null;
+};
+
+// 채팅 한 문장으로 웹사이트·앱·프로그램·이미지를 생성/수정한다. 준비(인증·
+// 검증·프롬프트 구성)는 즉시 끝내고, 실제 AI 생성은 SSE 스트림으로 응답을
+// 곧바로 열어 하트비트를 보내며 진행한다 → 앞단 프록시가 "응답 시작"을
+// 기다리다 502/504로 끊는 것을 막는다(긴 생성에서 하드 실패 방지).
 export async function POST(request: Request) {
+  let plan: AgentGenerationPlan;
   try {
-    await requireOwnerContext(request);
-    const body = (await request.json().catch(() => ({}))) as {
-      message?: unknown;
-      refine?: unknown;
-      redesign?: unknown;
-      previousCode?: unknown;
-      previousKind?: unknown;
-      provider?: unknown;
-      history?: unknown;
-      skillId?: unknown;
-      useDesignSystem?: unknown;
-    };
-    const message = typeof body.message === "string" ? body.message.trim().slice(0, 4000) : "";
-    const provider = parseProviderName(body.provider);
-    const previousCode =
-      typeof body.previousCode === "string" ? body.previousCode.slice(0, 60_000) : "";
-    const previousKind = AGENT_BUILD_KINDS.has(body.previousKind as AgentBuildKind)
-      ? (body.previousKind as AgentBuildKind)
-      : null;
-    const redesign = body.redesign === true && Boolean(previousCode) && Boolean(previousKind);
-    if (!message && !redesign) {
-      return NextResponse.json(
-        { ok: false, error: "무엇을 만들지 채팅으로 설명해 주세요." },
-        { status: 400 }
-      );
-    }
-    const refine =
-      !redesign && body.refine === true && Boolean(previousCode) && Boolean(previousKind);
-    const kind: AgentBuildKind = refine || redesign
-      ? previousKind!
-      : classifyAgentRequest(message) || "website";
-
-    // Design Skills Registry: 명시 선택 > 자연어 자동 매칭. 선택된 스킬의
-    // 지시문이 시스템 프롬프트에 추가된다 (Open Design Skills 개념 참고).
-    const requestedSkill =
-      typeof body.skillId === "string" ? getDesignSkill(body.skillId) : null;
-    const skill =
-      requestedSkill && requestedSkill.mode === "generate"
-        ? requestedSkill
-        : !refine && !redesign
-          ? matchDesignSkill(message)
-          : null;
-    const applicableSkill = skill && skill.supportedArtifactTypes.includes(kind) ? skill : null;
-
-    // DreamWish 디자인 시스템 모드: DESIGN.md 계약을 미학 방향으로 사용한다.
-    const useDesignSystem = body.useDesignSystem === true;
-    const designSystemBlock = useDesignSystem
-      ? "\nAesthetic direction OVERRIDE — use the DreamWish design contract below instead of picking your own direction:\n" +
-        renderDesignContextForPrompt() + "\n"
-      : "";
-    const skillBlock = applicableSkill ? `\nSkill directive (${applicableSkill.name}): ${applicableSkill.promptDirective}\n` : "";
-    const promptExtras = designSystemBlock + skillBlock;
-
-    // 최근 대화 맥락을 함께 전달해 "아까 말한 대로" 같은 지시도 이해한다.
-    const historyBlock = Array.isArray(body.history)
-      ? body.history
-          .slice(-8)
-          .filter(
-            (item): item is { role: string; text: string } =>
-              Boolean(item) &&
-              typeof (item as { text?: unknown }).text === "string" &&
-              typeof (item as { role?: unknown }).role === "string"
-          )
-          .map((item) => `${item.role === "user" ? "사용자" : "AI"}: ${item.text.slice(0, 400)}`)
-          .join("\n")
-      : "";
-    const contextPrefix = historyBlock ? `지금까지의 대화:\n${historyBlock}\n\n` : "";
-
-    const messages = redesign
-      ? [
-          { role: "system" as const, content: REDESIGN_PROMPT + promptExtras },
-          {
-            role: "user" as const,
-            content:
-              `${contextPrefix}완전히 다른 스타일로 다시 디자인해 주세요.` +
-              (message ? ` 참고 요청: ${message}` : "") +
-              `\n\n현재 코드:\n${previousCode}`
-          }
-        ]
-      : [
-          { role: "system" as const, content: SYSTEM_PROMPTS[kind] + promptExtras },
-          refine
-            ? {
-                role: "user" as const,
-                content:
-                  `${contextPrefix}기존 결과물을 아래 요청대로 수정해 완전한 결과물 전체를 다시 출력해 주세요. ` +
-                  `수정하지 않는 부분의 품질도 함께 다듬어 주세요.\n\n` +
-                  `수정 요청: ${message}\n\n기존 코드:\n${previousCode}`
-              }
-            : { role: "user" as const, content: `${contextPrefix}${message}` }
-        ];
-
-    // 단일 패스 생성. 전체를 데드라인으로 감싸, AI 호출이 멈춰도 게이트웨이
-    // 한도 전에 반드시 JSON 오류를 돌려준다(하드 실패로 원인 없는 메시지가
-    // 뜨는 것을 막는다).
-    const raw = await withDeadline(
-      chatWithAI(messages, provider, { ...BUILD_AI_OPTIONS, timeoutMs: MAIN_TIMEOUT_MS }),
-      GENERATION_DEADLINE_MS
-    );
-    const code = extractArtifact(raw, kind);
-    if (!code) {
-      return NextResponse.json(
-        {
-          ok: false,
-          code: "AGENT_RESPONSE_INVALID",
-          retryable: true,
-          error: "생성 결과를 해석하지 못했습니다. 다시 시도해 주세요."
-        },
-        { status: 502 }
-      );
-    }
-
-    // 생성 결과 보안 검사 — 미리보기 전에 위험 패턴을 클라이언트에 알린다.
-    const guard =
-      kind === "website" || kind === "app" ? inspectGeneratedHtml(code) : { safe: true, findings: [] };
-
-    return NextResponse.json({
-      ok: true,
-      kind,
-      code,
-      refined: refine,
-      redesigned: redesign,
-      skillId: applicableSkill?.id ?? null,
-      guard
-    });
+    plan = await prepareGeneration(request);
   } catch (error) {
-    const detail = error instanceof Error ? error.message : "";
-    console.error("[agent-build] failed:", detail);
-    let message = "생성에 실패했습니다. 다른 모델을 선택하거나 잠시 후 다시 시도해 주세요.";
-    let code = "AGENT_UNKNOWN_ERROR";
-    if (/All configured AI providers failed/iu.test(detail)) {
-      code = "AGENT_PROVIDER_AUTH_FAILED";
-      message =
-        "연결된 모든 AI 공급자 호출이 실패했습니다. 다른 모델을 선택해 다시 시도하거나, " +
-        "설정에서 공급자 API 키와 사용량 한도를 확인해 주세요.";
-    } else if (error instanceof AgentDeadlineError || /timed out|timeout|aborted|deadline/iu.test(detail)) {
-      code = "AGENT_PROVIDER_TIMEOUT";
-      message =
-        "생성 시간이 초과되었습니다. 다른(더 빠른) 모델을 선택하거나, 요청을 나눠(핵심 구조 먼저 → 세부는 수정 요청으로) 시도해 주세요.";
-    } else if (/rate|429|quota/iu.test(detail)) {
-      code = "AGENT_USAGE_LIMIT_EXCEEDED";
-      message = "AI 공급자 사용량 한도에 걸렸습니다. 잠시 후 다시 시도하거나 다른 모델을 선택해 주세요.";
-    } else if (/not configured|provider/iu.test(detail)) {
-      code = "AGENT_MODEL_NOT_AVAILABLE";
-      message = "연결된 AI 공급자가 없습니다. 설정에서 AI 공급자 키를 등록해 주세요.";
+    if (error instanceof AgentInputError) {
+      return NextResponse.json({ ok: false, code: error.code, error: error.message }, { status: error.status });
     }
-    // 사용자에게는 안전한 안내 메시지만, 서버 로그에는 원인(detail)을 남긴다.
-    return NextResponse.json({ ok: false, code, retryable: true, error: message }, { status: 502 });
+    const mapped = mapAgentError(error);
+    return NextResponse.json(
+      { ok: false, code: mapped.code, retryable: true, error: mapped.message },
+      { status: mapped.status }
+    );
   }
+
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      let closed = false;
+      const safeEnqueue = (text: string) => {
+        if (closed) return;
+        try {
+          controller.enqueue(encoder.encode(text));
+        } catch {
+          // Stream already closed by the client.
+        }
+      };
+      // 하트비트(SSE 주석)로 연결을 살려 프록시 타임아웃을 막는다.
+      const heartbeat = setInterval(() => safeEnqueue(": ping\n\n"), 3000);
+      const sendResult = (payload: unknown) =>
+        safeEnqueue(`event: result\ndata: ${JSON.stringify(payload)}\n\n`);
+      try {
+        const raw = await withDeadline(
+          chatWithAI(plan.messages, plan.provider, { ...BUILD_AI_OPTIONS, timeoutMs: MAIN_TIMEOUT_MS }),
+          GENERATION_DEADLINE_MS
+        );
+        const code = extractArtifact(raw, plan.kind);
+        if (!code) {
+          sendResult({
+            ok: false,
+            code: "AGENT_RESPONSE_INVALID",
+            retryable: true,
+            error: "생성 결과를 해석하지 못했습니다. 다시 시도해 주세요."
+          });
+        } else {
+          const guard =
+            plan.kind === "website" || plan.kind === "app"
+              ? inspectGeneratedHtml(code)
+              : { safe: true, findings: [] };
+          sendResult({
+            ok: true,
+            kind: plan.kind,
+            code,
+            refined: plan.refine,
+            redesigned: plan.redesign,
+            skillId: plan.skillId,
+            guard
+          });
+        }
+      } catch (error) {
+        console.error("[agent-build] failed:", error instanceof Error ? error.message : error);
+        const mapped = mapAgentError(error);
+        sendResult({ ok: false, code: mapped.code, retryable: true, error: mapped.message });
+      } finally {
+        clearInterval(heartbeat);
+        closed = true;
+        try {
+          controller.close();
+        } catch {
+          // Already closed.
+        }
+      }
+    }
+  });
+
+  return new Response(stream, {
+    status: 200,
+    headers: {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+      // nginx 등 리버스 프록시의 응답 버퍼링을 꺼 스트림이 즉시 흐르게 한다.
+      "X-Accel-Buffering": "no"
+    }
+  });
+}
+
+class AgentInputError extends Error {
+  readonly status = 400 as const;
+  readonly code = "AGENT_VALIDATION_FAILED" as const;
+  constructor(message: string) {
+    super(message);
+    this.name = "AgentInputError";
+  }
+}
+
+// 인증·입력 검증·프롬프트 구성까지의 빠른 준비 단계. 느린 AI 호출은 하지
+// 않으므로, 여기서 실패하면 일반 JSON 오류로 즉시 응답한다.
+async function prepareGeneration(request: Request): Promise<AgentGenerationPlan> {
+  await requireOwnerContext(request);
+  const body = (await request.json().catch(() => ({}))) as {
+    message?: unknown;
+    refine?: unknown;
+    redesign?: unknown;
+    previousCode?: unknown;
+    previousKind?: unknown;
+    provider?: unknown;
+    history?: unknown;
+    skillId?: unknown;
+    useDesignSystem?: unknown;
+  };
+  const message = typeof body.message === "string" ? body.message.trim().slice(0, 4000) : "";
+  const provider = parseProviderName(body.provider);
+  const previousCode =
+    typeof body.previousCode === "string" ? body.previousCode.slice(0, 60_000) : "";
+  const previousKind = AGENT_BUILD_KINDS.has(body.previousKind as AgentBuildKind)
+    ? (body.previousKind as AgentBuildKind)
+    : null;
+  const redesign = body.redesign === true && Boolean(previousCode) && Boolean(previousKind);
+  if (!message && !redesign) {
+    throw new AgentInputError("무엇을 만들지 채팅으로 설명해 주세요.");
+  }
+  const refine =
+    !redesign && body.refine === true && Boolean(previousCode) && Boolean(previousKind);
+  const kind: AgentBuildKind = refine || redesign
+    ? previousKind!
+    : classifyAgentRequest(message) || "website";
+
+  const requestedSkill =
+    typeof body.skillId === "string" ? getDesignSkill(body.skillId) : null;
+  const skill =
+    requestedSkill && requestedSkill.mode === "generate"
+      ? requestedSkill
+      : !refine && !redesign
+        ? matchDesignSkill(message)
+        : null;
+  const applicableSkill = skill && skill.supportedArtifactTypes.includes(kind) ? skill : null;
+
+  const useDesignSystem = body.useDesignSystem === true;
+  const designSystemBlock = useDesignSystem
+    ? "\nAesthetic direction OVERRIDE — use the DreamWish design contract below instead of picking your own direction:\n" +
+      renderDesignContextForPrompt() + "\n"
+    : "";
+  const skillBlock = applicableSkill ? `\nSkill directive (${applicableSkill.name}): ${applicableSkill.promptDirective}\n` : "";
+  const promptExtras = designSystemBlock + skillBlock;
+
+  const historyBlock = Array.isArray(body.history)
+    ? body.history
+        .slice(-8)
+        .filter(
+          (item): item is { role: string; text: string } =>
+            Boolean(item) &&
+            typeof (item as { text?: unknown }).text === "string" &&
+            typeof (item as { role?: unknown }).role === "string"
+        )
+        .map((item) => `${item.role === "user" ? "사용자" : "AI"}: ${item.text.slice(0, 400)}`)
+        .join("\n")
+    : "";
+  const contextPrefix = historyBlock ? `지금까지의 대화:\n${historyBlock}\n\n` : "";
+
+  const messages = redesign
+    ? [
+        { role: "system" as const, content: REDESIGN_PROMPT + promptExtras },
+        {
+          role: "user" as const,
+          content:
+            `${contextPrefix}완전히 다른 스타일로 다시 디자인해 주세요.` +
+            (message ? ` 참고 요청: ${message}` : "") +
+            `\n\n현재 코드:\n${previousCode}`
+        }
+      ]
+    : [
+        { role: "system" as const, content: SYSTEM_PROMPTS[kind] + promptExtras },
+        refine
+          ? {
+              role: "user" as const,
+              content:
+                `${contextPrefix}기존 결과물을 아래 요청대로 수정해 완전한 결과물 전체를 다시 출력해 주세요. ` +
+                `수정하지 않는 부분의 품질도 함께 다듬어 주세요.\n\n` +
+                `수정 요청: ${message}\n\n기존 코드:\n${previousCode}`
+            }
+          : { role: "user" as const, content: `${contextPrefix}${message}` }
+      ];
+
+  return { messages, provider, kind, refine, redesign, skillId: applicableSkill?.id ?? null };
+}
+
+// 오류 → 표준 코드·안내 메시지·상태 매핑. 사용자에겐 안전한 안내만, 서버
+// 로그에는 원인을 남긴다.
+function mapAgentError(error: unknown): { code: string; message: string; status: number } {
+  const detail = error instanceof Error ? error.message : "";
+  if (error instanceof OwnerContextError) {
+    return { code: "AGENT_PERMISSION_DENIED", message: "로그인이 필요합니다.", status: 401 };
+  }
+  if (/All configured AI providers failed/iu.test(detail)) {
+    return {
+      code: "AGENT_PROVIDER_AUTH_FAILED",
+      message:
+        "연결된 모든 AI 공급자 호출이 실패했습니다. 다른 모델을 선택해 다시 시도하거나, " +
+        "설정에서 공급자 API 키와 사용량 한도를 확인해 주세요.",
+      status: 502
+    };
+  }
+  if (error instanceof AgentDeadlineError || /timed out|timeout|aborted|deadline/iu.test(detail)) {
+    return {
+      code: "AGENT_PROVIDER_TIMEOUT",
+      message:
+        "생성 시간이 초과되었습니다. 다른(더 빠른) 모델을 선택하거나, 요청을 나눠(핵심 구조 먼저 → 세부는 수정 요청으로) 시도해 주세요.",
+      status: 502
+    };
+  }
+  if (/rate|429|quota/iu.test(detail)) {
+    return {
+      code: "AGENT_USAGE_LIMIT_EXCEEDED",
+      message: "AI 공급자 사용량 한도에 걸렸습니다. 잠시 후 다시 시도하거나 다른 모델을 선택해 주세요.",
+      status: 502
+    };
+  }
+  if (/not configured|provider/iu.test(detail)) {
+    return {
+      code: "AGENT_MODEL_NOT_AVAILABLE",
+      message: "연결된 AI 공급자가 없습니다. 설정에서 AI 공급자 키를 등록해 주세요.",
+      status: 502
+    };
+  }
+  return {
+    code: "AGENT_UNKNOWN_ERROR",
+    message: "생성에 실패했습니다. 다른 모델을 선택하거나 잠시 후 다시 시도해 주세요.",
+    status: 502
+  };
 }
