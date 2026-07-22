@@ -59,8 +59,8 @@ export async function POST(request: Request) {
       throw new CouponValidationError("쿠폰 종류와 적용 기간을 확인해 주세요.");
     }
     const type = body.type as CouponType;
-    // 대량 발급: 할인형은 Polar에 개별 할인을 만들어야 하므로 상한을 낮게 둔다.
-    const maxQuantity = type === "access_duration" ? 500 : 100;
+    // 대량 발급 상한. 할인형은 장마다 Polar 할인을 만들어야 해 상대적으로 낮게 둔다.
+    const maxQuantity = type === "access_duration" ? 2000 : 500;
     const quantity = Math.max(1, Math.min(maxQuantity, Math.trunc(Number(body.quantity) || 1)));
     if (quantity > 1 && body.code) {
       throw new CouponValidationError("여러 장을 발급할 때는 코드가 자동 생성됩니다. 코드 칸을 비워 주세요.");

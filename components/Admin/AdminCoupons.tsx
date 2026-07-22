@@ -56,7 +56,7 @@ export function AdminCoupons() {
     if (Object.values(DEFAULT_NAMES).includes(name)) setName(DEFAULT_NAMES[next]);
     if (next === "percentage_discount" && (value < 1 || value > 100)) setValue(10);
     if (next === "fixed_discount" && value < 100) setValue(5000);
-    setQuantity((current) => Math.min(current, next === "access_duration" ? 500 : 100));
+    setQuantity((current) => Math.min(current, next === "access_duration" ? 2000 : 500));
   }
 
   async function create() {
@@ -129,7 +129,7 @@ export function AdminCoupons() {
   }
 
   const inputClass = "min-h-11 w-full rounded-2xl border border-app-border bg-app-card px-3 text-xs outline-none focus:border-app-primary";
-  const maxQuantity = type === "access_duration" ? 500 : 100;
+  const maxQuantity = type === "access_duration" ? 2000 : 500;
 
   return (
     <div className="space-y-5">
