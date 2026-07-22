@@ -114,6 +114,17 @@ function parseSignedCookie(value: string) {
 function hashState(state: string) { return createHmac("sha256", getStateSecret()).update(state).digest("hex"); }
 function sign(payload: string) { return createHmac("sha256", getStateSecret()).update(payload).digest("base64url"); }
 function safeEqual(left: string, right: string) { const a = Buffer.from(left); const b = Buffer.from(right); return a.length === b.length && timingSafeEqual(a, b); }
-function getStateSecret() { const secret = process.env.AUTH_OAUTH_STATE_SECRET?.trim() || ""; if (secret.length < 32) throw new Error("AUTH_OAUTH_STATE_SECRET must contain at least 32 characters."); return secret; }
+// 전용 시크릿이 없으면 세션 시크릿에서 도메인 분리 파생키를 만들어 사용한다.
+// AUTH_SESSION_SECRET은 로그인 자체의 필수 값이므로, 이 폴백 덕분에
+// AUTH_OAUTH_STATE_SECRET 미설정만으로 소셜 로그인이 막히지 않는다.
+function getStateSecret() {
+  const dedicated = process.env.AUTH_OAUTH_STATE_SECRET?.trim() || "";
+  if (dedicated.length >= 32) return dedicated;
+  const session = process.env.AUTH_SESSION_SECRET?.trim() || "";
+  if (session.length >= 32) {
+    return createHmac("sha256", session).update("dreamwish:oauth-login-state").digest("hex");
+  }
+  throw new Error("AUTH_OAUTH_STATE_SECRET must contain at least 32 characters.");
+}
 async function readStateDb(): Promise<OAuthStateDb> { const db = await readJsonStore<OAuthStateDb>(STATE_FILE, { states: [] }); return { states: Array.isArray(db.states) ? db.states : [] }; }
 

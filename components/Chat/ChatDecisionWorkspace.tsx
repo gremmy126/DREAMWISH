@@ -87,6 +87,15 @@ const EXAMPLES = [
   }
 ];
 
+function splitList(answer: string) {
+  return answer.trim() === "없음"
+    ? []
+    : answer.split(/[,\n·]+/u).map((item) => item.trim()).filter(Boolean);
+}
+
+// 인터뷰: 목표 → 예산 → 기한 → 제약 → 위험 허용 → 성공 기준 → 대안.
+// 답변은 결정 문제 정의(problem)와 대안 목록에 구조적으로 반영되어
+// 딥리서치 질의·시뮬레이션·결론의 정확도를 높인다.
 const INTERVIEW: Array<{
   prompt: string;
   hint?: string;
@@ -95,24 +104,44 @@ const INTERVIEW: Array<{
 }> = [
   {
     prompt: "이 결정으로 달성하려는 가장 중요한 목표는 무엇인가요?",
-    hint: "예산·기한이 있다면 함께 알려주세요. 답할수록 결론이 정확해집니다.",
+    hint: "예: '6개월 안에 신규 서비스로 월 매출 3천만 원 달성' 처럼 수치·기간이 있으면 더 정확해집니다.",
     apply: (answer) => ({ objective: answer })
   },
   {
-    prompt: "반드시 지켜야 하는 제약조건이나 내부 상황이 있나요?",
-    hint: "쉼표로 구분해 여러 개를 적어도 됩니다. 없으면 '없음'이라고 답하세요.",
+    prompt: "이 결정에 투입할 수 있는 예산은 어느 정도인가요?",
+    hint: "예: '초기 5천만 원, 월 500만 원' — 대략적인 범위도 좋습니다. 없으면 '없음'.",
+    quickReplies: ["없음 — 예산 미정"],
     apply: (answer, decision) => ({
       problem: {
         ...decision.problem,
-        constraints:
-          answer.trim() === "없음"
-            ? []
-            : answer.split(/[,\n·]+/u).map((item) => item.trim()).filter(Boolean)
+        budget: answer.includes("없음") ? "" : answer
+      }
+    })
+  },
+  {
+    prompt: "언제까지 결정하고 실행해야 하나요?",
+    hint: "예: '이번 분기 내 결정, 6월 출시' — 기한이 없으면 '없음'.",
+    quickReplies: ["없음 — 기한 미정"],
+    apply: (answer, decision) => ({
+      problem: {
+        ...decision.problem,
+        deadline: answer.includes("없음") ? "" : answer
+      }
+    })
+  },
+  {
+    prompt: "반드시 지켜야 하는 제약조건이나 내부 상황이 있나요?",
+    hint: "예: '개발 인력 2명뿐, 기존 고객 이탈 방지 필수, 규제 심사 필요' — 쉼표로 구분. 없으면 '없음'.",
+    apply: (answer, decision) => ({
+      problem: {
+        ...decision.problem,
+        constraints: splitList(answer)
       }
     })
   },
   {
     prompt: "위험은 어느 정도 감수할 수 있나요?",
+    hint: "위험 허용도에 따라 시나리오 가중치와 추천안의 공격성이 달라집니다.",
     quickReplies: ["낮음 — 안정 우선", "중간", "높음 — 공격적"],
     apply: (answer, decision) => ({
       problem: {
@@ -123,13 +152,30 @@ const INTERVIEW: Array<{
   },
   {
     prompt: "성공은 무엇으로 판단하나요?",
-    hint: "핵심 지표나 판단 기준을 알려주세요. 예: 12개월 내 손익분기.",
+    hint: "예: '12개월 내 손익분기, 재구매율 30%, NPS 50 이상' — 쉼표로 구분해 여러 개 가능.",
     apply: (answer, decision) => ({
       problem: {
         ...decision.problem,
-        successCriteria: answer.split(/[,\n·]+/u).map((item) => item.trim()).filter(Boolean)
+        successCriteria: splitList(answer)
       }
     })
+  },
+  {
+    prompt: "현재 고려 중인 대안이나 선택지가 있다면 알려주세요.",
+    hint: "예: 'A안 직접 개발, B안 외주, C안 보류' — 쉼표로 구분. 없으면 '없음'(AI가 대안을 제안합니다).",
+    quickReplies: ["없음 — AI가 제안"],
+    apply: (answer) => {
+      const options = splitList(answer.includes("없음") ? "없음" : answer);
+      if (!options.length) return {};
+      return {
+        alternatives: options.slice(0, 6).map((title, index) => ({
+          id: `alt-${index + 1}`,
+          title: title.slice(0, 120),
+          summary: "",
+          scores: {}
+        }))
+      };
+    }
   }
 ];
 
@@ -284,7 +330,7 @@ export function ChatDecisionWorkspace() {
         setPhase("interview");
         setInterviewIndex(resumeIndex);
         const question = INTERVIEW[resumeIndex];
-        pushAi(question.prompt, {
+        pushAi(`[인터뷰 ${resumeIndex + 1}/${INTERVIEW.length}] ${question.prompt}`, {
           hint: question.hint,
           quickReplies: question.quickReplies
         });
@@ -362,9 +408,17 @@ export function ChatDecisionWorkspace() {
       setPhase("interview");
       setInterviewIndex(0);
       void loadHistory();
-      pushAi("좋아요, 질문을 파악했습니다. 정확한 결론을 위해 몇 가지 인터뷰를 진행할게요.", {});
+      pushAi(
+        `"${question.slice(0, 60)}${question.length > 60 ? "…" : ""}"에 대한 결정 분석을 시작합니다.`,
+        {
+          hint: "목표·예산·기한·제약·위험·성공 기준·대안 순으로 7가지를 여쭤봅니다. 모를 때는 '없음'이라고 답해도 분석은 진행됩니다."
+        }
+      );
       const first = INTERVIEW[0];
-      pushAi(first.prompt, { hint: first.hint, quickReplies: first.quickReplies });
+      pushAi(`[인터뷰 1/${INTERVIEW.length}] ${first.prompt}`, {
+        hint: first.hint,
+        quickReplies: first.quickReplies
+      });
     } catch (caught) {
       setNotice(caught instanceof Error ? caught.message : "결정을 시작하지 못했습니다.");
     } finally {
@@ -404,13 +458,24 @@ export function ChatDecisionWorkspace() {
     if (nextIndex < INTERVIEW.length) {
       setInterviewIndex(nextIndex);
       const next = INTERVIEW[nextIndex];
-      pushAi(next.prompt, { hint: next.hint, quickReplies: next.quickReplies });
+      pushAi(`[인터뷰 ${nextIndex + 1}/${INTERVIEW.length}] ${next.prompt}`, {
+        hint: next.hint,
+        quickReplies: next.quickReplies
+      });
     } else {
       setPhase("research-config");
-      pushAi(
-        "필요 정보를 모두 수집했습니다. 딥리서치를 실행하면 외부 근거 조사 → 팀 의견 → 시뮬레이션 → 최종 결론 → 메모리 학습까지 자동으로 이어집니다.",
-        { hint: "아래 버튼을 누르거나, 채팅창에 '실행' 또는 '건너뛰기'라고 입력해도 됩니다." }
-      );
+      const recap = [
+        `목표: ${merged.objective || "-"}`,
+        `예산: ${merged.problem.budget || "미정"}`,
+        `기한: ${merged.problem.deadline || "미정"}`,
+        `제약: ${merged.problem.constraints.join(", ") || "없음"}`,
+        `위험 허용: ${merged.problem.riskTolerance === "low" ? "낮음" : merged.problem.riskTolerance === "high" ? "높음" : "중간"}`,
+        `성공 기준: ${merged.problem.successCriteria.join(", ") || "-"}`,
+        `검토 대안: ${merged.alternatives?.length ? merged.alternatives.map((alt) => alt.title).join(", ") : "AI가 제안"}`
+      ].join("\n");
+      pushAi(`인터뷰를 마쳤습니다. 수집한 내용을 확인해 주세요.\n\n${recap}`, {
+        hint: "수정할 내용이 있으면 채팅으로 알려주고, 맞다면 딥리서치를 실행하세요. '실행' 또는 '건너뛰기' 입력도 가능합니다."
+      });
     }
     setBusy(false);
   }
@@ -678,11 +743,12 @@ export function ChatDecisionWorkspace() {
       pushUser(text);
       if (/건너|스킵|skip|시뮬레이션만/iu.test(text)) {
         void skipResearchAndContinue();
-      } else {
-        if (!/^(실행|시작|딥리서치|고|go|ok|네|예|응)$/iu.test(text)) {
-          extraContextRef.current = `${extraContextRef.current} ${text}`.trim().slice(0, 500);
-        }
+      } else if (/^(실행|시작|딥리서치|분석|고|go|ok|네|예|응)/iu.test(text)) {
         void runResearch();
+      } else {
+        // 보완 설명은 딥리서치 질의에 반영할 추가 참고로 저장한다.
+        extraContextRef.current = `${extraContextRef.current} ${text}`.trim().slice(0, 500);
+        pushAi("말씀하신 내용을 분석 참고사항으로 반영했습니다. 준비되면 '실행'을 입력하거나 버튼을 눌러주세요.", {});
       }
     } else if (phase === "done") {
       pushUser(text);
@@ -703,7 +769,7 @@ export function ChatDecisionWorkspace() {
     },
     {
       label: "인터뷰",
-      detail: "목표·제약·위험 허용·성공 기준",
+      detail: "목표·예산·기한·제약·위험·성공 기준·대안",
       state:
         phase === "interview"
           ? "active"
@@ -942,7 +1008,7 @@ export function ChatDecisionWorkspace() {
               {messages.map((message) =>
                 message.role === "ai" ? (
                   <AiBubble key={message.id}>
-                    <p className="text-sm font-semibold leading-6 text-app-text">{message.text}</p>
+                    <p className="whitespace-pre-line text-sm font-semibold leading-6 text-app-text">{message.text}</p>
                     {message.hint ? (
                       <p className="mt-1 text-[11px] leading-4 text-app-muted">{message.hint}</p>
                     ) : null}

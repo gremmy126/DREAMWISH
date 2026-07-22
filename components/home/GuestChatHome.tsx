@@ -110,7 +110,8 @@ export function GuestChatHome({ onLoginRequest, restoringSession = false }: Gues
             <p className="mt-5 max-w-xl text-sm leading-7 text-slate-600 sm:text-base">
               DreamWish는 AI가 질문을 이해하고, 필요한 정보를 조사하며, 여러 가능성을
               시뮬레이션하고, 팀의 의견과 과거의 기억을 연결해 더 나은 최종 결정을
-              돕는 AI 의사결정 파트너입니다.
+              돕는 AI 의사결정 파트너입니다. 결정 이후에는 AI Agent가 웹사이트·앱·
+              프로그램·이미지까지 직접 만들어 실행을 돕습니다.
             </p>
             <div className="mt-7 flex flex-col gap-3 sm:flex-row">
               <button
@@ -191,9 +192,10 @@ export function GuestChatHome({ onLoginRequest, restoringSession = false }: Gues
           </div>
         </section>
 
-        <section aria-label="핵심 기능" className="mt-10 grid gap-4 lg:grid-cols-3">
+        <section aria-label="핵심 기능" className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {[
             ["AI Chat", "AI가 먼저 필요한 질문을 하고 답변으로 문제를 구조화합니다. 딥리서치·팀 설문·시뮬레이션·최종 보고서가 하나의 흐름으로 진행됩니다.", "/chat"],
+            ["AI Agent", "만들고 싶은 것을 설명하면 AI가 웹사이트·앱·프로그램·이미지를 직접 생성합니다. 미리보기로 확인하고 수정 요청 후 파일로 내려받으세요.", "/chat"],
             ["Memory", "대화·조사·결정·교훈과 실제 결과를 연결합니다. AI가 저장 후보를 제안하고, 사용자가 승인한 정보만 확정 Memory가 됩니다.", "/memory"],
             ["Team", "AI가 설문을 만들고 익명 응답을 분석해 조직의 지지도·실행 가능성·반대 의견과 숨은 위험을 최종 결정에 반영합니다.", "/team"]
           ].map(([title, description, href]) => (

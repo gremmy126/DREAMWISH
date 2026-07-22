@@ -4,7 +4,7 @@ import { PolicyLayout, PolicySection } from "@/components/legal/PolicyLayout";
 import { OPERATOR_INFO } from "@/src/lib/legal/policy";
 import { SITE_NAME } from "@/src/lib/site/metadata";
 
-const description = "DREAMWISH 계정, AI 기능, 외부 연동, 자동화 및 월간 구독의 이용 조건을 안내합니다.";
+const description = "DREAMWISH 계정, AI 기능, AI Agent 생성물, 외부 연동, 자동화 및 월간 구독의 이용 조건을 안내합니다.";
 
 export const metadata: Metadata = {
   title: "서비스 이용약관",
@@ -33,7 +33,8 @@ export default function TermsPage() {
 
       <PolicySection id="definitions" title="제2조 정의">
         <ul>
-          <li>“서비스”란 AI 대화·분석, 메모리, 파일, 일정, CRM·ERP, 외부 연동, 자동화 등 DREAMWISH 기능을 말합니다.</li>
+          <li>“서비스”란 AI 대화·분석, AI Agent 생성 기능, 메모리, 파일, 일정, CRM·ERP, 외부 연동, 자동화 등 DREAMWISH 기능을 말합니다.</li>
+          <li>“AI Agent”란 회원의 설명을 바탕으로 웹사이트, 앱, 프로그램 코드, 이미지 등 결과물을 생성하는 기능을 말하며, “생성물”이란 AI Agent가 만들어 회원에게 제공한 결과물을 말합니다.</li>
           <li>“회원”이란 계정을 만들고 이 약관에 동의하여 서비스를 이용하는 개인 또는 사업자를 말합니다.</li>
           <li>“회원 콘텐츠”란 회원이 입력·업로드·연결하거나 서비스에서 생성·저장한 데이터와 파일을 말합니다.</li>
           <li>“외부 서비스”란 Google, Microsoft, Notion, Slack, GitHub 등 회원이 연결하는 제3자 서비스를 말합니다.</li>
@@ -66,9 +67,10 @@ export default function TermsPage() {
 
       <PolicySection id="service" title="제5조 서비스의 내용과 변경">
         <p>
-          서비스는 AI 대화·분석, 파일·메모리 관리, 업무 데이터 관리, 외부 계정 연결 및 워크플로 자동화를
-          포함합니다. 회사는 보안, 법령 준수, 성능 개선 또는 공급자 변경을 위해 기능을 수정할 수 있습니다.
-          회원에게 중대한 불이익이 있는 변경은 적용 전에 서비스 화면 또는 이메일로 알립니다.
+          서비스는 AI 대화·분석, AI Agent를 통한 웹사이트·앱·프로그램·이미지 생성, 파일·메모리 관리, 업무
+          데이터 관리, 외부 계정 연결 및 워크플로 자동화를 포함합니다. 회사는 보안, 법령 준수, 성능 개선 또는
+          공급자 변경을 위해 기능을 수정할 수 있습니다. 회원에게 중대한 불이익이 있는 변경은 적용 전에 서비스
+          화면 또는 이메일로 알립니다.
         </p>
       </PolicySection>
 
@@ -83,6 +85,15 @@ export default function TermsPage() {
           합니다. 회사는 고의 또는 중대한 과실이 없는 한 회원이 검증하지 않은 AI 결과만을 신뢰하여 발생한 손해에
           대해 관계 법령이 허용하는 범위에서 책임이 제한될 수 있습니다.
         </p>
+      </PolicySection>
+
+      <PolicySection id="agent-output" title="제6조의2 AI Agent 생성물">
+        <ul>
+          <li>회원이 적법하게 생성한 생성물(웹사이트·앱·프로그램 코드·이미지 등)은 관계 법령이 허용하는 범위에서 회원이 자유롭게 사용, 수정 및 배포할 수 있습니다.</li>
+          <li>생성물은 확률적으로 만들어지므로 동일한 요청에도 결과가 달라질 수 있고, 오류·보안 취약점·타인 권리와의 유사성이 포함될 수 있습니다. 회원은 배포·상용화 전에 동작, 보안, 라이선스 및 제3자 권리 침해 여부를 직접 검토해야 합니다.</li>
+          <li>생성물을 이용한 서비스 운영, 배포, 판매 및 그로 인한 법적 책임은 회원에게 있으며, 불법·유해하거나 타인의 권리를 침해하는 생성물의 제작·이용은 제9조의 금지행위에 해당합니다.</li>
+          <li>회사는 생성물의 정확성, 상품성 또는 특정 목적 적합성을 보증하지 않으며, 생성 요청과 결과는 서비스 제공·보안·품질 개선 목적 범위에서만 처리됩니다.</li>
+        </ul>
       </PolicySection>
 
       <PolicySection id="content" title="제7조 회원 콘텐츠">

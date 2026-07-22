@@ -15,9 +15,16 @@ export async function POST(request: Request, context: { params: Promise<{ provid
     const { provider } = await context.params;
     if (!isSocialProvider(provider)) return NextResponse.json({ ok: false, error: "지원하지 않는 로그인 방식입니다." }, { status: 404 });
     const body = (await request.json().catch(() => ({}))) as { couponCode?: string };
-    const pendingCouponHash = typeof body.couponCode === "string" && body.couponCode.trim()
-      ? hashCouponCode(body.couponCode)
-      : readPendingCouponHash(request.headers.get("cookie"));
+    // 쿠폰 연동은 부가 기능이다: COUPON_HASH_SECRET 미설정 등 쿠폰 해시
+    // 실패가 소셜 로그인 자체를 막아서는 안 된다.
+    let pendingCouponHash: string | null = null;
+    try {
+      pendingCouponHash = typeof body.couponCode === "string" && body.couponCode.trim()
+        ? hashCouponCode(body.couponCode)
+        : readPendingCouponHash(request.headers.get("cookie"));
+    } catch (couponError) {
+      console.error("[oauth-start] coupon hash skipped:", couponError instanceof Error ? couponError.message : couponError);
+    }
     const issued = await issueOAuthLoginState({ provider, pendingCouponHash });
     const response = NextResponse.json({ ok: true, authorizationUrl: createSocialAuthorizationUrl(provider, issued.state) });
     response.cookies.set({
@@ -31,7 +38,21 @@ export async function POST(request: Request, context: { params: Promise<{ provid
     });
     return response;
   } catch (error) {
-    return NextResponse.json({ ok: false, error: error instanceof Error && /not configured/u.test(error.message) ? "소셜 로그인이 아직 설정되지 않았습니다." : "소셜 로그인을 시작하지 못했습니다." }, { status: 503 });
+    const message = error instanceof Error ? error.message : String(error);
+    // 운영자가 원인을 바로 찾을 수 있도록 서버 로그와 응답에 설정 문제를
+    // 구체적으로 남긴다 (시크릿 값 자체는 노출하지 않는다).
+    console.error("[oauth-start] failed:", message);
+    let friendly = "소셜 로그인을 시작하지 못했습니다.";
+    if (/not configured/u.test(message)) {
+      friendly = "소셜 로그인이 아직 설정되지 않았습니다. (환경 변수 확인 필요)";
+    } else if (/redirect URI is invalid/u.test(message)) {
+      friendly =
+        "리다이렉트 주소 설정이 잘못되었습니다. KAKAO_REDIRECT_URI / NAVER_REDIRECT_URI 값이 " +
+        "https://도메인/api/auth/oauth/<kakao|naver>/callback 형식인지 확인해 주세요.";
+    } else if (/AUTH_OAUTH_STATE_SECRET|AUTH_SESSION_SECRET/u.test(message)) {
+      friendly = "서버 보안 키가 설정되지 않았습니다. AUTH_OAUTH_STATE_SECRET(32자 이상)을 설정해 주세요.";
+    }
+    return NextResponse.json({ ok: false, error: friendly }, { status: 503 });
   }
 }
 

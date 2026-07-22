@@ -7,7 +7,7 @@ import { SESSION_COOKIE_NAME } from "@/src/lib/auth/session-token";
 export const metadata: Metadata = {
   title: "AI Chat",
   description:
-    "AI가 질문하고 딥리서치·시뮬레이션·조직 의견을 거쳐 최종 결론까지 제안하는 의사결정 파트너.",
+    "AI가 질문하고 딥리서치·시뮬레이션·조직 의견을 거쳐 최종 결론까지 제안하는 의사결정 파트너. 웹사이트·앱·이미지를 만드는 AI Agent 포함.",
   alternates: { canonical: "/chat" },
   robots: { index: true, follow: true }
 };
