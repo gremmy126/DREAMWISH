@@ -20,29 +20,39 @@ const OPEN_SOURCE_LIBRARIES =
   "(from cdn.jsdelivr.net, cdnjs.cloudflare.com, or unpkg.com). " +
   "Never hotlink external images — use inline SVG, CSS gradients, and emoji for all imagery.";
 
+const AESTHETIC_DIRECTIONS =
+  "Before writing code, SILENTLY plan (do not output the plan): pick ONE distinctive aesthetic direction that fits the subject, " +
+  "an exact palette (hex values), a Google Fonts pairing, and the section layout. Aesthetic directions to choose from:\n" +
+  "1) Dark glassmorphism SaaS — deep navy/black, blurred glass cards, glowing gradient accents.\n" +
+  "2) Light editorial minimal — off-white, huge serif or tight sans display type, thin rules, lots of air.\n" +
+  "3) Vivid gradient startup — bold multi-stop gradients, floating 3D-feel shapes, playful energy.\n" +
+  "4) Premium neutral — warm beige/ivory, charcoal text, serif headlines, understated luxury.\n" +
+  "5) Bold brutalist — oversized type, hard borders, high-contrast blocks, striking color pops.";
+
 const DESIGN_BAR =
   "Design quality bar (MANDATORY — this must look like a top-tier product from Awwwards/Dribbble, never a plain unstyled document):\n" +
-  "- A deliberate design system: one accent color + neutrals, consistent 8px spacing scale, max-width container, generous whitespace.\n" +
-  "- Typography hierarchy: display headline (48px+, bold, tight tracking), clear section titles, readable 16px body, Google Fonts loaded.\n" +
-  "- A striking hero section with gradient or layered background, badge/eyebrow text, strong headline, sub-copy, and prominent CTA buttons.\n" +
-  "- Cards with rounded corners (12-20px), soft shadows, subtle borders, and hover lift transitions; icons for every feature (Font Awesome or inline SVG).\n" +
+  "- A deliberate design system: one accent color + neutrals, consistent 8px spacing scale, max-width container, generous whitespace, 96px+ vertical rhythm between sections.\n" +
+  "- Typography hierarchy: display headline (clamp 40-72px, bold, tight tracking), clear section titles, readable 16-18px body, Google Fonts loaded.\n" +
+  "- A striking hero section with gradient or layered background (CSS shapes/blur circles), badge/eyebrow text, strong headline with an accent-colored span, sub-copy, and prominent CTA buttons.\n" +
+  "- Cards with rounded corners (12-20px), layered soft shadows, subtle borders, and hover lift transitions; icons for every feature (Font Awesome or inline SVG) inside tinted icon chips.\n" +
+  "- Custom-styled form controls (never browser defaults): styled inputs with focus rings, custom file-upload dropzones, toggle/range styling.\n" +
   "- Micro-interactions: smooth hover states, focus rings, transition-all; AOS or CSS reveal animations on scroll where natural.\n" +
-  "- Fully responsive (mobile-first, CSS grid/flex; nav collapses on mobile).\n" +
-  "- Realistic, specific Korean copy relevant to the request — never lorem ipsum, never bare default-styled form elements.\n" +
-  "- Dark or light theme chosen to fit the subject, with accessible contrast.";
+  "- Fully responsive (mobile-first, CSS grid/flex; nav collapses to a working hamburger on mobile).\n" +
+  "- Realistic, specific Korean copy relevant to the request — never lorem ipsum; include believable numbers, feature names, and social proof.\n" +
+  "- Accessible contrast, semantic HTML (header/main/section/footer), alt text on SVGs.";
 
 const SYSTEM_PROMPTS: Record<AgentBuildKind, string> = {
   website:
     "You are a world-class product designer and front-end engineer who wins design awards. " +
     "Build a COMPLETE single-file website as one HTML document with inline <style> and <script>.\n" +
-    OPEN_SOURCE_LIBRARIES + "\n" + DESIGN_BAR + "\n" +
+    AESTHETIC_DIRECTIONS + "\n" + OPEN_SOURCE_LIBRARIES + "\n" + DESIGN_BAR + "\n" +
     "Structure: sticky nav, hero, 3+ content sections (features/steps/pricing/FAQ as fits), footer.\n" +
     "Reply with ONLY the HTML document — no explanation, no markdown fences.",
   app:
     "You are a world-class product designer and front-end engineer. " +
     "Build a COMPLETE single-file interactive web app (SPA) as one HTML document with inline <style> and <script>. " +
     "State in vanilla JS or Alpine.js; localStorage for persistence; every advertised feature must actually work.\n" +
-    OPEN_SOURCE_LIBRARIES + "\n" + DESIGN_BAR + "\n" +
+    AESTHETIC_DIRECTIONS + "\n" + OPEN_SOURCE_LIBRARIES + "\n" + DESIGN_BAR + "\n" +
     "App chrome: polished header, empty states with guidance, buttons with icons, keyboard-friendly inputs, toast/feedback on actions.\n" +
     "Reply with ONLY the HTML document — no explanation, no markdown fences.",
   program:
@@ -61,8 +71,15 @@ const SYSTEM_PROMPTS: Record<AgentBuildKind, string> = {
 // 2차 패스: 초안을 시니어 디자이너 관점에서 대폭 업그레이드한다.
 const POLISH_PROMPT =
   "You are a design director reviewing a junior developer's page. Rewrite it into a dramatically more beautiful, modern, award-quality page while keeping every feature working. " +
-  "Upgrade: visual hierarchy, hero impact, spacing rhythm, typography, color harmony, card/button styling, hover and scroll animations, responsiveness, and copywriting (Korean). " +
-  OPEN_SOURCE_LIBRARIES + "\n" +
+  "Upgrade: visual hierarchy, hero impact, spacing rhythm, typography, color harmony, card/button styling, custom form controls (kill every browser-default element), hover and scroll animations, responsiveness, and copywriting (Korean). " +
+  AESTHETIC_DIRECTIONS + "\n" + OPEN_SOURCE_LIBRARIES + "\n" + DESIGN_BAR + "\n" +
+  "Reply with ONLY the complete rewritten HTML document — no explanation, no markdown fences.";
+
+// '다시 디자인': 기능은 유지한 채 완전히 다른 미학 방향으로 재구성한다.
+const REDESIGN_PROMPT =
+  "You are an award-winning design director. The user wants a COMPLETELY DIFFERENT look for this page. " +
+  "Keep every feature and all content meaning, but rebuild the visual design from scratch in a DIFFERENT aesthetic direction than the current one — different palette, different typography pairing, different layout rhythm.\n" +
+  AESTHETIC_DIRECTIONS + "\n" + OPEN_SOURCE_LIBRARIES + "\n" + DESIGN_BAR + "\n" +
   "Reply with ONLY the complete rewritten HTML document — no explanation, no markdown fences.";
 
 // 채팅 한 문장으로 웹사이트·앱·프로그램·이미지를 생성/수정한다. 종류는
@@ -74,40 +91,70 @@ export async function POST(request: Request) {
     const body = (await request.json().catch(() => ({}))) as {
       message?: unknown;
       refine?: unknown;
+      redesign?: unknown;
       previousCode?: unknown;
       previousKind?: unknown;
       provider?: unknown;
+      history?: unknown;
     };
     const message = typeof body.message === "string" ? body.message.trim().slice(0, 4000) : "";
-    if (!message) {
-      return NextResponse.json(
-        { ok: false, error: "무엇을 만들지 채팅으로 설명해 주세요." },
-        { status: 400 }
-      );
-    }
     const provider = parseProviderName(body.provider);
     const previousCode =
       typeof body.previousCode === "string" ? body.previousCode.slice(0, 60_000) : "";
     const previousKind = AGENT_BUILD_KINDS.has(body.previousKind as AgentBuildKind)
       ? (body.previousKind as AgentBuildKind)
       : null;
-    const refine = body.refine === true && Boolean(previousCode) && Boolean(previousKind);
-    const kind: AgentBuildKind = refine
+    const redesign = body.redesign === true && Boolean(previousCode) && Boolean(previousKind);
+    if (!message && !redesign) {
+      return NextResponse.json(
+        { ok: false, error: "무엇을 만들지 채팅으로 설명해 주세요." },
+        { status: 400 }
+      );
+    }
+    const refine =
+      !redesign && body.refine === true && Boolean(previousCode) && Boolean(previousKind);
+    const kind: AgentBuildKind = refine || redesign
       ? previousKind!
       : classifyAgentRequest(message) || "website";
 
-    const messages = [
-      { role: "system" as const, content: SYSTEM_PROMPTS[kind] },
-      refine
-        ? {
+    // 최근 대화 맥락을 함께 전달해 "아까 말한 대로" 같은 지시도 이해한다.
+    const historyBlock = Array.isArray(body.history)
+      ? body.history
+          .slice(-8)
+          .filter(
+            (item): item is { role: string; text: string } =>
+              Boolean(item) &&
+              typeof (item as { text?: unknown }).text === "string" &&
+              typeof (item as { role?: unknown }).role === "string"
+          )
+          .map((item) => `${item.role === "user" ? "사용자" : "AI"}: ${item.text.slice(0, 400)}`)
+          .join("\n")
+      : "";
+    const contextPrefix = historyBlock ? `지금까지의 대화:\n${historyBlock}\n\n` : "";
+
+    const messages = redesign
+      ? [
+          { role: "system" as const, content: REDESIGN_PROMPT },
+          {
             role: "user" as const,
             content:
-              `기존 결과물을 아래 요청대로 수정해 완전한 결과물 전체를 다시 출력해 주세요. ` +
-              `수정하지 않는 부분의 품질도 함께 다듬어 주세요.\n\n` +
-              `수정 요청: ${message}\n\n기존 코드:\n${previousCode}`
+              `${contextPrefix}완전히 다른 스타일로 다시 디자인해 주세요.` +
+              (message ? ` 참고 요청: ${message}` : "") +
+              `\n\n현재 코드:\n${previousCode}`
           }
-        : { role: "user" as const, content: message }
-    ];
+        ]
+      : [
+          { role: "system" as const, content: SYSTEM_PROMPTS[kind] },
+          refine
+            ? {
+                role: "user" as const,
+                content:
+                  `${contextPrefix}기존 결과물을 아래 요청대로 수정해 완전한 결과물 전체를 다시 출력해 주세요. ` +
+                  `수정하지 않는 부분의 품질도 함께 다듬어 주세요.\n\n` +
+                  `수정 요청: ${message}\n\n기존 코드:\n${previousCode}`
+              }
+            : { role: "user" as const, content: `${contextPrefix}${message}` }
+        ];
 
     const raw = await chatWithAI(messages, provider);
     let code = extractArtifact(raw, kind);
@@ -120,7 +167,7 @@ export async function POST(request: Request) {
 
     // 새로 만든 웹사이트·앱은 디자인 폴리시 패스를 한 번 더 거친다.
     // 실패하면 초안을 그대로 사용한다 (품질 향상은 best-effort).
-    if (!refine && (kind === "website" || kind === "app")) {
+    if (!refine && !redesign && (kind === "website" || kind === "app")) {
       try {
         const polished = await chatWithAI(
           [
@@ -142,7 +189,7 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({ ok: true, kind, code, refined: refine });
+    return NextResponse.json({ ok: true, kind, code, refined: refine, redesigned: redesign });
   } catch (error) {
     const message =
       error instanceof Error && /provider/iu.test(error.message)

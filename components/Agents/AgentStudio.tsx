@@ -5,12 +5,20 @@ import {
   Code2,
   Copy,
   Download,
+  ExternalLink,
   FolderOpen,
   FolderCheck,
   HardDriveDownload,
+  ImageDown,
   Loader2,
+  Monitor,
+  RotateCcw,
   Send,
+  Smartphone,
   Sparkles,
+  Tablet,
+  Undo2,
+  Wand2,
   X
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -83,7 +91,36 @@ export function AgentStudio() {
   const [saving, setSaving] = useState(false);
   const [providerOptions, setProviderOptions] = useState<Array<{ value: string; label: string }>>([]);
   const [selectedModel, setSelectedModel] = useState<string>("");
+  // 이전 결과물 버전 스택 — '되돌리기'로 언제든 직전 버전으로 복귀한다.
+  const [versions, setVersions] = useState<Artifact[]>([]);
+  const [device, setDevice] = useState<"desktop" | "tablet" | "mobile">("desktop");
   const scrollRef = useRef<HTMLDivElement | null>(null);
+
+  function applyArtifact(next: Artifact) {
+    setArtifact((current) => {
+      if (current) setVersions((stack) => [...stack.slice(-9), current]);
+      return next;
+    });
+    setShowCode(false);
+  }
+
+  function undoArtifact() {
+    setVersions((stack) => {
+      const previous = stack[stack.length - 1];
+      if (!previous) return stack;
+      setArtifact(previous);
+      pushAi("이전 버전으로 되돌렸습니다.");
+      return stack.slice(0, -1);
+    });
+  }
+
+  function resetChat() {
+    setMessages([]);
+    setArtifact(null);
+    setVersions([]);
+    setInput("");
+    setShowCode(false);
+  }
 
   // 가장 성능 좋은 공급자를 고를 수 있게 연결된 모델 목록을 불러온다.
   useEffect(() => {
@@ -117,6 +154,36 @@ export function AgentStudio() {
     setMessages((previous) => [...previous, { id: nextId(), role: "user", text }]);
   }
 
+  function historyPayload() {
+    return messages
+      .slice(-8)
+      .map((item) => ({ role: item.role, text: item.text.slice(0, 400) }));
+  }
+
+  async function requestBuild(payload: Record<string, unknown>) {
+    const response = await fetch("/api/ai/agent-build", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...payload,
+        provider: selectedModel || undefined,
+        history: historyPayload()
+      })
+    });
+    const body = (await response.json().catch(() => ({}))) as {
+      ok?: boolean;
+      kind?: AgentBuildKind;
+      code?: string;
+      refined?: boolean;
+      redesigned?: boolean;
+      error?: string;
+    };
+    if (!response.ok || !body.ok || !body.code || !body.kind) {
+      throw new Error(body.error || "생성에 실패했습니다.");
+    }
+    return body as { kind: AgentBuildKind; code: string; refined?: boolean; redesigned?: boolean };
+  }
+
   async function send(rawText?: string) {
     const text = (rawText ?? input).trim();
     if (!text || busy) return;
@@ -130,46 +197,51 @@ export function AgentStudio() {
       const refine = Boolean(
         artifact && !wantsNew && (!explicitKind || explicitKind === artifact.kind)
       );
-      const response = await fetch("/api/ai/agent-build", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(
-          refine && artifact
-            ? {
-                message: text,
-                refine: true,
-                previousCode: artifact.code,
-                previousKind: artifact.kind,
-                provider: selectedModel || undefined
-              }
-            : { message: text, provider: selectedModel || undefined }
-        )
-      });
-      const body = (await response.json().catch(() => ({}))) as {
-        ok?: boolean;
-        kind?: AgentBuildKind;
-        code?: string;
-        refined?: boolean;
-        error?: string;
-      };
-      if (!response.ok || !body.ok || !body.code || !body.kind) {
-        throw new Error(body.error || "생성에 실패했습니다.");
-      }
-      const label = AGENT_KIND_LABELS[body.kind];
-      setArtifact((previous) => ({
-        kind: body.kind!,
-        code: body.code!,
+      const result = await requestBuild(
+        refine && artifact
+          ? {
+              message: text,
+              refine: true,
+              previousCode: artifact.code,
+              previousKind: artifact.kind
+            }
+          : { message: text }
+      );
+      const label = AGENT_KIND_LABELS[result.kind];
+      applyArtifact({
+        kind: result.kind,
+        code: result.code,
         fileName:
-          body.refined && previous ? previous.fileName : AGENT_DEFAULT_FILENAMES[body.kind!]
-      }));
-      setShowCode(false);
+          result.refined && artifact ? artifact.fileName : AGENT_DEFAULT_FILENAMES[result.kind]
+      });
       pushAi(
-        body.refined
-          ? "요청하신 수정을 반영했습니다. 오른쪽 미리보기에서 확인해 주세요."
+        result.refined
+          ? "요청하신 수정을 반영했습니다. 오른쪽 미리보기에서 확인해 주세요. 마음에 들지 않으면 '되돌리기'로 이전 버전으로 복귀할 수 있어요."
           : `${label}을(를) 생성했습니다. 오른쪽 미리보기에서 확인하고, 고치고 싶은 부분을 채팅으로 말씀해 주세요.${directory ? " '폴더에 저장'을 누르면 연결된 폴더에 파일로 저장됩니다." : ""}`
       );
     } catch (caught) {
       pushAi(caught instanceof Error ? caught.message : "생성에 실패했습니다.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // 기능은 유지한 채 완전히 다른 미학 방향으로 다시 디자인한다.
+  async function redesign() {
+    if (!artifact || busy) return;
+    pushUser("완전히 다른 스타일로 다시 디자인해줘");
+    setBusy(true);
+    try {
+      const result = await requestBuild({
+        message: "",
+        redesign: true,
+        previousCode: artifact.code,
+        previousKind: artifact.kind
+      });
+      applyArtifact({ kind: result.kind, code: result.code, fileName: artifact.fileName });
+      pushAi("완전히 새로운 스타일로 다시 디자인했습니다. 이전이 낫다면 '되돌리기'를 누르세요.");
+    } catch (caught) {
+      pushAi(caught instanceof Error ? caught.message : "재디자인에 실패했습니다.");
     } finally {
       setBusy(false);
     }
@@ -220,8 +292,7 @@ export function AgentStudio() {
         return;
       }
       const code = await file.text();
-      setArtifact({ kind: kindFromFileName(name), code, fileName: name });
-      setShowCode(false);
+      applyArtifact({ kind: kindFromFileName(name), code, fileName: name });
       pushAi(
         `'${name}' 파일을 불러왔습니다. 어떻게 수정할지 채팅으로 말씀해 주세요. 수정 후 '폴더에 저장'을 누르면 같은 파일에 덮어써집니다.`
       );
@@ -262,6 +333,50 @@ export function AgentStudio() {
     URL.revokeObjectURL(url);
   }
 
+  // 결과물을 실제 브라우저 탭에서 전체 화면으로 확인한다.
+  function openInNewTab() {
+    if (!artifact) return;
+    const mime = artifact.kind === "image"
+      ? "image/svg+xml"
+      : artifact.kind === "program"
+        ? "text/plain;charset=utf-8"
+        : "text/html;charset=utf-8";
+    const blob = new Blob([artifact.code], { type: mime });
+    const url = URL.createObjectURL(blob);
+    window.open(url, "_blank", "noopener");
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  }
+
+  // SVG 이미지를 PNG로 변환해 내려받는다 (SVG를 못 받는 곳에 업로드할 때).
+  async function downloadPng() {
+    if (!artifact || artifact.kind !== "image" || !svgDataUrl) return;
+    try {
+      const image = new Image();
+      await new Promise<void>((resolve, reject) => {
+        image.onload = () => resolve();
+        image.onerror = () => reject(new Error("SVG load failed"));
+        image.src = svgDataUrl;
+      });
+      const canvas = document.createElement("canvas");
+      canvas.width = image.naturalWidth || 1200;
+      canvas.height = image.naturalHeight || 800;
+      const context = canvas.getContext("2d");
+      if (!context) return;
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob((blob) => {
+        if (!blob) return;
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = artifact.fileName.replace(/\.svg$/iu, ".png");
+        anchor.click();
+        URL.revokeObjectURL(url);
+      }, "image/png");
+    } catch {
+      pushAi("PNG 변환에 실패했습니다. SVG 다운로드를 이용해 주세요.");
+    }
+  }
+
   const svgDataUrl = useMemo(() => {
     if (!artifact || artifact.kind !== "image") return null;
     return `data:image/svg+xml;utf8,${encodeURIComponent(artifact.code)}`;
@@ -300,6 +415,17 @@ export function AgentStudio() {
                   </option>
                 ))}
               </select>
+            ) : null}
+            {messages.length > 0 ? (
+              <button
+                type="button"
+                aria-label="새 대화"
+                title="새 대화 시작"
+                onClick={resetChat}
+                className="flex h-8 w-8 items-center justify-center rounded-xl border border-app-border text-app-muted transition hover:text-app-primary"
+              >
+                <RotateCcw size={12} />
+              </button>
             ) : null}
             {directory ? (
               <>
@@ -450,6 +576,66 @@ export function AgentStudio() {
           </p>
           {artifact ? (
             <div className="flex flex-wrap items-center gap-1.5">
+              {previewAsPage && !showCode ? (
+                <div className="mr-1 inline-flex rounded-xl border border-app-border bg-white p-0.5">
+                  {(
+                    [
+                      { id: "desktop", icon: Monitor, label: "데스크톱" },
+                      { id: "tablet", icon: Tablet, label: "태블릿" },
+                      { id: "mobile", icon: Smartphone, label: "모바일" }
+                    ] as Array<{ id: typeof device; icon: typeof Monitor; label: string }>
+                  ).map((option) => {
+                    const Icon = option.icon;
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        aria-label={`${option.label} 미리보기`}
+                        title={`${option.label} 화면으로 보기`}
+                        onClick={() => setDevice(option.id)}
+                        className={`flex h-7 w-8 items-center justify-center rounded-lg transition ${
+                          device === option.id ? "bg-app-primary text-white" : "text-app-muted hover:text-app-primary"
+                        }`}
+                      >
+                        <Icon size={12} />
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+              {versions.length > 0 ? (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={undoArtifact}
+                  title="직전 버전으로 되돌리기"
+                  className="flex h-8 items-center gap-1 rounded-xl border border-app-border bg-white px-2.5 text-[11px] font-semibold text-app-muted transition hover:bg-app-hover hover:text-app-primary disabled:opacity-50"
+                >
+                  <Undo2 size={12} />
+                  되돌리기
+                </button>
+              ) : null}
+              {previewAsPage ? (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void redesign()}
+                  title="기능은 유지하고 완전히 다른 스타일로 재생성"
+                  className="flex h-8 items-center gap-1 rounded-xl border border-app-border bg-white px-2.5 text-[11px] font-semibold text-app-muted transition hover:bg-app-hover hover:text-app-primary disabled:opacity-50"
+                >
+                  <Wand2 size={12} />
+                  다시 디자인
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={openInNewTab}
+                title="새 탭에서 전체 화면으로 열기"
+                className="flex h-8 items-center gap-1 rounded-xl border border-app-border bg-white px-2.5 text-[11px] font-semibold text-app-muted transition hover:bg-app-hover hover:text-app-primary"
+              >
+                <ExternalLink size={12} />
+                새 탭
+              </button>
               <button
                 type="button"
                 onClick={() => setShowCode((value) => !value)}
@@ -474,6 +660,17 @@ export function AgentStudio() {
                 <Download size={12} />
                 다운로드
               </button>
+              {artifact.kind === "image" ? (
+                <button
+                  type="button"
+                  onClick={() => void downloadPng()}
+                  title="PNG 이미지로 변환해 다운로드"
+                  className="flex h-8 items-center gap-1 rounded-xl border border-app-border bg-white px-2.5 text-[11px] font-semibold text-app-muted transition hover:bg-app-hover hover:text-app-primary"
+                >
+                  <ImageDown size={12} />
+                  PNG
+                </button>
+              ) : null}
               {directory ? (
                 <button
                   type="button"
@@ -514,12 +711,17 @@ export function AgentStudio() {
               />
             </div>
           ) : previewAsPage ? (
-            <iframe
-              title="AI Agent 미리보기"
-              sandbox="allow-scripts"
-              srcDoc={artifact.code}
-              className="h-full w-full border-0 bg-white"
-            />
+            <div className={`flex h-full justify-center ${device === "desktop" ? "" : "bg-slate-100 py-3"}`}>
+              <iframe
+                title="AI Agent 미리보기"
+                sandbox="allow-scripts"
+                srcDoc={artifact.code}
+                style={device === "desktop" ? undefined : { width: device === "tablet" ? 768 : 390 }}
+                className={`h-full border-0 bg-white ${
+                  device === "desktop" ? "w-full" : "max-w-full rounded-2xl shadow-app"
+                }`}
+              />
+            </div>
           ) : (
             <pre className="h-full overflow-auto whitespace-pre-wrap break-words bg-slate-950 p-5 text-[11px] leading-5 text-slate-100">
               {artifact.code}
