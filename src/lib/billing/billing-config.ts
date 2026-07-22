@@ -44,7 +44,13 @@ export function getDomesticBillingConfig() {
 
 export function buildDomesticBillingConfig(env: Record<string, string | undefined>): DomesticBillingConfig {
   const mode = modeSchema.catch("sandbox").parse(env.BILLING_DOMESTIC_MODE);
-  const publicSandboxEnabled = parseBoolean(env.BILLING_PUBLIC_SANDBOX_ENABLED);
+  // 샌드박스 모드에서는 테스트 키만 넣으면 바로 결제창을 확인할 수 있어야
+  // 한다: 플래그 미설정 시 기본 허용, 명시적으로 false일 때만 비활성화.
+  // (샌드박스 결제는 test_succeeded로만 끝나고 이용 권한·매출을 바꾸지 않는다.)
+  // live 모드는 기존과 동일하게 명시적 true를 금지한다.
+  const rawSandboxFlag = String(env.BILLING_PUBLIC_SANDBOX_ENABLED || "").trim();
+  const publicSandboxEnabled =
+    mode === "sandbox" ? (rawSandboxFlag ? parseBoolean(rawSandboxFlag) : true) : parseBoolean(rawSandboxFlag);
   if (mode === "live" && publicSandboxEnabled) {
     throw new BillingConfigurationError(
       "PAYMENT_MODE_CONFLICT",

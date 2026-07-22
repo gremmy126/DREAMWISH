@@ -14,6 +14,7 @@ export function UpgradeButton({ compact = false }: { compact?: boolean }) {
   const [domesticMode, setDomesticMode] = useState<"sandbox" | "live">("sandbox");
   const [domesticFlow, setDomesticFlow] = useState<"v1" | "v2">("v2");
   const [domesticEnabled, setDomesticEnabled] = useState(false);
+  const [domesticMissing, setDomesticMissing] = useState<string[]>([]);
 
   const admin = access.adminBypass;
   const paid = !admin && access.canUseApp && !access.requiresPayment;
@@ -29,9 +30,15 @@ export function UpgradeButton({ compact = false }: { compact?: boolean }) {
     try {
       if (!paid) {
         const configResponse = await fetch("/api/billing/domestic/config");
-        const domestic = (await configResponse.json().catch(() => null)) as { enabled?: boolean; environment?: "sandbox" | "live"; flow?: "v1" | "v2" } | null;
+        const domestic = (await configResponse.json().catch(() => null)) as {
+          enabled?: boolean;
+          environment?: "sandbox" | "live";
+          flow?: "v1" | "v2";
+          missingVariables?: string[];
+        } | null;
         const enabled = Boolean(configResponse.ok && domestic?.enabled);
         setDomesticEnabled(enabled);
+        setDomesticMissing(Array.isArray(domestic?.missingVariables) ? domestic.missingVariables : []);
         setDomesticMode(domestic?.environment || "sandbox");
         setDomesticFlow(domestic?.flow || "v2");
         setChooserOpen(true);
@@ -143,7 +150,9 @@ export function UpgradeButton({ compact = false }: { compact?: boolean }) {
               <p className="mt-1 text-xs leading-5 text-slate-500">
                 {domesticEnabled
                   ? "국내 신용·체크카드로 월간 구독을 결제합니다. KPN·NHN KCP 정기결제."
-                  : "준비 중입니다 — 서버에 PortOne 결제 설정이 완료되면 이용할 수 있습니다."}
+                  : domesticMissing.length
+                    ? `준비 중입니다 — 서버 환경 변수 누락: ${domesticMissing.join(", ")}`
+                    : "준비 중입니다 — 서버 설정에서 국내 결제가 비활성화되어 있습니다."}
               </p>
             </button>
             <button
