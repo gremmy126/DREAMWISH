@@ -20,6 +20,22 @@ const once = process.argv.includes("--once");
 const controller = new AbortController();
 for (const signal of ["SIGINT", "SIGTERM"]) process.once(signal, () => controller.abort());
 
+// 필수 변수가 없으면 크래시 루프(Railway CRASHED) 대신 유휴 대기한다.
+// 결제 미구성은 정상적인 운영 상태일 수 있으므로 실패가 아니라 대기다.
+// Railway에서 환경 변수를 추가하면 재배포되면서 자동으로 정상 기동한다.
+async function idleUntilAborted(missing) {
+  console.warn(`[billing-worker] not configured — idling without processing. missing: ${missing.join(", ")}`);
+  if (once) {
+    console.log("[billing-worker] processed=0 (not configured)");
+    process.exit(0);
+  }
+  while (!controller.signal.aborted) {
+    await new Promise((resolve) => setTimeout(resolve, 300_000));
+    console.warn(`[billing-worker] still waiting for configuration: ${missing.join(", ")}`);
+  }
+  process.exit(0);
+}
+
 const missingBase = ["DATABASE_URL"].filter((name) => !process.env[name]?.trim());
 if (process.env.NODE_ENV === "production" && ![
   process.env.INTEGRATION_TOKEN_ENCRYPTION_KEY,
@@ -29,24 +45,27 @@ if (process.env.NODE_ENV === "production" && ![
   missingBase.push("INTEGRATION_TOKEN_ENCRYPTION_KEY_OR_OAUTH_TOKEN_ENCRYPTION_KEY");
 }
 if (missingBase.length) {
-  console.error(`[billing-worker] missing variables: ${missingBase.join(", ")}`);
-  process.exit(1);
+  await idleUntilAborted(missingBase);
 }
 
-const billingConfig = getDomesticBillingConfig();
-const configuredPrimary = await getDomesticPrimaryProvider(billingConfig.primaryProvider);
-const activeProviders = await listActiveSubscriptionProviders();
-const requiredProviders = new Set(activeProviders.length ? activeProviders : [configuredPrimary]);
 const missingProviderVariables = new Set();
-for (const provider of requiredProviders) {
-  const readiness = provider === "portone_kcp_v1"
-    ? billingConfig.readiness.kcpRecurring
-    : billingConfig.readiness.kpnRecurring;
-  for (const name of readiness.missingVariables) missingProviderVariables.add(name);
+try {
+  const billingConfig = getDomesticBillingConfig();
+  const configuredPrimary = await getDomesticPrimaryProvider(billingConfig.primaryProvider);
+  const activeProviders = await listActiveSubscriptionProviders();
+  const requiredProviders = new Set(activeProviders.length ? activeProviders : [configuredPrimary]);
+  for (const provider of requiredProviders) {
+    const readiness = provider === "portone_kcp_v1"
+      ? billingConfig.readiness.kcpRecurring
+      : billingConfig.readiness.kpnRecurring;
+    for (const name of readiness.missingVariables) missingProviderVariables.add(name);
+  }
+} catch (error) {
+  console.error(`[billing-worker] configuration check failed: ${error instanceof Error ? error.message : error}`);
+  await idleUntilAborted(["BILLING_CONFIGURATION"]);
 }
 if (missingProviderVariables.size) {
-  console.error(`[billing-worker] missing variables: ${[...missingProviderVariables].join(", ")}`);
-  process.exit(1);
+  await idleUntilAborted([...missingProviderVariables]);
 }
 
 const workerSeed = process.env.RAILWAY_REPLICA_ID || process.env.RAILWAY_SERVICE_ID || `local-${process.pid}`;
