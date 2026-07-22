@@ -6,7 +6,6 @@ import {
   type AIProviderName
 } from "./ai-provider";
 import { AnthropicProvider } from "./anthropic.provider";
-import { CloudflareProvider } from "./cloudflare.provider";
 import { getProviderAttemptOrder } from "./config";
 import { AIProviderError } from "./errors";
 import { GeminiProvider } from "./gemini.provider";
@@ -32,8 +31,6 @@ export function createAIProvider(providerNameOverride?: AIProviderName): AIProvi
       return new GeminiProvider();
     case "openrouter":
       return new OpenRouterProvider();
-    case "cloudflare":
-      return new CloudflareProvider();
   }
 }
 

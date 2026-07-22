@@ -281,7 +281,6 @@ export const productFeatureGroups: ProductFeatureGroup[] = [
       { title: "Ollama", status: "partial" },
       { title: "LM Studio", status: "partial" },
       { title: "OpenRouter", status: "ready" },
-      { title: "Cloudflare", status: "ready" },
       { title: "API Key 관리", status: "planned" }
     ]
   },

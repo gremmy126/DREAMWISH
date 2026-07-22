@@ -197,8 +197,7 @@ function requiredKeysForProvider(provider: AIProviderName) {
     claude: ["ANTHROPIC_API_KEY", "CLAUDE_API_KEY"],
     groq: ["GROQ_API_KEY"],
     gemini: ["GEMINI_API_KEY", "GOOGLE_API_KEY"],
-    openrouter: ["OPENROUTER_API_KEY"],
-    cloudflare: ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_TOKEN"]
+    openrouter: ["OPENROUTER_API_KEY"]
   };
   return requirements[provider];
 }

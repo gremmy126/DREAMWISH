@@ -53,7 +53,7 @@ test("stream falls back only before the first token is emitted", async () => {
   const output: string[] = [];
   for await (const token of streamWithProviderFailover(
     messages,
-    ["gemini", "cloudflare"],
+    ["gemini", "groq"],
     (name) => fakeProvider(name, name === "gemini" ? new Error("no response") : "fallback answer")
   )) {
     output.push(token);

@@ -45,8 +45,7 @@ type ProviderMode =
   | "claude"
   | "groq"
   | "gemini"
-  | "openrouter"
-  | "cloudflare";
+  | "openrouter";
 type LanguageMode = "ko" | "en" | "ja";
 type BackupInterval = "manual" | "hourly" | "daily" | "weekly";
 
@@ -120,16 +119,14 @@ const providerOptions: ProviderMode[] = [
   "claude",
   "groq",
   "gemini",
-  "openrouter",
-  "cloudflare"
+  "openrouter"
 ];
 
 const providerDisplayNames: Record<ProviderMode, string> = {
   claude: "Claude",
   groq: "Groq",
   gemini: "Gemini",
-  openrouter: "OpenRouter",
-  cloudflare: "Cloudflare AI"
+  openrouter: "OpenRouter"
 };
 
 // 과거 설정에 저장된 지원 종료 공급자(Hugging Face 등)는 기본 공급자로

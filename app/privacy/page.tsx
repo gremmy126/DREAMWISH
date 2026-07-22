@@ -173,7 +173,7 @@ export default function PrivacyPage() {
                 <td>미국 등 결제 인프라 운영 국가·계약 및 법정 보유 기간</td>
               </tr>
               <tr>
-                <td>선택한 AI 제공자(Claude, Gemini, OpenRouter, Groq, Cloudflare)</td>
+                <td>선택한 AI 제공자(Claude, Gemini, OpenRouter, Groq)</td>
                 <td>이용자가 요청한 프롬프트·첨부 내용과 AI 응답 생성</td>
                 <td>미국 등 각 제공자의 처리 국가·선택한 제공자 정책상 기간</td>
               </tr>

@@ -37,8 +37,7 @@ export type AIProviderName =
   | "claude"
   | "groq"
   | "gemini"
-  | "openrouter"
-  | "cloudflare";
+  | "openrouter";
 
 export function getConfiguredProviderName(): AIProviderName {
   const value = (process.env.AI_PROVIDER || "").toLowerCase();
@@ -47,8 +46,7 @@ export function getConfiguredProviderName(): AIProviderName {
     value === "claude" ||
     value === "groq" ||
     value === "gemini" ||
-    value === "openrouter" ||
-    value === "cloudflare"
+    value === "openrouter"
   ) {
     return value;
   }

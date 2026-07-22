@@ -22,16 +22,14 @@ const PROVIDER_ORDER: ExternalAIProviderName[] = [
   "claude",
   "gemini",
   "openrouter",
-  "groq",
-  "cloudflare"
+  "groq"
 ];
 
 const PROVIDER_LABELS: Record<ExternalAIProviderName, string> = {
   claude: "Claude",
   gemini: "Gemini",
   openrouter: "OpenRouter",
-  groq: "Groq",
-  cloudflare: "Cloudflare AI"
+  groq: "Groq"
 };
 
 export function getPublicAIProviderCatalog() {
@@ -79,7 +77,7 @@ export function getDefaultAIProviderName(): ExternalAIProviderName {
     throw new AIProviderError({
       code: "PROVIDER_NOT_CONFIGURED",
       message:
-        "No connected AI provider is configured. Connect Claude, Gemini, OpenRouter, Groq, or Cloudflare in Settings > Integrations."
+        "No connected AI provider is configured. Connect Claude, Gemini, OpenRouter, or Groq in Settings > Integrations."
     });
   }
   return first;
@@ -128,22 +126,11 @@ export function getProviderRuntimeConfig(provider: ExternalAIProviderName): AIPr
     };
   }
 
-  if (provider === "groq") {
-    return {
-      provider,
-      apiKey: env("GROQ_API_KEY"),
-      model: env("GROQ_MODEL") || "llama-3.1-8b-instant",
-      baseUrl: "https://api.groq.com/openai/v1"
-    };
-  }
-
   return {
     provider,
-    apiKey: env("CLOUDFLARE_API_TOKEN") || env("CLOUDFLARE_API_KEY"),
-    model: env("CLOUDFLARE_AI_MODEL") || "@cf/meta/llama-3.1-8b-instruct",
-    baseUrl: env("CLOUDFLARE_ACCOUNT_ID")
-      ? `https://api.cloudflare.com/client/v4/accounts/${env("CLOUDFLARE_ACCOUNT_ID")}/ai/v1`
-      : undefined
+    apiKey: env("GROQ_API_KEY"),
+    model: env("GROQ_MODEL") || "llama-3.1-8b-instant",
+    baseUrl: "https://api.groq.com/openai/v1"
   };
 }
 

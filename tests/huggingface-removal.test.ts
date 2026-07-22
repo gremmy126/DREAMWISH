@@ -31,7 +31,7 @@ test("huggingface is removed from every provider surface", () => {
 test("the supported provider list keeps Claude and the other providers but drops huggingface", () => {
   assert.deepEqual(
     [...SUPPORTED_PROVIDER_NAMES],
-    ["claude", "gemini", "openrouter", "groq", "cloudflare"]
+    ["claude", "gemini", "openrouter", "groq"]
   );
   assert.equal(getPublicAIProviderCatalog().some((item) => item.provider === "huggingface" as never), false);
 });

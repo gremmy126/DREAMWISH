@@ -3,8 +3,7 @@ import type { AIProviderName } from "./ai-provider";
 export const SUPPORTED_FREE_PROVIDERS = [
   "gemini",
   "openrouter",
-  "groq",
-  "cloudflare"
+  "groq"
 ] as const satisfies AIProviderName[];
 
 export const SUPPORTED_PROVIDER_NAMES = [
