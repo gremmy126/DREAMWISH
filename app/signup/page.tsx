@@ -3,7 +3,7 @@ import Link from "next/link";
 import { BreadcrumbJsonLd } from "@/components/seo/BreadcrumbJsonLd";
 
 export const metadata: Metadata = {
-  title: "Get Started | DreamWish",
+  title: "Get Started",
   description:
     "DreamWish AI 의사결정 플랫폼을 시작하세요. AI Chat, Memory, Team으로 더 나은 결정을 만드세요.",
   alternates: { canonical: "/signup" },

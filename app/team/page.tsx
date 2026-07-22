@@ -5,7 +5,7 @@ import { BreadcrumbJsonLd } from "@/components/seo/BreadcrumbJsonLd";
 import { SESSION_COOKIE_NAME } from "@/src/lib/auth/session-token";
 
 export const metadata: Metadata = {
-  title: "Team | DreamWish",
+  title: "Team",
   description:
     "익명 설문과 회의, 조직 인사이트를 AI가 분석해 의사결정에 반영하는 Team Intelligence Hub.",
   alternates: { canonical: "/team" },

@@ -197,7 +197,7 @@ export const CONSENT_COPY = {
   ko: {
     bannerTitle: "🍪 개인정보 및 쿠키",
     bannerDescription:
-      "개인두뇌 AI는 서비스 개선, 로그인 유지, 분석을 위해 쿠키를 사용합니다.",
+      "DreamWish는 서비스 개선, 로그인 유지, 분석을 위해 쿠키를 사용합니다.",
     bannerNote: "언제든지 설정에서 변경할 수 있습니다.",
     settings: "쿠키 설정",
     necessaryOnly: "필수만 허용",

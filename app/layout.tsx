@@ -6,6 +6,7 @@ import {
   NAVER_SITE_VERIFICATION,
   SITE_DESCRIPTION,
   SITE_NAME,
+  SITE_TITLE,
   SITE_URL
 } from "@/src/lib/site/metadata";
 import "./globals.css";
@@ -20,31 +21,32 @@ const GOOGLE_ADS_ID = getPublicEnv("NEXT_PUBLIC_GOOGLE_ADS_ID");
 const GOOGLE_TAG_LOADER_ID = GA_MEASUREMENT_ID || GOOGLE_ADS_ID;
 
 const SOCIAL_IMAGE = {
-  url: "/images/dreamwish-social-card.png",
+  // ?v= 쿼리는 소셜 크롤러의 이전 카드 캐시를 무효화한다.
+  url: "/images/dreamwish-social-card.png?v=2",
   width: 1200,
   height: 630,
-  alt: "DREAMWISH 개인두뇌 AI"
+  alt: "DreamWish — Better Decisions Powered by AI"
 };
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   applicationName: SITE_NAME,
   title: {
-    default: "DREAMWISH - 나만의 개인두뇌 AI",
-    template: "%s | DREAMWISH"
+    default: SITE_TITLE,
+    template: "%s | DreamWish"
   },
   description: SITE_DESCRIPTION,
   openGraph: {
     type: "website",
     locale: "ko_KR",
     siteName: SITE_NAME,
-    title: "DREAMWISH - 나만의 개인두뇌 AI",
+    title: SITE_TITLE,
     description: SITE_DESCRIPTION,
     images: [SOCIAL_IMAGE]
   },
   twitter: {
     card: "summary_large_image",
-    title: "DREAMWISH - 나만의 개인두뇌 AI",
+    title: SITE_TITLE,
     description: SITE_DESCRIPTION,
     images: [SOCIAL_IMAGE]
   },

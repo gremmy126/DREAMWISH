@@ -1,19 +1,25 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
-import Script from "next/script";
 import { AppShell } from "@/components/layout/AppShell";
+import { JsonLd } from "@/components/seo/JsonLd";
 import { SESSION_COOKIE_NAME } from "@/src/lib/auth/session-token";
-import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/src/lib/site/metadata";
+import {
+  SITE_DESCRIPTION,
+  SITE_NAME,
+  SITE_TITLE,
+  SITE_URL
+} from "@/src/lib/site/metadata";
 
 const SOCIAL_IMAGE = {
-  url: "/images/dreamwish-social-card.png",
+  // ?v= 쿼리는 소셜 크롤러의 이전 카드 캐시를 무효화한다.
+  url: "/images/dreamwish-social-card.png?v=2",
   width: 1200,
   height: 630,
-  alt: "DREAMWISH 개인두뇌 AI"
+  alt: "DreamWish — Better Decisions Powered by AI"
 };
 
 export const metadata: Metadata = {
-  title: { absolute: "DREAMWISH - 나만의 개인두뇌 AI" },
+  title: { absolute: SITE_TITLE },
   description: SITE_DESCRIPTION,
   alternates: { canonical: "/" },
   openGraph: {
@@ -21,13 +27,13 @@ export const metadata: Metadata = {
     locale: "ko_KR",
     url: "/",
     siteName: SITE_NAME,
-    title: "DREAMWISH - 나만의 개인두뇌 AI",
+    title: SITE_TITLE,
     description: SITE_DESCRIPTION,
     images: [SOCIAL_IMAGE]
   },
   twitter: {
     card: "summary_large_image",
-    title: "DREAMWISH - 나만의 개인두뇌 AI",
+    title: SITE_TITLE,
     description: SITE_DESCRIPTION,
     images: [SOCIAL_IMAGE]
   }
@@ -83,13 +89,7 @@ export default async function Home() {
 
   return (
     <>
-      <Script
-        id="dreamwish-structured-data"
-        type="application/ld+json"
-        strategy="beforeInteractive"
-      >
-        {JSON.stringify(structuredData).replace(/</gu, "\\u003c")}
-      </Script>
+      <JsonLd id="dreamwish-structured-data" data={structuredData} />
       <AppShell hasServerSession={hasServerSession} />
     </>
   );

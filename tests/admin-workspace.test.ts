@@ -7,9 +7,11 @@ test("administrator workspace is server protected and exposes operational sectio
 
   assert.match(page, /verifySessionToken/u);
   assert.match(page, /redirect\("\/"\)/u);
-  for (const label of ["대시보드", "사용자", "구독·이용권", "쿠폰", "자동화", "DLQ", "감사 로그", "시스템"]) {
+  for (const label of ["대시보드", "사용자", "구독·이용권", "쿠폰", "DLQ", "감사 로그", "시스템"]) {
     assert.match(shell, new RegExp(label));
   }
+  // 자동화 페이지는 관리자 워크스페이스에서 제거되었다 (DLQ·감사 로그는 유지).
+  assert.doesNotMatch(shell, /"automation"/u);
 });
 
 test("profile menu exposes administrator navigation only after server role verification", () => {

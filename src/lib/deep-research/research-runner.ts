@@ -580,9 +580,26 @@ export function buildEvidenceOnlyReport(
   query: string,
   state: Pick<ResearchState, "evidence" | "sources" | "usedQueries">
 ): string {
+  // 추출 요약: 신뢰도 높은 출처의 첫 문장을 그대로 뽑아 핵심 요약을 채운다.
+  // 해석을 더하지 않으므로 "원문 중심" 원칙은 유지된다.
+  const rankedEvidence = [...state.evidence].sort((left, right) => {
+    const scoreOf = (item: ResearchEvidence) =>
+      state.sources.find((source) => source.id === item.sourceId)?.credibilityScore ?? 0;
+    return scoreOf(right) - scoreOf(left);
+  });
+  const extractiveLines = rankedEvidence.slice(0, 5).map((item, index) => {
+    const source = state.sources.find((candidate) => candidate.id === item.sourceId);
+    const firstSentence = item.excerpt
+      .replace(/\s+/gu, " ")
+      .trim()
+      .slice(0, 220);
+    return `- ${firstSentence}${firstSentence.length >= 220 ? "…" : ""} [${index + 1}${source?.official ? ", 공식" : ""}]`;
+  });
   const lines: string[] = [
     "## 핵심 요약",
-    "AI 요약 생성에 실패하여 수집된 근거를 원문 중심으로 정리했습니다. 아래 내용은 출처 발췌이며 별도의 해석이 더해지지 않았습니다.",
+    ...extractiveLines,
+    "",
+    "AI 요약 생성에 실패하여 수집된 근거를 원문 중심으로 정리했습니다. 위 내용은 출처 발췌이며 별도의 해석이 더해지지 않았습니다.",
     ""
   ];
   if (state.usedQueries.length > 0) {

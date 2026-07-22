@@ -5,7 +5,7 @@ import { BreadcrumbJsonLd } from "@/components/seo/BreadcrumbJsonLd";
 import { SESSION_COOKIE_NAME } from "@/src/lib/auth/session-token";
 
 export const metadata: Metadata = {
-  title: "Memory | DreamWish",
+  title: "Memory",
   description:
     "결정·리서치·교훈·결과가 자동으로 축적되는 AI Memory OS. 조직의 의사결정 자산을 연결합니다.",
   alternates: { canonical: "/memory" },

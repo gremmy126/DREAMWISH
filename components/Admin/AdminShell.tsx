@@ -2,13 +2,10 @@
 
 import Link from "next/link";
 import {
-  Activity,
   BadgePercent,
-  Bot,
   ChevronLeft,
   ClipboardList,
   Database,
-  KeyRound,
   LayoutDashboard,
   Menu,
   Settings2,
@@ -33,7 +30,6 @@ type AdminSection =
   | "access"
   | "coupons"
   | "billing"
-  | "automation"
   | "dlq"
   | "audit"
   | "system";
@@ -48,7 +44,6 @@ const NAVIGATION: Array<{
   { id: "access", label: "구독·이용권", icon: TicketCheck },
   { id: "coupons", label: "쿠폰", icon: BadgePercent },
   { id: "billing", label: "결제", icon: WalletCards },
-  { id: "automation", label: "자동화", icon: Bot },
   { id: "dlq", label: "DLQ", icon: Database },
   { id: "audit", label: "감사 로그", icon: ClipboardList },
   { id: "system", label: "시스템", icon: Settings2 }
@@ -127,7 +122,6 @@ export function AdminShell({ account }: { account: { email: string; name: string
           {section === "access" ? <AdminAccessGrants /> : null}
           {section === "coupons" ? <AdminCoupons /> : null}
           {section === "billing" ? <AdminBillingPanel /> : null}
-          {section === "automation" ? <AutomationPanel /> : null}
           {section === "dlq" ? <AdminOperations initialView="dlq" /> : null}
           {section === "audit" ? <AdminOperations initialView="audit" /> : null}
           {section === "system" ? <AdminSystemStatus /> : null}
@@ -184,16 +178,3 @@ function AdminNavigation({
   );
 }
 
-function AutomationPanel() {
-  return <Placeholder icon={Activity} title="자동화 운영" description="실행·승인 대기·실패 상태를 확인합니다. Dead Letter Queue와 감사 로그는 각각 전용 메뉴에서 관리합니다." />;
-}
-
-function Placeholder({ icon: Icon, title, description }: { icon: typeof Activity; title: string; description: string }) {
-  return (
-    <section className="rounded-[22px] border border-app-border bg-white p-6 shadow-soft">
-      <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-app-hover text-app-primary"><Icon size={21} /></span>
-      <h2 className="mt-5 text-lg font-bold">{title}</h2>
-      <p className="mt-2 max-w-2xl text-sm leading-6 text-app-muted">{description}</p>
-    </section>
-  );
-}

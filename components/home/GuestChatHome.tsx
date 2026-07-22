@@ -32,8 +32,8 @@ export function GuestChatHome({ onLoginRequest, restoringSession = false }: Gues
               <BrainLogo className="h-6 w-6" />
             </span>
             <span className="min-w-0">
-              <span className="block truncate text-sm font-extrabold tracking-tight">DREAMWISH</span>
-              <span className="hidden text-[10px] font-semibold text-slate-500 sm:block">개인두뇌 AI</span>
+              <span className="block truncate text-sm font-extrabold tracking-tight">DreamWish</span>
+              <span className="hidden text-[10px] font-semibold text-slate-500 sm:block">Better Decisions Powered by AI</span>
             </span>
           </Link>
           <nav aria-label="주요 메뉴" className="hidden items-center gap-5 text-sm font-semibold text-slate-600 md:flex">
@@ -43,13 +43,16 @@ export function GuestChatHome({ onLoginRequest, restoringSession = false }: Gues
             <Link className="transition hover:text-violet-700" href="/pricing">Pricing</Link>
           </nav>
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-            <button
-              type="button"
-              onClick={onLoginRequest}
+            <Link
+              href="/login"
+              onClick={(event) => {
+                event.preventDefault();
+                onLoginRequest();
+              }}
               className="inline-flex h-10 items-center justify-center rounded-xl bg-slate-950 px-3.5 text-xs font-bold text-white transition hover:bg-violet-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-600 sm:px-5 sm:text-sm"
             >
               Login
-            </button>
+            </Link>
             <Link
               href="/signup"
               className="inline-flex h-10 items-center justify-center rounded-xl bg-violet-600 px-3.5 text-xs font-bold text-white transition hover:bg-violet-700 sm:px-5 sm:text-sm"
@@ -218,7 +221,7 @@ export function GuestChatHome({ onLoginRequest, restoringSession = false }: Gues
             <div className="rounded-2xl bg-slate-50 p-4">
               <p className="text-[11px] font-extrabold text-slate-500">진행 단계</p>
               <ul className="mt-2 space-y-1.5 text-[11px] font-semibold text-slate-600">
-                <li>✓ 질문 의도 파악</li><li>✓ 필요 정보 수집</li><li>◌ 딥리서치 진행</li><li>◌ 시뮬레이션 실행</li><li>◌ 조직 의견 수렴</li><li>◌ 결론 도출</li>
+                <li>✓ 질문</li><li>✓ 인터뷰</li><li>◌ 딥리서치</li><li>◌ 팀 의견 수렴</li><li>◌ 시뮬레이션</li><li>◌ 최종 결론</li><li>◌ 메모리 기억 학습</li>
               </ul>
             </div>
             <div className="rounded-2xl bg-slate-50 p-4">
@@ -317,8 +320,18 @@ export function GuestChatHome({ onLoginRequest, restoringSession = false }: Gues
       {!restoringSession ? <GuestAdSlot /> : null}
 
       <footer className="border-t border-slate-200/80 bg-white/70">
+        <div className="mx-auto max-w-6xl px-4 pt-5 sm:px-6">
+          <nav className="flex flex-wrap items-center gap-4 text-xs font-semibold text-slate-600" aria-label="주요 페이지">
+            <Link href="/chat" className="hover:text-violet-700">AI Chat</Link>
+            <Link href="/memory" className="hover:text-violet-700">Memory</Link>
+            <Link href="/team" className="hover:text-violet-700">Team</Link>
+            <Link href="/pricing" className="hover:text-violet-700">Pricing</Link>
+            <Link href="/login" className="hover:text-violet-700">Login</Link>
+            <Link href="/signup" className="hover:text-violet-700">Get Started</Link>
+          </nav>
+        </div>
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-5 text-xs text-slate-500 sm:px-6">
-          <span>© {new Date().getFullYear()} DREAMWISH</span>
+          <span>© {new Date().getFullYear()} DreamWish</span>
           <nav className="flex flex-wrap items-center gap-4" aria-label="정책">
             <Link href="/privacy" className="hover:text-slate-950">Privacy</Link>
             <Link href="/cookies" className="hover:text-slate-950">Cookies</Link>

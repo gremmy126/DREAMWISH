@@ -8,7 +8,7 @@ import {
   UsersRound,
   X
 } from "lucide-react";
-import { motion } from "framer-motion";
+import Link from "next/link";
 import { useState } from "react";
 import { StorageStatus } from "@/components/Common/StorageStatus";
 import { BrainLogo } from "@/components/brand/BrainLogo";
@@ -26,13 +26,16 @@ type SidebarProps = {
 
 export { SIDEBAR_NAV_ORDER };
 
+// SEO: 사이드바 메뉴는 실제 <a href>로 렌더링되어 크롤러가 /chat·/memory·/team
+// 을 탐색할 수 있다. 클릭 시에는 SPA 방식으로 전환된다.
 const primaryItems: Array<{
   id: ViewId;
+  href: string;
   icon: typeof Home;
 }> = [
-  { id: "chat", icon: MessageSquareText },
-  { id: "memory", icon: Brain },
-  { id: "team", icon: UsersRound }
+  { id: "chat", href: "/chat", icon: MessageSquareText },
+  { id: "memory", href: "/memory", icon: Brain },
+  { id: "team", href: "/team", icon: UsersRound }
 ];
 
 export function Sidebar({
@@ -106,12 +109,14 @@ function SidebarContent({ activeView, onViewChange }: SidebarProps) {
             (item.id === "memory" && activeView === "files");
 
           return (
-            <motion.button
+            <Link
               key={item.id}
-              type="button"
-              whileTap={{ scale: 0.98 }}
-              onClick={() => onViewChange(item.id)}
-              className={`group flex h-10 w-full items-center gap-3 rounded-2xl px-3 text-sm font-medium transition ${
+              href={item.href}
+              onClick={(event) => {
+                event.preventDefault();
+                onViewChange(item.id);
+              }}
+              className={`group flex h-10 w-full items-center gap-3 rounded-2xl px-3 text-sm font-medium transition active:scale-[0.98] ${
                 active
                   ? "bg-app-hover text-app-primary"
                   : "text-slate-600 hover:bg-app-hover hover:text-app-primary"
@@ -119,7 +124,7 @@ function SidebarContent({ activeView, onViewChange }: SidebarProps) {
             >
               <Icon size={18} strokeWidth={active ? 2 : 1.8} />
               <span>{getNavLabel(item.id, language)}</span>
-            </motion.button>
+            </Link>
           );
         })}
       </nav>

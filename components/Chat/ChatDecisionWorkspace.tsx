@@ -1,12 +1,14 @@
 "use client";
 
 import {
+  Bot,
   Check,
   Lightbulb,
   Loader2,
   MessageCircle,
   Plus,
   Rocket,
+  Save,
   Send,
   Settings2,
   Sparkles,
@@ -15,6 +17,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ChatView } from "@/components/Chat/ChatView";
+import { AgentStudio } from "@/components/Agents/AgentStudio";
 import { AnalysisReportPanel } from "@/components/Chat/AnalysisReportPanel";
 import type { Decision } from "@/src/lib/decisions/decision.types";
 import type { DecisionConclusion } from "@/src/lib/decisions/decision-conclusion";
@@ -33,11 +36,33 @@ type FlowPhase =
   | "interview"
   | "research-config"
   | "researching"
+  | "team"
   | "simulating"
   | "concluding"
+  | "memory"
   | "done";
 
+const PHASE_ORDER: FlowPhase[] = [
+  "idle",
+  "interview",
+  "research-config",
+  "researching",
+  "team",
+  "simulating",
+  "concluding",
+  "memory",
+  "done"
+];
+
+function phaseAtLeast(current: FlowPhase, target: FlowPhase) {
+  return PHASE_ORDER.indexOf(current) >= PHASE_ORDER.indexOf(target);
+}
+
 type StepState = "pending" | "active" | "done" | "skipped";
+
+type WorkspaceMode = "decision" | "free" | "agent";
+
+const RESEARCH_SETTINGS_KEY = "dreamwish-research-settings-v1";
 
 const EXAMPLES = [
   {
@@ -114,10 +139,11 @@ function nextId() {
   return `m-${Date.now()}-${messageSeq}`;
 }
 
-// AI Chat — 의사결정 파트너. 좌측은 AI 인터뷰 대화, 우측은 실시간 분석 보고서.
-// 디자인 기준: docs/design/ai-chat-design.svg + 사용자 제공 레퍼런스.
+// AI Chat — 의사결정 파트너. 흐름: 질문 → 인터뷰 → 딥리서치 → 팀 의견 →
+// 시뮬레이션 → 최종 결론 → 메모리 기억 학습. 좌측은 AI 인터뷰 대화, 우측은
+// 실시간 분석 보고서. 디자인 기준: docs/design/ai-chat-design.svg.
 export function ChatDecisionWorkspace() {
-  const [mode, setMode] = useState<"decision" | "free">("decision");
+  const [mode, setMode] = useState<WorkspaceMode>("decision");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [phase, setPhase] = useState<FlowPhase>("idle");
   const [interviewIndex, setInterviewIndex] = useState(0);
@@ -129,6 +155,7 @@ export function ChatDecisionWorkspace() {
   const [approving, setApproving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsSaved, setSettingsSaved] = useState(false);
   const [researchMode, setResearchMode] = useState<"standard" | "deep">("standard");
   const [researchMinutes, setResearchMinutes] = useState(10);
   const [includeLocalDocs, setIncludeLocalDocs] = useState(true);
@@ -136,11 +163,54 @@ export function ChatDecisionWorkspace() {
   const [history, setHistory] = useState<Array<{ id: string; title: string; status: string }>>([]);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const pollRef = useRef<number | null>(null);
+  const pollDeadlineRef = useRef<number>(0);
   const saveTimer = useRef<number | null>(null);
+  const extraContextRef = useRef<string>("");
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, phase, researchProgress]);
+
+  // 저장된 딥리서치 설정을 불러온다.
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(RESEARCH_SETTINGS_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as {
+        researchMode?: "standard" | "deep";
+        researchMinutes?: number;
+        includeLocalDocs?: boolean;
+      };
+      if (parsed.researchMode === "standard" || parsed.researchMode === "deep") {
+        setResearchMode(parsed.researchMode);
+      }
+      if (
+        typeof parsed.researchMinutes === "number" &&
+        parsed.researchMinutes >= 5 &&
+        parsed.researchMinutes <= 60
+      ) {
+        setResearchMinutes(parsed.researchMinutes);
+      }
+      if (typeof parsed.includeLocalDocs === "boolean") {
+        setIncludeLocalDocs(parsed.includeLocalDocs);
+      }
+    } catch {
+      // Stored settings are best-effort.
+    }
+  }, []);
+
+  function saveResearchSettings() {
+    try {
+      window.localStorage.setItem(
+        RESEARCH_SETTINGS_KEY,
+        JSON.stringify({ researchMode, researchMinutes, includeLocalDocs })
+      );
+      setSettingsSaved(true);
+      window.setTimeout(() => setSettingsSaved(false), 2000);
+    } catch {
+      setNotice("설정을 저장하지 못했습니다.");
+    }
+  }
 
   const loadHistory = async () => {
     try {
@@ -163,7 +233,8 @@ export function ChatDecisionWorkspace() {
     void loadHistory();
   }, []);
 
-  // 결정 분석 대화는 자유 채팅 세션이 아니라 결정에 저장된다.
+  // 결정 분석 대화는 결정에 저장되고, 서버가 연결된 채팅 세션에도 미러링해
+  // 자유 대화 목록에서 함께 볼 수 있다.
   useEffect(() => {
     if (!decision || !messages.length) return;
     if (saveTimer.current) window.clearTimeout(saveTimer.current);
@@ -198,8 +269,26 @@ export function ChatDecisionWorkspace() {
           text: message.text
         }))
       );
-      setPhase(loaded.recommendation ? "done" : loaded.objective ? "research-config" : "interview");
-      setInterviewIndex(loaded.objective ? INTERVIEW.length - 1 : 0);
+      const interviewDone =
+        Boolean(loaded.objective) && loaded.problem.successCriteria.length > 0;
+      if (loaded.recommendation) {
+        setPhase("done");
+        setInterviewIndex(INTERVIEW.length - 1);
+      } else if (interviewDone) {
+        setPhase("research-config");
+        setInterviewIndex(INTERVIEW.length - 1);
+      } else {
+        // 인터뷰가 끝나지 않은 기록은 이어서 진행할 수 있도록 현재 질문을
+        // 다시 보여준다 (진행이 멈춘 것처럼 보이지 않게).
+        const resumeIndex = loaded.objective ? 1 : 0;
+        setPhase("interview");
+        setInterviewIndex(resumeIndex);
+        const question = INTERVIEW[resumeIndex];
+        pushAi(question.prompt, {
+          hint: question.hint,
+          quickReplies: question.quickReplies
+        });
+      }
       setResearchProgress(null);
       try {
         const briefResponse = await fetch(`/api/decisions/${decisionId}/brief`, {
@@ -242,6 +331,7 @@ export function ChatDecisionWorkspace() {
     setResearchProgress(null);
     setNotice(null);
     setInput("");
+    extraContextRef.current = "";
   }
 
   async function api<T>(path: string, init?: RequestInit): Promise<T> {
@@ -272,7 +362,7 @@ export function ChatDecisionWorkspace() {
       setPhase("interview");
       setInterviewIndex(0);
       void loadHistory();
-      pushAi("좋아요, 질문 의도를 파악했습니다. 정확한 결론을 위해 몇 가지만 여쭤볼게요.", {});
+      pushAi("좋아요, 질문을 파악했습니다. 정확한 결론을 위해 몇 가지 인터뷰를 진행할게요.", {});
       const first = INTERVIEW[0];
       pushAi(first.prompt, { hint: first.hint, quickReplies: first.quickReplies });
     } catch (caught) {
@@ -286,31 +376,43 @@ export function ChatDecisionWorkspace() {
     if (!decision) return;
     setBusy(true);
     pushUser(answer);
+    const question = INTERVIEW[interviewIndex];
+    const patchBody = question.apply(answer, decision);
+    // 서버 저장이 실패해도 인터뷰가 멈추지 않도록 로컬 상태를 먼저 갱신하고
+    // 무조건 다음 단계로 진행한다.
+    const merged: Decision = {
+      ...decision,
+      ...patchBody,
+      problem: { ...decision.problem, ...(patchBody.problem || {}) }
+    };
+    setDecision(merged);
     try {
-      const question = INTERVIEW[interviewIndex];
       const patched = await api<{ decision: Decision }>(`/api/decisions/${decision.id}`, {
         method: "PATCH",
-        body: JSON.stringify(question.apply(answer, decision))
+        body: JSON.stringify(patchBody)
       });
       setDecision(patched.decision);
-
-      const nextIndex = interviewIndex + 1;
-      if (nextIndex < INTERVIEW.length) {
-        setInterviewIndex(nextIndex);
-        const next = INTERVIEW[nextIndex];
-        pushAi(next.prompt, { hint: next.hint, quickReplies: next.quickReplies });
-      } else {
-        setPhase("research-config");
-        pushAi(
-          "필요 정보를 모두 수집했습니다. 딥리서치를 실행하면 외부 근거를 조사한 뒤 시뮬레이션과 최종 결론까지 이어집니다.",
-          {}
-        );
-      }
+      setNotice(null);
     } catch (caught) {
-      setNotice(caught instanceof Error ? caught.message : "답변을 저장하지 못했습니다.");
-    } finally {
-      setBusy(false);
+      setNotice(
+        caught instanceof Error
+          ? `답변 저장 중 문제가 있었지만 분석은 계속 진행합니다. (${caught.message})`
+          : "답변 저장 중 문제가 있었지만 분석은 계속 진행합니다."
+      );
     }
+    const nextIndex = interviewIndex + 1;
+    if (nextIndex < INTERVIEW.length) {
+      setInterviewIndex(nextIndex);
+      const next = INTERVIEW[nextIndex];
+      pushAi(next.prompt, { hint: next.hint, quickReplies: next.quickReplies });
+    } else {
+      setPhase("research-config");
+      pushAi(
+        "필요 정보를 모두 수집했습니다. 딥리서치를 실행하면 외부 근거 조사 → 팀 의견 → 시뮬레이션 → 최종 결론 → 메모리 학습까지 자동으로 이어집니다.",
+        { hint: "아래 버튼을 누르거나, 채팅창에 '실행' 또는 '건너뛰기'라고 입력해도 됩니다." }
+      );
+    }
+    setBusy(false);
   }
 
   async function runResearch() {
@@ -322,7 +424,8 @@ export function ChatDecisionWorkspace() {
       const query =
         `${decision.title}. 목표: ${decision.objective || "-"}. ` +
         `제약: ${decision.problem.constraints.join(", ") || "-"}. ` +
-        `성공 기준: ${decision.problem.successCriteria.join(", ") || "-"}`;
+        `성공 기준: ${decision.problem.successCriteria.join(", ") || "-"}` +
+        (extraContextRef.current ? ` 추가 참고: ${extraContextRef.current}` : "");
       const started = await api<{
         ok: boolean;
         data: { job: { id: string }; session?: { id: string } };
@@ -332,6 +435,9 @@ export function ChatDecisionWorkspace() {
           method: "POST",
           body: JSON.stringify({
             query,
+            // 결정 분석의 딥리서치도 연결된 대화 세션에 남겨 대화 목록에서
+            // 함께 볼 수 있게 한다.
+            chatSessionId: decision.chatSessionId || undefined,
             settings: {
               mode: researchMode === "deep" ? "deep" : "standard",
               maxDurationMs: researchMinutes * 60_000,
@@ -343,12 +449,6 @@ export function ChatDecisionWorkspace() {
         }
       );
       const jobId = started.data.job.id;
-      // 결정 분석의 딥리서치가 자유 채팅 대화 목록에 남지 않도록 세션을 보관 처리한다.
-      if (started.data.session?.id) {
-        void fetch(`/api/ai/sessions/${started.data.session.id}`, { method: "DELETE" }).catch(
-          () => undefined
-        );
-      }
       await api(`/api/decisions/${decision.id}`, {
         method: "PATCH",
         body: JSON.stringify({
@@ -363,7 +463,15 @@ export function ChatDecisionWorkspace() {
         })
       });
 
+      // 폴링에는 상한선을 두어 작업이 응답하지 않아도 분석이 멈추지 않게 한다.
+      pollDeadlineRef.current = Date.now() + researchMinutes * 60_000 + 120_000;
       pollRef.current = window.setInterval(async () => {
+        if (Date.now() > pollDeadlineRef.current) {
+          if (pollRef.current) window.clearInterval(pollRef.current);
+          pushAi("딥리서치 응답이 지연되어 내부 데이터 기반으로 계속 진행합니다.");
+          await finishResearch(jobId, null);
+          return;
+        }
         try {
           const polled = await api<{
             ok: boolean;
@@ -374,7 +482,7 @@ export function ChatDecisionWorkspace() {
                 currentStep: string;
                 report: string | null;
                 reportSections: { summary: string; findings: string } | null;
-                sources: unknown[];
+                sources: Array<{ title?: string; url?: string; domain?: string }>;
               };
             };
           }>(`/api/ai/deep-research/${jobId}`);
@@ -385,30 +493,7 @@ export function ChatDecisionWorkspace() {
           });
           if (job.status === "completed" || job.status === "failed" || job.status === "cancelled") {
             if (pollRef.current) window.clearInterval(pollRef.current);
-            const completed = job.status === "completed";
-            const summary =
-              job.reportSections?.summary || (job.report ? job.report.slice(0, 800) : "");
-            const patched = await api<{ decision: Decision }>(`/api/decisions/${decision.id}`, {
-              method: "PATCH",
-              body: JSON.stringify({
-                research: {
-                  jobId,
-                  status: completed ? "completed" : "failed",
-                  summary,
-                  findings: job.reportSections?.findings || "",
-                  sourceCount: Array.isArray(job.sources) ? job.sources.length : 0,
-                  updatedAt: new Date().toISOString()
-                }
-              })
-            });
-            setDecision(patched.decision);
-            setResearchProgress(null);
-            pushAi(
-              completed
-                ? `딥리서치를 완료했습니다. 출처 ${Array.isArray(job.sources) ? job.sources.length : 0}건을 교차 확인했어요. 이어서 시뮬레이션을 실행합니다.`
-                : "딥리서치를 완료하지 못했습니다. 내부 데이터 기반으로 시뮬레이션을 계속 진행합니다."
-            );
-            await runSimulationAndConclude(patched.decision);
+            await finishResearch(jobId, job);
           }
         } catch {
           // Polling errors are transient; the next tick retries.
@@ -417,11 +502,64 @@ export function ChatDecisionWorkspace() {
     } catch (caught) {
       setNotice(caught instanceof Error ? caught.message : "딥리서치를 시작하지 못했습니다.");
       setResearchProgress(null);
-      pushAi("딥리서치를 시작하지 못했습니다(AI 공급자 미구성일 수 있어요). 시뮬레이션으로 계속 진행합니다.");
-      await skipResearchAndContinue();
-    } finally {
+      pushAi("딥리서치를 시작하지 못했습니다(AI 공급자 미구성일 수 있어요). 팀 의견과 시뮬레이션으로 계속 진행합니다.");
+      await continueAfterResearch(decision);
       setBusy(false);
+      return;
     }
+    setBusy(false);
+  }
+
+  async function finishResearch(
+    jobId: string,
+    job: {
+      status: string;
+      report: string | null;
+      reportSections: { summary: string; findings: string } | null;
+      sources: Array<{ title?: string; url?: string; domain?: string }>;
+    } | null
+  ) {
+    if (!decision) return;
+    const completed = job?.status === "completed";
+    const summary =
+      job?.reportSections?.summary || (job?.report ? job.report.slice(0, 800) : "");
+    const sources = Array.isArray(job?.sources)
+      ? job!.sources
+          .filter((source) => source.url)
+          .map((source) => ({
+            title: source.title || source.domain || source.url || "출처",
+            url: source.url || "",
+            domain: source.domain || ""
+          }))
+      : [];
+    let latest = decision;
+    try {
+      const patched = await api<{ decision: Decision }>(`/api/decisions/${decision.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          research: {
+            jobId,
+            status: completed ? "completed" : "failed",
+            summary,
+            findings: job?.reportSections?.findings || "",
+            sourceCount: sources.length,
+            sources,
+            updatedAt: new Date().toISOString()
+          }
+        })
+      });
+      latest = patched.decision;
+      setDecision(patched.decision);
+    } catch {
+      // Keep going with the local state.
+    }
+    setResearchProgress(null);
+    pushAi(
+      completed
+        ? `딥리서치를 완료했습니다. 출처 ${sources.length}건을 교차 확인했어요. 이어서 팀 의견을 확인합니다.`
+        : "딥리서치를 완료하지 못했습니다. 내부 데이터 기반으로 계속 진행합니다."
+    );
+    await continueAfterResearch(latest);
   }
 
   async function skipResearchAndContinue() {
@@ -440,7 +578,28 @@ export function ChatDecisionWorkspace() {
       })
     }).catch(() => ({ decision }));
     setDecision(patched.decision);
-    await runSimulationAndConclude(patched.decision);
+    await continueAfterResearch(patched.decision);
+  }
+
+  // 딥리서치 이후: 팀 의견 → 시뮬레이션 → 최종 결론 → 메모리 학습.
+  async function continueAfterResearch(current: Decision) {
+    setPhase("team");
+    let teamSignal: DecisionEmployeeSignal | null = null;
+    try {
+      const briefBody = await api<{ brief?: { employeeVoice?: unknown } }>(
+        `/api/decisions/${current.id}/brief`
+      );
+      teamSignal = (briefBody.brief?.employeeVoice as DecisionEmployeeSignal | null) || null;
+      setSignal(teamSignal);
+    } catch {
+      teamSignal = null;
+    }
+    pushAi(
+      teamSignal
+        ? `팀 의견을 확인했습니다. Employee Signal ${teamSignal.employeeSignalScore ?? "—"}점이 분석에 반영됩니다.`
+        : "아직 집계된 팀 설문이 없어 팀 의견 없이 진행합니다. Team 페이지에서 익명 설문을 게시하면 자동 반영됩니다."
+    );
+    await runSimulationAndConclude(current);
   }
 
   async function runSimulationAndConclude(current: Decision) {
@@ -451,7 +610,7 @@ export function ChatDecisionWorkspace() {
         { method: "POST" }
       );
       setDecision(simulated.decision);
-      pushAi("시뮬레이션을 완료했습니다. 조직 의견을 확인하고 종합 결론을 작성합니다.");
+      pushAi("시뮬레이션을 완료했습니다. 종합 결론을 작성합니다.");
 
       setPhase("concluding");
       const concluded = await api<{
@@ -462,10 +621,19 @@ export function ChatDecisionWorkspace() {
       setDecision(concluded.decision);
       setConclusion(concluded.conclusion);
       setSignal(concluded.signal);
-      setPhase("done");
       pushAi(`핵심 결론: ${concluded.conclusion.coreConclusion}`, {
         hint: "상세 근거·반대 의견·시나리오는 우측 보고서에서 확인하고, 검토 후 승인하세요."
       });
+
+      // 메모리 기억 학습 — 결정·결론·리서치가 Memory OS로 파생 저장된다.
+      setPhase("memory");
+      try {
+        await fetch("/api/memory-os", { cache: "no-store" });
+        pushAi("이번 결정과 결론을 Memory에 학습했습니다. 다음 결정에서 자동으로 참고됩니다.");
+      } catch {
+        pushAi("Memory 학습은 다음 동기화 때 자동으로 반영됩니다.");
+      }
+      setPhase("done");
     } catch (caught) {
       setNotice(caught instanceof Error ? caught.message : "분석을 완료하지 못했습니다.");
       setPhase("done");
@@ -500,29 +668,51 @@ export function ChatDecisionWorkspace() {
     const text = input.trim();
     if (!text || busy) return;
     setInput("");
-    if (phase === "idle") void startDecision(text);
-    else if (phase === "interview") void answerInterview(text);
-    else pushUser(text);
+    if (phase === "idle") {
+      void startDecision(text);
+    } else if (phase === "interview") {
+      void answerInterview(text);
+    } else if (phase === "research-config") {
+      // 여기서 입력이 막히면 '진행이 안 되는' 것처럼 보인다: 입력을 다음
+      // 행동으로 연결한다.
+      pushUser(text);
+      if (/건너|스킵|skip|시뮬레이션만/iu.test(text)) {
+        void skipResearchAndContinue();
+      } else {
+        if (!/^(실행|시작|딥리서치|고|go|ok|네|예|응)$/iu.test(text)) {
+          extraContextRef.current = `${extraContextRef.current} ${text}`.trim().slice(0, 500);
+        }
+        void runResearch();
+      }
+    } else if (phase === "done") {
+      pushUser(text);
+      pushAi(
+        "이 분석은 완료되었습니다. 추가 질문은 '자유 대화'에서 이어가거나, '새 대화'로 새 결정 분석을 시작하세요.",
+        {}
+      );
+    } else {
+      pushUser(text);
+    }
   }
 
   const steps: Array<{ label: string; detail: string; state: StepState }> = [
     {
-      label: "질문 의도 파악",
-      detail: decision ? decision.title : "결정 질문 분석",
+      label: "질문",
+      detail: decision ? decision.title : "결정하고 싶은 문제 입력",
       state: decision ? "done" : phase === "idle" ? "pending" : "active"
     },
     {
-      label: "필요 정보 수집",
+      label: "인터뷰",
       detail: "목표·제약·위험 허용·성공 기준",
       state:
         phase === "interview"
           ? "active"
-          : decision && phase !== "idle"
+          : decision && phaseAtLeast(phase, "research-config")
             ? "done"
             : "pending"
     },
     {
-      label: "딥리서치 진행",
+      label: "딥리서치",
       detail:
         decision?.research?.status === "completed"
           ? `출처 ${decision.research.sourceCount}건 교차 확인`
@@ -539,7 +729,21 @@ export function ChatDecisionWorkspace() {
               : "pending"
     },
     {
-      label: "시뮬레이션 실행",
+      label: "팀 의견 수렴",
+      detail: signal
+        ? `Employee Signal ${signal.employeeSignalScore ?? "—"}점 반영`
+        : "Team 익명 설문 결과 반영",
+      state:
+        phase === "team"
+          ? "active"
+          : phaseAtLeast(phase, "simulating")
+            ? signal
+              ? "done"
+              : "skipped"
+            : "pending"
+    },
+    {
+      label: "시뮬레이션",
       detail: "시나리오 확률·대안 가중 평가",
       state:
         phase === "simulating"
@@ -549,16 +753,24 @@ export function ChatDecisionWorkspace() {
             : "pending"
     },
     {
-      label: "조직 의견 수렴",
-      detail: signal
-        ? `Employee Signal ${signal.employeeSignalScore ?? "—"}점 반영`
-        : "Team 익명 설문 결과 반영",
-      state: phase === "done" ? (signal ? "done" : "skipped") : phase === "concluding" ? "active" : "pending"
+      label: "최종 결론",
+      detail: "핵심 결론 · 반대 의견 고려",
+      state:
+        phase === "concluding"
+          ? "active"
+          : decision?.recommendation
+            ? "done"
+            : "pending"
     },
     {
-      label: "종합 분석 및 결론 도출",
-      detail: "핵심 결론 · 반대 의견 고려",
-      state: phase === "done" && decision?.recommendation ? "done" : phase === "concluding" ? "active" : "pending"
+      label: "메모리 기억 학습",
+      detail: "결정·결론·교훈을 Memory OS에 저장",
+      state:
+        phase === "memory"
+          ? "active"
+          : phase === "done" && decision?.recommendation
+            ? "done"
+            : "pending"
     }
   ];
 
@@ -592,72 +804,105 @@ export function ChatDecisionWorkspace() {
               ))}
             </select>
           ) : null}
-          <button
-            type="button"
-            onClick={() => setMode(mode === "decision" ? "free" : "decision")}
-            className="flex h-10 items-center gap-1.5 rounded-2xl border border-app-border bg-white px-4 text-xs font-semibold text-app-muted transition hover:bg-app-hover hover:text-app-primary"
-          >
-            <MessageCircle size={14} />
-            {mode === "decision" ? "자유 대화" : "결정 분석으로"}
-          </button>
-          <button
-            type="button"
-            onClick={resetConversation}
-            className="flex h-10 items-center gap-1.5 rounded-2xl border border-app-border bg-white px-4 text-xs font-semibold text-app-text transition hover:bg-app-hover hover:text-app-primary"
-          >
-            <Plus size={14} />새 대화
-          </button>
-          <div className="relative">
+          <div className="inline-flex rounded-2xl border border-app-border bg-white p-1">
+            {(
+              [
+                { id: "decision", label: "결정 분석", icon: Sparkles },
+                { id: "free", label: "자유 대화", icon: MessageCircle },
+                { id: "agent", label: "AI Agent", icon: Bot }
+              ] as Array<{ id: WorkspaceMode; label: string; icon: typeof Sparkles }>
+            ).map((item) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setMode(item.id)}
+                  className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
+                    mode === item.id ? "bg-app-primary text-white" : "text-app-muted hover:text-app-primary"
+                  }`}
+                >
+                  <Icon size={13} />
+                  {item.label}
+                </button>
+              );
+            })}
+          </div>
+          {mode === "decision" ? (
             <button
               type="button"
-              onClick={() => setSettingsOpen((open) => !open)}
-              className="flex h-10 items-center gap-1.5 rounded-2xl bg-app-primary px-4 text-xs font-bold text-white shadow-soft transition hover:opacity-90"
+              onClick={resetConversation}
+              className="flex h-10 items-center gap-1.5 rounded-2xl border border-app-border bg-white px-4 text-xs font-semibold text-app-text transition hover:bg-app-hover hover:text-app-primary"
             >
-              <Settings2 size={14} />
-              딥리서치 설정
+              <Plus size={14} />새 대화
             </button>
-            {settingsOpen ? (
-              <div className="absolute right-0 top-12 z-30 w-72 rounded-app border border-app-border bg-white p-4 shadow-app">
-                <p className="text-xs font-bold text-app-text">딥리서치 설정</p>
-                <label className="mt-3 block text-[11px] font-semibold text-app-muted">
-                  조사 깊이
-                  <select
-                    value={researchMode}
-                    onChange={(event) => setResearchMode(event.target.value as "standard" | "deep")}
-                    className="mt-1 h-9 w-full rounded-xl border border-app-border bg-white px-2 text-xs text-app-text"
+          ) : null}
+          {mode === "decision" ? (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setSettingsOpen((open) => !open)}
+                className="flex h-10 items-center gap-1.5 rounded-2xl bg-app-primary px-4 text-xs font-bold text-white shadow-soft transition hover:opacity-90"
+              >
+                <Settings2 size={14} />
+                딥리서치 설정
+              </button>
+              {settingsOpen ? (
+                <div className="absolute right-0 top-12 z-30 w-72 rounded-app border border-app-border bg-white p-4 shadow-app">
+                  <p className="text-xs font-bold text-app-text">딥리서치 설정</p>
+                  <label className="mt-3 block text-[11px] font-semibold text-app-muted">
+                    조사 깊이
+                    <select
+                      value={researchMode}
+                      onChange={(event) => setResearchMode(event.target.value as "standard" | "deep")}
+                      className="mt-1 h-9 w-full rounded-xl border border-app-border bg-white px-2 text-xs text-app-text"
+                    >
+                      <option value="standard">일반</option>
+                      <option value="deep">심층</option>
+                    </select>
+                  </label>
+                  <label className="mt-3 block text-[11px] font-semibold text-app-muted">
+                    시간 예산 — {researchMinutes}분
+                    <input
+                      type="range"
+                      min={5}
+                      max={60}
+                      step={5}
+                      value={researchMinutes}
+                      onChange={(event) => setResearchMinutes(Number(event.target.value))}
+                      className="mt-2 w-full accent-[var(--primary)]"
+                    />
+                  </label>
+                  <label className="mt-3 flex items-center gap-2 text-[11px] font-semibold text-app-muted">
+                    <input
+                      type="checkbox"
+                      checked={includeLocalDocs}
+                      onChange={(event) => setIncludeLocalDocs(event.target.checked)}
+                    />
+                    내부 문서 포함
+                  </label>
+                  <button
+                    type="button"
+                    onClick={saveResearchSettings}
+                    className="mt-4 flex h-9 w-full items-center justify-center gap-1.5 rounded-xl bg-app-primary text-xs font-bold text-white transition hover:opacity-90"
                   >
-                    <option value="standard">일반</option>
-                    <option value="deep">심층</option>
-                  </select>
-                </label>
-                <label className="mt-3 block text-[11px] font-semibold text-app-muted">
-                  시간 예산 — {researchMinutes}분
-                  <input
-                    type="range"
-                    min={5}
-                    max={60}
-                    step={5}
-                    value={researchMinutes}
-                    onChange={(event) => setResearchMinutes(Number(event.target.value))}
-                    className="mt-2 w-full accent-[var(--primary)]"
-                  />
-                </label>
-                <label className="mt-3 flex items-center gap-2 text-[11px] font-semibold text-app-muted">
-                  <input
-                    type="checkbox"
-                    checked={includeLocalDocs}
-                    onChange={(event) => setIncludeLocalDocs(event.target.checked)}
-                  />
-                  내부 문서 포함
-                </label>
-              </div>
-            ) : null}
-          </div>
+                    <Save size={13} />
+                    {settingsSaved ? "저장됨!" : "설정 저장"}
+                  </button>
+                  <p className="mt-2 text-[10px] leading-4 text-app-muted">
+                    저장한 설정은 이 브라우저에서 다음 분석에도 그대로 적용됩니다.
+                  </p>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       </div>
 
       {mode === "free" ? (
         <ChatView />
+      ) : mode === "agent" ? (
+        <AgentStudio />
       ) : (
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_400px]">
           <div className="flex h-[calc(100dvh-220px)] min-h-[480px] flex-col rounded-app border border-app-border bg-white shadow-soft">
@@ -784,8 +1029,8 @@ export function ChatDecisionWorkspace() {
                       </p>
                     </div>
                     <div className="rounded-xl bg-app-hover/60 p-2.5">
-                      <p className="text-[10px] font-bold text-app-text">시뮬레이션</p>
-                      <p className="text-[10.5px] text-app-muted">자동 실행</p>
+                      <p className="text-[10px] font-bold text-app-text">이후 단계</p>
+                      <p className="text-[10.5px] text-app-muted">팀 의견·시뮬레이션 자동 실행</p>
                     </div>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
@@ -795,7 +1040,7 @@ export function ChatDecisionWorkspace() {
                       onClick={() => void runResearch()}
                       className="h-9 rounded-xl bg-app-primary px-4 text-xs font-bold text-white shadow-soft transition hover:opacity-90 disabled:opacity-50"
                     >
-                      딥리서치 + 시뮬레이션 실행
+                      딥리서치 + 전체 분석 실행
                     </button>
                     <button
                       type="button"
@@ -803,7 +1048,7 @@ export function ChatDecisionWorkspace() {
                       onClick={() => void skipResearchAndContinue()}
                       className="h-9 rounded-xl border border-app-border bg-white px-4 text-xs font-semibold text-app-muted transition hover:bg-app-hover"
                     >
-                      건너뛰고 시뮬레이션만
+                      건너뛰고 계속 진행
                     </button>
                   </div>
                 </AiBubble>
@@ -823,7 +1068,11 @@ export function ChatDecisionWorkspace() {
                     if (event.key === "Enter" && !event.nativeEvent.isComposing) submitInput();
                   }}
                   placeholder={
-                    phase === "interview" ? "답변을 입력하세요…" : "무엇이든 물어보세요…"
+                    phase === "interview"
+                      ? "답변을 입력하세요…"
+                      : phase === "research-config"
+                        ? "'실행' 또는 '건너뛰기'를 입력하거나 위 버튼을 누르세요…"
+                        : "무엇이든 물어보세요…"
                   }
                   className="h-9 min-w-0 flex-1 bg-transparent text-sm text-app-text outline-none placeholder:text-slate-400"
                 />

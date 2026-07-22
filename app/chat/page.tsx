@@ -5,7 +5,7 @@ import { BreadcrumbJsonLd } from "@/components/seo/BreadcrumbJsonLd";
 import { SESSION_COOKIE_NAME } from "@/src/lib/auth/session-token";
 
 export const metadata: Metadata = {
-  title: "AI Chat | DreamWish",
+  title: "AI Chat",
   description:
     "AI가 질문하고 딥리서치·시뮬레이션·조직 의견을 거쳐 최종 결론까지 제안하는 의사결정 파트너.",
   alternates: { canonical: "/chat" },

@@ -460,6 +460,11 @@ export function AuthGate({ children, hasServerSession }: AuthGateProps) {
   }
 
   if (loading) {
+    // SEO: 서버 세션이 없으면(크롤러 포함) 로딩 화면 대신 게스트 홈을 즉시
+    // 렌더링해 내비게이션·푸터 링크가 JS 실행 없이도 HTML에 노출되게 한다.
+    if (!hasServerSession) {
+      return <GuestChatHome onLoginRequest={openLogin} restoringSession />;
+    }
     return <AuthRestoringScreen />;
   }
 

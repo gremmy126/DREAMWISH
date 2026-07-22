@@ -80,6 +80,7 @@ export async function createDecision(
     research: null,
     simulationResult: null,
     conversation: [],
+    chatSessionId: null,
     employeeSignalWeight: clampEmployeeSignalWeight(undefined),
     createdAt: now,
     updatedAt: now
@@ -117,7 +118,13 @@ export async function updateDecision(
     if (patch.finalDecision !== undefined) decision.finalDecision = patch.finalDecision;
     if (Array.isArray(patch.executionPlan)) decision.executionPlan = patch.executionPlan;
     if (patch.retrospective !== undefined) decision.retrospective = patch.retrospective;
-    if (patch.research !== undefined) decision.research = patch.research;
+    if (patch.research !== undefined) decision.research = sanitizeResearch(patch.research);
+    if (patch.chatSessionId !== undefined) {
+      decision.chatSessionId =
+        typeof patch.chatSessionId === "string" && patch.chatSessionId.trim()
+          ? patch.chatSessionId.trim().slice(0, 100)
+          : null;
+    }
     if (patch.simulationResult !== undefined) decision.simulationResult = patch.simulationResult;
     if (Array.isArray(patch.conversation)) {
       decision.conversation = patch.conversation
@@ -151,6 +158,24 @@ export async function deleteDecision(
 
 export async function listAllDecisionOwners() {
   return listOwnerStates(DECISION_STORE);
+}
+
+function sanitizeResearch(research: Decision["research"]): Decision["research"] {
+  if (!research) return research;
+  const sources = Array.isArray(research.sources)
+    ? research.sources
+        .filter(
+          (source) =>
+            source && typeof source.url === "string" && source.url.trim().length > 0
+        )
+        .slice(0, 40)
+        .map((source) => ({
+          title: String(source.title || "").slice(0, 300),
+          url: String(source.url).slice(0, 1000),
+          domain: String(source.domain || "").slice(0, 200)
+        }))
+    : undefined;
+  return { ...research, ...(sources ? { sources } : {}) };
 }
 
 function sanitizeProblem(problem: Partial<DecisionProblem> | undefined): Partial<DecisionProblem> {

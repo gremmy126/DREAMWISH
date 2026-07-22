@@ -1,4 +1,4 @@
-import Script from "next/script";
+import { JsonLd } from "@/components/seo/JsonLd";
 import { SITE_URL } from "@/src/lib/site/metadata";
 
 // Schema.org BreadcrumbList — 모든 주요 페이지에 적용되어 구글 사이트링크
@@ -12,13 +12,5 @@ export function BreadcrumbJsonLd({ name, path }: { name: string; path: string })
       { "@type": "ListItem", position: 2, name, item: `${SITE_URL}${path}` }
     ]
   };
-  return (
-    <Script
-      id={`breadcrumb-${path.replace(/\//gu, "-")}`}
-      type="application/ld+json"
-      strategy="beforeInteractive"
-    >
-      {JSON.stringify(data).replace(/</gu, "\\u003c")}
-    </Script>
-  );
+  return <JsonLd id={`breadcrumb-${path.replace(/\//gu, "-")}`} data={data} />;
 }

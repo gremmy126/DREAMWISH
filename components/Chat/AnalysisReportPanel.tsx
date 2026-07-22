@@ -4,12 +4,20 @@ import {
   AlertTriangle,
   BarChart3,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   Download,
+  ExternalLink,
   FileBarChart,
+  Loader2,
   ShieldAlert,
   Users
 } from "lucide-react";
-import type { Decision } from "@/src/lib/decisions/decision.types";
+import { useState } from "react";
+import type {
+  Decision,
+  DecisionResearchSource
+} from "@/src/lib/decisions/decision.types";
 import type { DecisionEmployeeSignal } from "@/src/lib/surveys/survey.types";
 import type { DecisionConclusion } from "@/src/lib/decisions/decision-conclusion";
 
@@ -36,6 +44,13 @@ export function AnalysisReportPanel({
   approving
 }: AnalysisReportPanelProps) {
   const research = decision?.research || null;
+  const [sourcesOpen, setSourcesOpen] = useState(false);
+  const [sourcesLoading, setSourcesLoading] = useState(false);
+  const [fetchedSources, setFetchedSources] = useState<DecisionResearchSource[] | null>(null);
+  const sources = research?.sources?.length ? research.sources : fetchedSources || [];
+  const summaryFailed = Boolean(
+    research?.summary && research.summary.includes("AI 요약 생성에 실패")
+  );
   const simulation = decision?.simulationResult || null;
   const recommendation = decision?.recommendation || null;
   const core = conclusion?.coreConclusion || recommendation?.summary || null;
@@ -45,6 +60,40 @@ export function AnalysisReportPanel({
       const [view, expectedOutcome] = line.split(" → ");
       return { view: view || line, expectedOutcome: expectedOutcome || "" };
     });
+
+  // 출처 확인 — 결정에 저장된 출처를 우선 사용하고, 이전 분석처럼 저장돼
+  // 있지 않으면 리서치 작업에서 직접 불러온다.
+  async function toggleSources() {
+    if (sourcesOpen) {
+      setSourcesOpen(false);
+      return;
+    }
+    setSourcesOpen(true);
+    if (research?.sources?.length || fetchedSources || !research?.jobId) return;
+    setSourcesLoading(true);
+    try {
+      const response = await fetch(`/api/ai/deep-research/${research.jobId}`, {
+        cache: "no-store"
+      });
+      const body = (await response.json().catch(() => ({}))) as {
+        data?: { job?: { sources?: Array<{ title?: string; url?: string; domain?: string }> } };
+      };
+      const jobSources = body.data?.job?.sources || [];
+      setFetchedSources(
+        jobSources
+          .filter((source) => source.url)
+          .map((source) => ({
+            title: source.title || source.domain || source.url || "출처",
+            url: source.url || "",
+            domain: source.domain || ""
+          }))
+      );
+    } catch {
+      setFetchedSources([]);
+    } finally {
+      setSourcesLoading(false);
+    }
+  }
 
   function downloadReport() {
     if (!decision) return;
@@ -59,6 +108,13 @@ export function AnalysisReportPanel({
       lines.push("## 딥리서치 요약", research.summary, "");
       if (research.findings) lines.push("## 주요 발견", research.findings, "");
       lines.push(`출처 ${research.sourceCount}건`, "");
+      if (sources.length) {
+        lines.push("### 출처 목록");
+        sources.forEach((source, index) => {
+          lines.push(`${index + 1}. ${source.title} — ${source.url}`);
+        });
+        lines.push("");
+      }
     }
     if (simulation) {
       lines.push("## 시나리오 분석 결과");
@@ -147,15 +203,21 @@ export function AnalysisReportPanel({
               <div className="mt-2 rounded-2xl border border-app-border bg-white p-4">
                 {research?.status === "completed" && research.summary ? (
                   <>
+                    {summaryFailed ? (
+                      <div className="mb-2 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
+                        <AlertTriangle size={13} className="mt-0.5 shrink-0 text-amber-600" />
+                        <p className="text-[11px] leading-4 text-amber-800">
+                          AI 요약 생성이 실패해 수집된 근거를 원문 그대로 정리했습니다. 아래
+                          출처를 직접 확인하거나, 딥리서치를 다시 실행하면 요약이 재생성됩니다.
+                        </p>
+                      </div>
+                    ) : null}
                     <p className="text-xs leading-5 text-app-text">{research.summary}</p>
                     {research.findings ? (
                       <p className="mt-2 whitespace-pre-line text-[11px] leading-5 text-app-muted">
                         {research.findings.slice(0, 600)}
                       </p>
                     ) : null}
-                    <p className="mt-2 text-[10.5px] font-semibold text-app-primary">
-                      출처 {research.sourceCount}건 교차 확인
-                    </p>
                   </>
                 ) : research?.status === "running" ? (
                   <p className="text-xs text-app-muted">딥리서치 진행 중…</p>
@@ -168,6 +230,61 @@ export function AnalysisReportPanel({
                     딥리서치를 실행하면 시장·경쟁·근거 요약이 여기에 표시됩니다.
                   </p>
                 )}
+                {research?.status === "completed" && research.sourceCount > 0 ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => void toggleSources()}
+                      className="mt-2 flex items-center gap-1 text-[10.5px] font-semibold text-app-primary transition hover:underline"
+                    >
+                      출처 {research.sourceCount}건 확인
+                      {sourcesOpen ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                    </button>
+                    {sourcesOpen ? (
+                      <div className="mt-2 space-y-1.5 rounded-xl bg-app-hover/50 p-2.5">
+                        {sourcesLoading ? (
+                          <p className="flex items-center gap-1.5 text-[10.5px] text-app-muted">
+                            <Loader2 size={11} className="animate-spin" />
+                            출처를 불러오는 중…
+                          </p>
+                        ) : sources.length ? (
+                          sources.map((source, index) => (
+                            <div key={`${source.url}-${index}`} className="min-w-0 text-[10.5px] leading-4">
+                              {source.url.startsWith("http") ? (
+                                <a
+                                  href={source.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-start gap-1 text-app-text transition hover:text-app-primary"
+                                >
+                                  <ExternalLink size={10} className="mt-0.5 shrink-0" />
+                                  <span className="min-w-0">
+                                    <span className="font-semibold [overflow-wrap:anywhere]">
+                                      {index + 1}. {source.title}
+                                    </span>
+                                    {source.domain ? (
+                                      <span className="ml-1 text-app-muted">({source.domain})</span>
+                                    ) : null}
+                                  </span>
+                                </a>
+                              ) : (
+                                <p className="font-semibold text-app-text">
+                                  {index + 1}. {source.title}
+                                  <span className="ml-1 font-normal text-app-muted">(내부 데이터)</span>
+                                </p>
+                              )}
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-[10.5px] text-app-muted">
+                            저장된 출처 정보를 찾지 못했습니다. 새 분석에서는 출처가 자동
+                            저장됩니다.
+                          </p>
+                        )}
+                      </div>
+                    ) : null}
+                  </>
+                ) : null}
               </div>
             </section>
 

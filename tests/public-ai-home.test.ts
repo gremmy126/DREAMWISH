@@ -102,8 +102,11 @@ test("primary menu URLs are real 200 pages with metadata for SEO sitelinks", () 
     assert.doesNotMatch(source, /permanentRedirect/u, file);
     assert.match(source, /href="\/chat"/u, file);
   }
-  assert.match(read("app/login/layout.tsx"), /Login \| DreamWish/u);
-  assert.match(read("app/pricing/layout.tsx"), /Pricing \| DreamWish/u);
+  // 페이지 타이틀은 루트 레이아웃의 "%s | DreamWish" 템플릿과 결합되어
+  // "Login | DreamWish" 형태로 렌더링된다 (중복 접미사 방지).
+  assert.match(read("app/login/layout.tsx"), /title: "Login"/u);
+  assert.match(read("app/pricing/layout.tsx"), /title: "Pricing"/u);
+  assert.match(read("app/layout.tsx"), /template: "%s \| DreamWish"/u);
 
   const redirects = new Map([
     ["app/payment/success/page.tsx", 'permanentRedirect("/")'],
@@ -135,7 +138,12 @@ test("public home publishes canonical social metadata schema robots and sitemap"
   assert.match(page, /openGraph/u);
   assert.match(page, /twitter/u);
   assert.match(layout, /robots/u);
-  assert.match(page, /application\/ld\+json/u);
+  // JSON-LD는 JS 실행 없이도 크롤러가 읽도록 서버 렌더링 <script> 태그로
+  // 삽입된다 (next/script는 클라이언트 로더를 거치므로 사용하지 않는다).
+  assert.match(page, /<JsonLd/u);
+  const jsonLd = read("components/seo/JsonLd.tsx");
+  assert.match(jsonLd, /application\/ld\+json/u);
+  assert.doesNotMatch(jsonLd, /from "next\/script"/u);
   assert.match(page, /SoftwareApplication/u);
   assert.match(page, /WebSite/u);
   assert.match(robots, /sitemap/u);
