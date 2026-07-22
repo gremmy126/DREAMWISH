@@ -22,7 +22,7 @@ const GOOGLE_TAG_LOADER_ID = GA_MEASUREMENT_ID || GOOGLE_ADS_ID;
 
 const SOCIAL_IMAGE = {
   // ?v= 쿼리는 소셜 크롤러의 이전 카드 캐시를 무효화한다.
-  url: "/images/dreamwish-social-card.png?v=2",
+  url: "/images/dreamwish-social-card.png?v=3",
   width: 1200,
   height: 630,
   alt: "DreamWish — Better Decisions Powered by AI"
