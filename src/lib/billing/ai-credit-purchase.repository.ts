@@ -203,3 +203,22 @@ export function markPurchaseCredited(
 export function markPurchaseFailed(ownerId: string, purchaseId: string): Promise<AICreditPurchase> {
   return transition(ownerId, purchaseId, "failed", () => undefined);
 }
+
+export function markPurchaseRefundPending(ownerId: string, purchaseId: string): Promise<AICreditPurchase> {
+  return transition(ownerId, purchaseId, "refund_pending", () => undefined);
+}
+
+export function markPurchaseRefunded(
+  ownerId: string,
+  purchaseId: string,
+  now: () => Date = () => new Date()
+): Promise<AICreditPurchase> {
+  return transition(ownerId, purchaseId, "refunded", (purchase) => {
+    purchase.refundedAt = now().toISOString();
+  });
+}
+
+/** Rolls a refund back to credited when the provider refund could not complete. */
+export function restorePurchaseFromRefund(ownerId: string, purchaseId: string): Promise<AICreditPurchase> {
+  return transition(ownerId, purchaseId, "credited", () => undefined);
+}
