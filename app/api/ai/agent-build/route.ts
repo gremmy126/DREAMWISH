@@ -5,9 +5,12 @@ import {
   extractArtifact,
   type AgentBuildKind
 } from "@/src/lib/agent/agent-build";
+import { isAIModelTierId, type AIModelTierId } from "@/src/lib/ai/ai-model-catalog";
 import { chatWithAI } from "@/src/lib/ai/ai.service";
 import { parseProviderName } from "@/src/lib/ai/provider-options";
 import { OwnerContextError, requireOwnerContext } from "@/src/lib/auth/owner-context";
+import { AICreditError } from "@/src/lib/billing/ai-credit-ledger";
+import { AICreditMeteringError, runMeteredCompletion } from "@/src/lib/billing/ai-credit-metering";
 import { renderDesignContextForPrompt } from "@/src/lib/design/design-md";
 import { getDesignSkill, matchDesignSkill } from "@/src/lib/design/design-skills";
 import { inspectGeneratedHtml } from "@/src/lib/design/html-guard";
@@ -118,6 +121,10 @@ type AgentGenerationPlan = {
   refine: boolean;
   redesign: boolean;
   skillId: string | null;
+  ownerId: string;
+  // When set, generation runs through the metered credit boundary on this tier's
+  // exact provider+model and consumes credits; otherwise the free path is used.
+  tierId: AIModelTierId | null;
 };
 
 type GenerationOutcome = { payload: Record<string, unknown>; status: number };
@@ -194,10 +201,28 @@ export async function POST(request: Request) {
 // 스트리밍(result 이벤트)과 일반 JSON 응답이 같은 결과를 공유한다.
 async function runGeneration(plan: AgentGenerationPlan): Promise<GenerationOutcome> {
   try {
-    const raw = await withDeadline(
-      chatWithAI(plan.messages, plan.provider, { ...BUILD_AI_OPTIONS, timeoutMs: MAIN_TIMEOUT_MS }),
-      GENERATION_DEADLINE_MS
-    );
+    // Paid path: a selected credit tier runs on its exact provider+model and
+    // consumes credits with authoritative usage. No tier keeps the free path.
+    const metered = plan.tierId
+      ? await withDeadline(
+          runMeteredCompletion({
+            ownerId: plan.ownerId,
+            tierId: plan.tierId,
+            surface: "agent",
+            messages: plan.messages,
+            maxOutputTokens: BUILD_AI_OPTIONS.maxTokens,
+            temperature: BUILD_AI_OPTIONS.temperature,
+            timeoutMs: MAIN_TIMEOUT_MS
+          }),
+          GENERATION_DEADLINE_MS
+        )
+      : null;
+    const raw = metered
+      ? metered.content
+      : await withDeadline(
+          chatWithAI(plan.messages, plan.provider, { ...BUILD_AI_OPTIONS, timeoutMs: MAIN_TIMEOUT_MS }),
+          GENERATION_DEADLINE_MS
+        );
     const code = extractArtifact(raw, plan.kind);
     if (!code) {
       return {
@@ -223,7 +248,15 @@ async function runGeneration(plan: AgentGenerationPlan): Promise<GenerationOutco
         refined: plan.refine,
         redesigned: plan.redesign,
         skillId: plan.skillId,
-        guard
+        guard,
+        ...(metered
+          ? {
+              tierId: metered.tierId,
+              usage: metered.usage,
+              settledCredits: metered.settledCredits,
+              remainingCredits: metered.balance.available
+            }
+          : {})
       }
     };
   } catch (error) {
@@ -248,7 +281,7 @@ class AgentInputError extends Error {
 // 인증·입력 검증·프롬프트 구성까지의 빠른 준비 단계. 느린 AI 호출은 하지
 // 않으므로, 여기서 실패하면 일반 JSON 오류로 즉시 응답한다.
 async function prepareGeneration(request: Request): Promise<AgentGenerationPlan> {
-  await requireOwnerContext(request);
+  const owner = await requireOwnerContext(request);
   const body = (await request.json().catch(() => ({}))) as {
     message?: unknown;
     refine?: unknown;
@@ -256,12 +289,14 @@ async function prepareGeneration(request: Request): Promise<AgentGenerationPlan>
     previousCode?: unknown;
     previousKind?: unknown;
     provider?: unknown;
+    tierId?: unknown;
     history?: unknown;
     skillId?: unknown;
     useDesignSystem?: unknown;
   };
   const message = typeof body.message === "string" ? body.message.trim().slice(0, 4000) : "";
   const provider = parseProviderName(body.provider);
+  const tierId = isAIModelTierId(body.tierId) ? body.tierId : null;
   const previousCode =
     typeof body.previousCode === "string" ? body.previousCode.slice(0, 60_000) : "";
   const previousKind = AGENT_BUILD_KINDS.has(body.previousKind as AgentBuildKind)
@@ -333,7 +368,16 @@ async function prepareGeneration(request: Request): Promise<AgentGenerationPlan>
           : { role: "user" as const, content: `${contextPrefix}${message}` }
       ];
 
-  return { messages, provider, kind, refine, redesign, skillId: applicableSkill?.id ?? null };
+  return {
+    messages,
+    provider,
+    kind,
+    refine,
+    redesign,
+    skillId: applicableSkill?.id ?? null,
+    ownerId: owner.uid,
+    tierId
+  };
 }
 
 // 오류 → 표준 코드·안내 메시지·상태 매핑. 사용자에겐 안전한 안내만, 서버
@@ -342,6 +386,25 @@ function mapAgentError(error: unknown): { code: string; message: string; status:
   const detail = error instanceof Error ? error.message : "";
   if (error instanceof OwnerContextError) {
     return { code: "AGENT_PERMISSION_DENIED", message: "로그인이 필요합니다.", status: 401 };
+  }
+  if (error instanceof AICreditError && error.code === "AI_CREDIT_INSUFFICIENT") {
+    return {
+      code: "AI_CREDIT_INSUFFICIENT",
+      message: "선택한 모델의 크레딧이 부족합니다. 크레딧을 충전하거나 다른 등급을 선택해 주세요.",
+      status: 402
+    };
+  }
+  if (error instanceof AICreditMeteringError) {
+    if (error.code === "AI_TIER_NOT_CONFIGURED") {
+      return { code: "AI_TIER_NOT_CONFIGURED", message: "선택한 모델 등급은 현재 사용할 수 없습니다.", status: 409 };
+    }
+    if (error.code === "AI_USAGE_UNAVAILABLE") {
+      return {
+        code: "AI_USAGE_UNAVAILABLE",
+        message: "사용량을 확인할 수 없어 요금이 청구되지 않았습니다. 다시 시도해 주세요.",
+        status: 502
+      };
+    }
   }
   if (/All configured AI providers failed/iu.test(detail)) {
     return {

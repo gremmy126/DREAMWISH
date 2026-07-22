@@ -23,6 +23,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { StorageStatus } from "@/components/Common/StorageStatus";
 import { SurfaceCard } from "@/components/Common/SurfaceCard";
+import { AiCreditStore } from "@/components/billing/AiCreditStore";
 import { SubscriptionSettingsCard } from "@/components/billing/SubscriptionSettingsCard";
 import { AuthenticatorSettingsCard } from "@/components/Settings/AuthenticatorSettingsCard";
 import { DesignSystemCard } from "@/components/Settings/DesignSystemCard";
@@ -375,6 +376,10 @@ export function SettingsView() {
           <OrganizationSettingsCard />
 
           <SubscriptionSettingsCard />
+
+          <SurfaceCard className="p-6">
+            <AiCreditStore />
+          </SurfaceCard>
 
           <McpServersCard />
 

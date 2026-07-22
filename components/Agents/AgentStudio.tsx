@@ -153,6 +153,10 @@ export function AgentStudio() {
   const [saving, setSaving] = useState(false);
   const [providerOptions, setProviderOptions] = useState<Array<{ value: string; label: string }>>([]);
   const [selectedModel, setSelectedModel] = useState<string>("");
+  const [creditTiers, setCreditTiers] = useState<
+    Array<{ id: string; label: string; available: number }>
+  >([]);
+  const [selectedTierId, setSelectedTierId] = useState<string>("");
   // 이전 결과물 버전 스택 — '되돌리기'로 언제든 직전 버전으로 복귀한다.
   const [versions, setVersions] = useState<Artifact[]>([]);
   const [device, setDevice] = useState<"desktop" | "tablet" | "mobile">("desktop");
@@ -212,6 +216,21 @@ export function AgentStudio() {
       .catch(() => undefined);
   }, []);
 
+  // 크레딧 모델 등급을 불러온다. 등급을 선택하면 생성이 그 등급의 정확한
+  // 모델로 계량 실행되어 크레딧이 차감된다(미선택 시 무료 경로).
+  useEffect(() => {
+    void fetch("/api/ai/credit-products", { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) return;
+        const body = (await response.json()) as {
+          data?: { tiers?: Array<{ id: string; label: string; configured: boolean; balance: { available: number } }> };
+        };
+        const usable = (body.data?.tiers || []).filter((tier) => tier.configured);
+        setCreditTiers(usable.map((tier) => ({ id: tier.id, label: tier.label, available: tier.balance.available })));
+      })
+      .catch(() => undefined);
+  }, []);
+
   const folderSupported = useMemo(
     () => typeof window !== "undefined" && typeof (window as DirectoryPickerWindow).showDirectoryPicker === "function",
     []
@@ -244,6 +263,7 @@ export function AgentStudio() {
       body: JSON.stringify({
         ...payload,
         provider: selectedModel || undefined,
+        tierId: selectedTierId || undefined,
         history: historyPayload()
       })
     });
@@ -650,7 +670,23 @@ export function AgentStudio() {
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
-            {providerOptions.length > 1 ? (
+            {creditTiers.length > 0 ? (
+              <select
+                value={selectedTierId}
+                onChange={(event) => setSelectedTierId(event.target.value)}
+                title="크레딧 모델 등급 (선택 시 해당 등급 크레딧이 차감됩니다)"
+                aria-label="크레딧 모델 등급"
+                className="h-8 max-w-[150px] rounded-xl border border-app-border bg-app-card px-2 text-[11px] font-semibold text-app-muted outline-none"
+              >
+                <option value="">무료 모델</option>
+                {creditTiers.map((tier) => (
+                  <option key={tier.id} value={tier.id}>
+                    {tier.label} ({tier.available.toLocaleString("ko-KR")})
+                  </option>
+                ))}
+              </select>
+            ) : null}
+            {providerOptions.length > 1 && !selectedTierId ? (
               <select
                 value={selectedModel}
                 onChange={(event) => setSelectedModel(event.target.value)}
