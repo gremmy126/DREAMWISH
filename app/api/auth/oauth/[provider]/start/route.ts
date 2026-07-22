@@ -43,7 +43,11 @@ export async function POST(request: Request, context: { params: Promise<{ provid
     // 구체적으로 남긴다 (시크릿 값 자체는 노출하지 않는다).
     console.error("[oauth-start] failed:", message);
     let friendly = "소셜 로그인을 시작하지 못했습니다.";
-    if (/not configured/u.test(message)) {
+    const missingEnv = message.match(/^([A-Z0-9_]+) is not configured\.$/u)?.[1];
+    if (missingEnv) {
+      // 환경 변수 "이름"만 노출한다 (값은 절대 노출하지 않는다).
+      friendly = `소셜 로그인이 아직 설정되지 않았습니다. 서버 환경 변수 ${missingEnv}를 설정해 주세요.`;
+    } else if (/not configured/u.test(message)) {
       friendly = "소셜 로그인이 아직 설정되지 않았습니다. (환경 변수 확인 필요)";
     } else if (/redirect URI is invalid/u.test(message)) {
       friendly =
