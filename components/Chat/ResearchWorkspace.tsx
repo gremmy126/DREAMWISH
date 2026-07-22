@@ -167,10 +167,12 @@ export function ResearchWorkspace({ query, sessionId }: { query: string; session
 
   return (
     <>
+      {/* 폭을 항상 지정해 그리드의 auto 칼럼이 패널 크기에 정확히 맞고,
+          채팅창 바로 옆에 붙어 보이게 한다 (드래그로 320~900px 조절 가능). */}
       <div
         ref={containerRef}
         className="hidden h-full min-h-0 min-w-0 overflow-hidden xl:flex xl:flex-col"
-        style={width ? { width, justifySelf: "end" } : undefined}
+        style={{ width: width || 420 }}
       >
         <div className="mb-2 flex items-center gap-1">
           <button

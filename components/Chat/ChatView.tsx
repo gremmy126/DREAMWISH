@@ -775,7 +775,9 @@ export function ChatView() {
   }
 
   return (
-    <div className="grid gap-5 xl:h-[calc(100vh-96px)] xl:min-h-[720px] xl:grid-cols-[clamp(240px,16vw,260px)_minmax(620px,760px)_minmax(0,1fr)]">
+    // 가운데 채팅 칸이 남는 폭을 모두 차지하고, 우측 패널 칸은 패널 너비에
+    // 맞춰져(auto) 채팅창과 패널 사이 간격이 gap 만큼만 유지된다.
+    <div className="grid gap-4 xl:h-[calc(100vh-96px)] xl:min-h-[720px] xl:grid-cols-[clamp(240px,16vw,260px)_minmax(0,1fr)_auto]">
       <SurfaceCard className="flex max-h-[70dvh] min-h-0 flex-col p-4 xl:max-h-none">
         <SectionHeader
           icon={MessageSquareText}
