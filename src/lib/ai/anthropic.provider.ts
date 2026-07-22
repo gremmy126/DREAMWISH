@@ -1,4 +1,11 @@
-import { clampOutputTokens, type AIChatOptions, type AIMessage, type AIProvider } from "./ai-provider";
+import {
+  clampOutputTokens,
+  normalizeUsage,
+  type AIChatOptions,
+  type AICompletion,
+  type AIMessage,
+  type AIProvider
+} from "./ai-provider";
 import { getProviderRuntimeConfig } from "./config";
 import { AIProviderError, classifyProviderHttpError } from "./errors";
 
@@ -12,6 +19,7 @@ const ANTHROPIC_MAX_OUTPUT_TOKENS = 32_000;
 
 type AnthropicResponse = {
   content?: Array<{ type: string; text?: string }>;
+  usage?: { input_tokens?: number; output_tokens?: number };
 };
 
 type AnthropicStreamEvent = {
@@ -34,6 +42,23 @@ export class AnthropicProvider implements AIProvider {
 
   async chat(messages: AIMessage[], options?: AIChatOptions): Promise<string> {
     const json = (await this.request(messages, false, options)) as AnthropicResponse;
+    return this.extractText(json);
+  }
+
+  async chatWithUsage(messages: AIMessage[], options?: AIChatOptions): Promise<AICompletion> {
+    const json = (await this.request(messages, false, options)) as AnthropicResponse;
+    const content = this.extractText(json);
+    const usage = normalizeUsage(json.usage?.input_tokens, json.usage?.output_tokens);
+    if (!usage) {
+      throw new AIProviderError({
+        code: "MODEL_USAGE_UNAVAILABLE",
+        message: "Claude did not return usage information."
+      });
+    }
+    return { content, provider: this.name, model: options?.model || this.model, usage };
+  }
+
+  private extractText(json: AnthropicResponse): string {
     const answer = (json.content ?? [])
       .filter((block) => block.type === "text" && typeof block.text === "string")
       .map((block) => block.text)
@@ -119,7 +144,7 @@ export class AnthropicProvider implements AIProvider {
           "anthropic-version": ANTHROPIC_VERSION
         },
         body: JSON.stringify({
-          model: this.model,
+          model: options?.model || this.model,
           max_tokens:
             clampOutputTokens(options?.maxTokens, ANTHROPIC_MAX_OUTPUT_TOKENS) ??
             DEFAULT_MAX_TOKENS,

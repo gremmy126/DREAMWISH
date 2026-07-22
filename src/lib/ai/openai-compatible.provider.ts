@@ -1,4 +1,11 @@
-import { clampOutputTokens, type AIChatOptions, type AIMessage, type AIProvider } from "./ai-provider";
+import {
+  clampOutputTokens,
+  normalizeUsage,
+  type AIChatOptions,
+  type AICompletion,
+  type AIMessage,
+  type AIProvider
+} from "./ai-provider";
 import { AIProviderError, classifyProviderHttpError } from "./errors";
 
 type ChatCompletionChunk = {
@@ -7,6 +14,7 @@ type ChatCompletionChunk = {
 
 type ChatCompletionResponse = {
   choices?: Array<{ message?: { content?: string } }>;
+  usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
 };
 
 type ProviderHeaders = Record<string, string>;
@@ -43,6 +51,23 @@ export class OpenAICompatibleProvider implements AIProvider {
 
   async chat(messages: AIMessage[], options?: AIChatOptions): Promise<string> {
     const json = (await this.request(messages, false, options)) as ChatCompletionResponse;
+    return this.extractText(json);
+  }
+
+  async chatWithUsage(messages: AIMessage[], options?: AIChatOptions): Promise<AICompletion> {
+    const json = (await this.request(messages, false, options)) as ChatCompletionResponse;
+    const content = this.extractText(json);
+    const usage = normalizeUsage(json.usage?.prompt_tokens, json.usage?.completion_tokens);
+    if (!usage) {
+      throw new AIProviderError({
+        code: "MODEL_USAGE_UNAVAILABLE",
+        message: `${this.name} did not return usage information.`
+      });
+    }
+    return { content, provider: this.name, model: options?.model || this.model, usage };
+  }
+
+  private extractText(json: ChatCompletionResponse): string {
     const answer = json.choices?.[0]?.message?.content?.trim() || "";
     if (!answer) {
       throw new AIProviderError({
@@ -111,7 +136,7 @@ export class OpenAICompatibleProvider implements AIProvider {
           ...this.headers
         },
         body: JSON.stringify({
-          model: this.model,
+          model: options?.model || this.model,
           messages,
           temperature: options?.temperature ?? 0.2,
           ...(() => {
