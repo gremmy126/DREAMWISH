@@ -38,7 +38,6 @@ export type AIProviderName =
   | "groq"
   | "gemini"
   | "openrouter"
-  | "huggingface"
   | "cloudflare";
 
 export function getConfiguredProviderName(): AIProviderName {
@@ -49,7 +48,6 @@ export function getConfiguredProviderName(): AIProviderName {
     value === "groq" ||
     value === "gemini" ||
     value === "openrouter" ||
-    value === "huggingface" ||
     value === "cloudflare"
   ) {
     return value;

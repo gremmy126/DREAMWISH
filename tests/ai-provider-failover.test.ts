@@ -32,8 +32,6 @@ test("provider attempt order starts with the selected configured provider then u
       GEMINI_API_KEY: "gemini",
       OPENROUTER_API_KEY: "openrouter",
       GROQ_API_KEY: "groq",
-      HF_TOKEN: undefined,
-      HUGGINGFACE_API_KEY: undefined,
       CLOUDFLARE_API_TOKEN: undefined,
       CLOUDFLARE_API_KEY: undefined
     },
@@ -55,12 +53,12 @@ test("stream falls back only before the first token is emitted", async () => {
   const output: string[] = [];
   for await (const token of streamWithProviderFailover(
     messages,
-    ["gemini", "huggingface"],
-    (name) => fakeProvider(name, name === "gemini" ? new Error("no response") : "HF answer")
+    ["gemini", "cloudflare"],
+    (name) => fakeProvider(name, name === "gemini" ? new Error("no response") : "fallback answer")
   )) {
     output.push(token);
   }
-  assert.equal(output.join(""), "HF answer");
+  assert.equal(output.join(""), "fallback answer");
 });
 
 function fakeProvider(name: AIProviderName, outcome: string | Error): AIProvider {

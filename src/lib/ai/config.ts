@@ -23,7 +23,6 @@ const PROVIDER_ORDER: ExternalAIProviderName[] = [
   "gemini",
   "openrouter",
   "groq",
-  "huggingface",
   "cloudflare"
 ];
 
@@ -32,7 +31,6 @@ const PROVIDER_LABELS: Record<ExternalAIProviderName, string> = {
   gemini: "Gemini",
   openrouter: "OpenRouter",
   groq: "Groq",
-  huggingface: "Hugging Face",
   cloudflare: "Cloudflare AI"
 };
 
@@ -81,7 +79,7 @@ export function getDefaultAIProviderName(): ExternalAIProviderName {
     throw new AIProviderError({
       code: "PROVIDER_NOT_CONFIGURED",
       message:
-        "No connected AI provider is configured. Connect Gemini, OpenRouter, Groq, HuggingFace, or Cloudflare in Settings > Integrations."
+        "No connected AI provider is configured. Connect Claude, Gemini, OpenRouter, Groq, or Cloudflare in Settings > Integrations."
     });
   }
   return first;
@@ -136,15 +134,6 @@ export function getProviderRuntimeConfig(provider: ExternalAIProviderName): AIPr
       apiKey: env("GROQ_API_KEY"),
       model: env("GROQ_MODEL") || "llama-3.1-8b-instant",
       baseUrl: "https://api.groq.com/openai/v1"
-    };
-  }
-
-  if (provider === "huggingface") {
-    return {
-      provider,
-      apiKey: env("HF_TOKEN") || env("HUGGINGFACE_API_KEY"),
-      model: env("HF_MODEL") || "google/gemma-2-2b-it:hf-inference",
-      baseUrl: "https://router.huggingface.co/v1"
     };
   }
 

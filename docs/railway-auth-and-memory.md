@@ -34,7 +34,7 @@ The app supports email/password sign-up and sign-in, Google popup sign-in, passw
 
 ## AI providers
 
-Provider API keys remain server-only. AI Chat fetches a public catalog containing only provider names, model names, and configured status. It never returns credentials. Configure one or more of Gemini, OpenRouter, Groq, Hugging Face, or Cloudflare AI using `.env.example`.
+Provider API keys remain server-only. AI Chat fetches a public catalog containing only provider names, model names, and configured status. It never returns credentials. Configure one or more of Claude, Gemini, OpenRouter, Groq, or Cloudflare AI using `.env.example`.
 
 ## Retention
 

@@ -6,6 +6,7 @@ import {
 } from "../local-db/json-store";
 import { ensureAdminSchema } from "../admin/schema";
 import { getCouponCodeHint, hashCouponCode } from "./coupon-code";
+import { CouponConflictError, CouponValidationError } from "./coupon-errors";
 import type {
   AccessGrant,
   Coupon,
@@ -49,26 +50,36 @@ export async function createCoupon(input: CouponCreateInput): Promise<Coupon> {
   };
   if (hasPostgresStorage()) {
     await ensureAdminSchema();
-    await getPostgres()`
-      INSERT INTO coupon_codes (
-        id, name, code_hash, code_hint, coupon_type, value_amount, access_days,
-        currency, duration, duration_months, max_redemptions, per_user_limit,
-        redemption_count, starts_at, expires_at, active, polar_discount_id,
-        created_by, created_at, updated_at
-      ) VALUES (
-        ${coupon.id}, ${coupon.name}, ${coupon.codeHash}, ${coupon.codeHint}, ${coupon.type},
-        ${coupon.value}, ${coupon.accessDays}, ${coupon.currency}, ${coupon.duration},
-        ${coupon.durationMonths}, ${coupon.maxRedemptions}, ${coupon.perUserLimit}, 0,
-        ${coupon.startsAt}, ${coupon.expiresAt}, TRUE, ${coupon.polarDiscountId},
-        ${coupon.createdBy}, ${coupon.createdAt}, ${coupon.updatedAt}
-      )
-    `;
+    const existing = await getPostgres()`SELECT 1 FROM coupon_codes WHERE code_hash = ${coupon.codeHash} LIMIT 1`;
+    if (existing[0]) throw new CouponConflictError();
+    try {
+      await getPostgres()`
+        INSERT INTO coupon_codes (
+          id, name, code_hash, code_hint, coupon_type, value_amount, access_days,
+          currency, duration, duration_months, max_redemptions, per_user_limit,
+          redemption_count, starts_at, expires_at, active, polar_discount_id,
+          created_by, created_at, updated_at
+        ) VALUES (
+          ${coupon.id}, ${coupon.name}, ${coupon.codeHash}, ${coupon.codeHint}, ${coupon.type},
+          ${coupon.value}, ${coupon.accessDays}, ${coupon.currency}, ${coupon.duration},
+          ${coupon.durationMonths}, ${coupon.maxRedemptions}, ${coupon.perUserLimit}, 0,
+          ${coupon.startsAt}, ${coupon.expiresAt}, TRUE, ${coupon.polarDiscountId},
+          ${coupon.createdBy}, ${coupon.createdAt}, ${coupon.updatedAt}
+        )
+      `;
+    } catch (error) {
+      // 동시 삽입으로 유니크 제약을 위반한 경우도 중복(409)으로 취급한다.
+      if (/duplicate|unique/iu.test(error instanceof Error ? error.message : "")) {
+        throw new CouponConflictError();
+      }
+      throw error;
+    }
     return coupon;
   }
   return withJsonStoreLock(COUPON_FILE, async () => {
     const db = await readDb();
     if (db.coupons.some((item) => item.codeHash === coupon.codeHash)) {
-      throw new Error("Coupon code already exists.");
+      throw new CouponConflictError();
     }
     db.coupons.unshift(coupon);
     await writeJsonStore(COUPON_FILE, db);
@@ -333,12 +344,13 @@ function activeGrantFrom(grants: AccessGrant[], userId: string) {
 
 function validateCreateInput(input: CouponCreateInput) {
   const name = input.name.trim();
-  if (!name) throw new Error("Coupon name is required.");
-  if (!Number.isInteger(input.maxRedemptions) || input.maxRedemptions < 1) throw new Error("Maximum redemptions must be positive.");
-  if (!Number.isInteger(input.perUserLimit) || input.perUserLimit < 1) throw new Error("Per-user limit must be positive.");
-  if (new Date(input.expiresAt).getTime() <= new Date(input.startsAt).getTime()) throw new Error("Coupon expiry must be after its start.");
-  if (input.type === "access_duration" && (!Number.isInteger(input.accessDays) || Number(input.accessDays) < 1)) throw new Error("Access coupons require access days.");
-  if (input.type !== "access_duration" && (!Number.isInteger(input.value) || Number(input.value) < 1)) throw new Error("Discount coupons require a positive value.");
+  if (!name) throw new CouponValidationError("쿠폰 이름을 입력해 주세요.");
+  if (!Number.isInteger(input.maxRedemptions) || input.maxRedemptions < 1) throw new CouponValidationError("전체 사용 한도는 1 이상이어야 합니다.");
+  if (!Number.isInteger(input.perUserLimit) || input.perUserLimit < 1) throw new CouponValidationError("사용자별 사용 한도는 1 이상이어야 합니다.");
+  if (new Date(input.expiresAt).getTime() <= new Date(input.startsAt).getTime()) throw new CouponValidationError("만료일은 시작일보다 뒤여야 합니다.");
+  if (input.type === "access_duration" && (!Number.isInteger(input.accessDays) || Number(input.accessDays) < 1)) throw new CouponValidationError("이용권형 쿠폰은 이용 기간(일)이 필요합니다.");
+  if (input.type === "percentage_discount" && (!Number.isInteger(input.value) || Number(input.value) < 1 || Number(input.value) > 100)) throw new CouponValidationError("정률 할인율은 1% 이상 100% 이하여야 합니다.");
+  if (input.type === "fixed_discount" && (!Number.isInteger(input.value) || Number(input.value) < 1)) throw new CouponValidationError("정액 할인 금액은 1 이상이어야 합니다.");
   return { ...input, name };
 }
 

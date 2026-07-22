@@ -275,12 +275,12 @@ export const productFeatureGroups: ProductFeatureGroup[] = [
     title: "모델 관리",
     status: "partial",
     items: [
+      { title: "Claude", status: "ready" },
       { title: "Groq", status: "ready" },
       { title: "Gemini", status: "ready" },
       { title: "Ollama", status: "partial" },
       { title: "LM Studio", status: "partial" },
       { title: "OpenRouter", status: "ready" },
-      { title: "Hugging Face", status: "ready" },
       { title: "Cloudflare", status: "ready" },
       { title: "API Key 관리", status: "planned" }
     ]

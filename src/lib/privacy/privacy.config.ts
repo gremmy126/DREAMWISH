@@ -29,8 +29,6 @@ function hasConfiguredExternalProvider() {
     "GOOGLE_API_KEY",
     "OPENROUTER_API_KEY",
     "GROQ_API_KEY",
-    "HF_TOKEN",
-    "HUGGINGFACE_API_KEY",
     "CLOUDFLARE_API_TOKEN",
     "CLOUDFLARE_API_KEY"
   ].some((key) => Boolean(process.env[key]?.trim()));
@@ -42,7 +40,6 @@ export function isExternalProvider(providerName: string) {
     providerName === "groq" ||
     providerName === "gemini" ||
     providerName === "openrouter" ||
-    providerName === "huggingface" ||
     providerName === "cloudflare"
   );
 }

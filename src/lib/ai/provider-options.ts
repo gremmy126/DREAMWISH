@@ -4,7 +4,6 @@ export const SUPPORTED_FREE_PROVIDERS = [
   "gemini",
   "openrouter",
   "groq",
-  "huggingface",
   "cloudflare"
 ] as const satisfies AIProviderName[];
 

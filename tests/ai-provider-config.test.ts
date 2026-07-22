@@ -51,8 +51,6 @@ test("AI config returns a clear provider-not-configured error when no external p
       GOOGLE_API_KEY: undefined,
       OPENROUTER_API_KEY: undefined,
       GROQ_API_KEY: undefined,
-      HF_TOKEN: undefined,
-      HUGGINGFACE_API_KEY: undefined,
       CLOUDFLARE_ACCOUNT_ID: undefined,
       CLOUDFLARE_API_TOKEN: undefined
     },

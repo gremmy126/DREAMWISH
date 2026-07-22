@@ -11,7 +11,6 @@ import { getProviderAttemptOrder } from "./config";
 import { AIProviderError } from "./errors";
 import { GeminiProvider } from "./gemini.provider";
 import { GroqProvider } from "./groq.provider";
-import { HuggingFaceProvider } from "./huggingface.provider";
 import { OpenRouterProvider } from "./openrouter.provider";
 
 export function createAIProvider(providerNameOverride?: AIProviderName): AIProvider {
@@ -33,8 +32,6 @@ export function createAIProvider(providerNameOverride?: AIProviderName): AIProvi
       return new GeminiProvider();
     case "openrouter":
       return new OpenRouterProvider();
-    case "huggingface":
-      return new HuggingFaceProvider();
     case "cloudflare":
       return new CloudflareProvider();
   }

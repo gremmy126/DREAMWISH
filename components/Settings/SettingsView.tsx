@@ -44,7 +44,6 @@ type ProviderMode =
   | "groq"
   | "gemini"
   | "openrouter"
-  | "huggingface"
   | "cloudflare";
 type LanguageMode = "ko" | "en" | "ja";
 type BackupInterval = "manual" | "hourly" | "daily" | "weekly";
@@ -102,7 +101,6 @@ const providerOptions: ProviderMode[] = [
   "groq",
   "gemini",
   "openrouter",
-  "huggingface",
   "cloudflare"
 ];
 
@@ -111,9 +109,16 @@ const providerDisplayNames: Record<ProviderMode, string> = {
   groq: "Groq",
   gemini: "Gemini",
   openrouter: "OpenRouter",
-  huggingface: "Hugging Face",
   cloudflare: "Cloudflare AI"
 };
+
+// 과거 설정에 저장된 지원 종료 공급자(Hugging Face 등)는 기본 공급자로
+// 안전하게 대체해 설정 화면이 빈 선택으로 깨지지 않게 한다.
+function normalizeProviderMode(value: unknown): ProviderMode {
+  return providerOptions.includes(value as ProviderMode)
+    ? (value as ProviderMode)
+    : defaultSettings.provider;
+}
 
 const sections = [
   { id: "appearance", label: "Appearance", icon: Palette },
@@ -662,6 +667,8 @@ function mergeSettings(saved: Partial<LocalSettings>): LocalSettings {
   return {
     ...defaultSettings,
     ...saved,
+    // 지원 종료 공급자가 저장돼 있어도 유효한 기본값으로 대체한다.
+    provider: normalizeProviderMode(saved.provider),
     integrations: {
       ...defaultSettings.integrations,
       ...saved.integrations

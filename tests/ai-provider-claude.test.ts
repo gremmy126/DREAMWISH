@@ -20,8 +20,6 @@ test("Claude is a first-class provider and becomes the default when configured",
       GEMINI_API_KEY: "gemini-key",
       OPENROUTER_API_KEY: undefined,
       GROQ_API_KEY: undefined,
-      HF_TOKEN: undefined,
-      HUGGINGFACE_API_KEY: undefined,
       CLOUDFLARE_API_TOKEN: undefined
     },
     () => {

@@ -95,8 +95,6 @@ test("ordinary chat returns 404 for supplied inaccessible session ids without wr
       GOOGLE_API_KEY: undefined,
       OPENROUTER_API_KEY: undefined,
       GROQ_API_KEY: undefined,
-      HF_TOKEN: undefined,
-      HUGGINGFACE_API_KEY: undefined,
       CLOUDFLARE_API_TOKEN: undefined,
       CLOUDFLARE_API_KEY: undefined
     },
@@ -183,8 +181,6 @@ test("streaming chat returns 404 before constructing a stream for supplied inacc
       GOOGLE_API_KEY: undefined,
       OPENROUTER_API_KEY: undefined,
       GROQ_API_KEY: undefined,
-      HF_TOKEN: undefined,
-      HUGGINGFACE_API_KEY: undefined,
       CLOUDFLARE_API_TOKEN: undefined,
       CLOUDFLARE_API_KEY: undefined
     },
