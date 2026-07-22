@@ -41,7 +41,10 @@ import {
   shouldSubmitChat,
   type ChatStatus
 } from "@/src/lib/chat/chat-flow";
-import { upsertOptimisticChatSession } from "@/src/lib/chat/session-list";
+import {
+  filterFreeChatSessions,
+  upsertOptimisticChatSession
+} from "@/src/lib/chat/session-list";
 import {
   CHAT_QUICK_ACTIONS,
   type ChatQuickActionId
@@ -195,10 +198,11 @@ export function ChatView() {
   async function loadSessions(selectFirst = false) {
     const response = await fetch("/api/ai/sessions");
     const data = (await response.json()) as { sessions: ChatSessionRecord[] };
-    setSessions(data.sessions || []);
+    const freeChatSessions = filterFreeChatSessions(data.sessions || []);
+    setSessions(freeChatSessions);
 
-    if (selectFirst && data.sessions?.[0]) {
-      await loadSession(data.sessions[0].id);
+    if (selectFirst && freeChatSessions[0]) {
+      await loadSession(freeChatSessions[0].id);
     }
   }
 
@@ -960,7 +964,7 @@ export function ChatView() {
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <div className="inline-flex rounded-2xl border border-app-border bg-app-card p-1">
-                {(["ask", "plan", "agent"] as ChatMode[]).map((mode) => (
+                {(["ask", "plan"] as ChatMode[]).map((mode) => (
                   <button
                     key={mode}
                     type="button"
@@ -1320,9 +1324,11 @@ function parseLocalAction(message: string): Pick<ChatAction, "type" | "title"> |
   return null;
 }
 
+// 자유 채팅에는 에이전트 모드 선택이 없으므로, 실행형 퀵 액션은 승인 우선의
+// 계획 모드로 연결한다.
 function modeForQuickAction(actionId: ChatQuickActionId): ChatMode {
   if (actionId === "automation" || actionId === "approval_queue" || actionId === "code_run") {
-    return "agent";
+    return "plan";
   }
   return "ask";
 }

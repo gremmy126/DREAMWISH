@@ -128,10 +128,10 @@ export type Decision = {
   retrospective: DecisionRetrospective | null;
   research: DecisionResearch | null;
   simulationResult: DecisionSimulationResult | null;
-  // 결정 분석 대화는 결정에 저장되고, 연결된 자유 채팅 세션에도 미러링되어
-  // AI Chat 대화 목록에서 함께 볼 수 있다.
+  // 결정 분석 대화는 결정 기록에만 저장된다(자유 채팅과 분리).
   conversation: DecisionChatMessage[];
-  // 대화 목록(자유 채팅 세션 리스트)에 함께 표시되는 연결 세션.
+  // 과거 미러링 방식에서 연결했던 자유 채팅 세션 ID. 새 결정에는 더 이상
+  // 세션을 만들거나 연결하지 않으며, 기존 데이터 호환을 위해서만 남긴다.
   chatSessionId?: string | null;
   // Share of the final recommendation attributable to the anonymous employee
   // survey signal. Default 0.15; the product never allows more than 0.30.

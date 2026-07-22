@@ -3,6 +3,7 @@
 import {
   Bot,
   Check,
+  History,
   Lightbulb,
   Loader2,
   MessageCircle,
@@ -13,12 +14,16 @@ import {
   Settings2,
   Sparkles,
   Target,
+  Trash2,
   UsersRound
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ChatView } from "@/components/Chat/ChatView";
 import { AgentStudio } from "@/components/Agents/AgentStudio";
 import { AnalysisReportPanel } from "@/components/Chat/AnalysisReportPanel";
+import { EmptyState } from "@/components/Common/EmptyState";
+import { SectionHeader } from "@/components/Common/SectionHeader";
+import { SurfaceCard } from "@/components/Common/SurfaceCard";
 import type { Decision } from "@/src/lib/decisions/decision.types";
 import type { DecisionConclusion } from "@/src/lib/decisions/decision-conclusion";
 import type { DecisionEmployeeSignal } from "@/src/lib/surveys/survey.types";
@@ -61,6 +66,22 @@ function phaseAtLeast(current: FlowPhase, target: FlowPhase) {
 type StepState = "pending" | "active" | "done" | "skipped";
 
 type WorkspaceMode = "decision" | "free" | "agent";
+
+type DecisionHistoryEntry = {
+  id: string;
+  title: string;
+  status: string;
+  updatedAt: string;
+};
+
+const DECISION_STATUS_LABELS: Record<string, string> = {
+  draft: "진행 중",
+  analyzing: "분석 중",
+  deciding: "결론 검토",
+  approved: "승인됨",
+  executing: "실행 중",
+  reviewed: "회고 완료"
+};
 
 const RESEARCH_SETTINGS_KEY = "dreamwish-research-settings-v1";
 
@@ -206,7 +227,7 @@ export function ChatDecisionWorkspace() {
   const [researchMinutes, setResearchMinutes] = useState(10);
   const [includeLocalDocs, setIncludeLocalDocs] = useState(true);
   const [researchProgress, setResearchProgress] = useState<{ percent: number; step: string } | null>(null);
-  const [history, setHistory] = useState<Array<{ id: string; title: string; status: string }>>([]);
+  const [history, setHistory] = useState<DecisionHistoryEntry[]>([]);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const pollRef = useRef<number | null>(null);
   const pollDeadlineRef = useRef<number>(0);
@@ -267,7 +288,8 @@ export function ChatDecisionWorkspace() {
         (body.decisions || []).map((entry) => ({
           id: entry.id,
           title: entry.title,
-          status: entry.status
+          status: entry.status,
+          updatedAt: entry.updatedAt
         }))
       );
     } catch {
@@ -279,8 +301,8 @@ export function ChatDecisionWorkspace() {
     void loadHistory();
   }, []);
 
-  // 결정 분석 대화는 결정에 저장되고, 서버가 연결된 채팅 세션에도 미러링해
-  // 자유 대화 목록에서 함께 볼 수 있다.
+  // 결정 분석 대화는 결정 기록에만 저장한다. 자유 채팅 세션에는 미러링하지
+  // 않으며, 기록은 왼쪽 결정 분석 대화 목록에서 다시 열 수 있다.
   useEffect(() => {
     if (!decision || !messages.length) return;
     if (saveTimer.current) window.clearTimeout(saveTimer.current);
@@ -351,6 +373,17 @@ export function ChatDecisionWorkspace() {
       }
     } catch (caught) {
       setNotice(caught instanceof Error ? caught.message : "분석 기록을 불러오지 못했습니다.");
+    }
+  }
+
+  async function deleteHistoryDecision(decisionId: string) {
+    try {
+      const response = await fetch(`/api/decisions/${decisionId}`, { method: "DELETE" });
+      if (!response.ok) throw new Error("분석 기록을 삭제하지 못했습니다.");
+      if (decision?.id === decisionId) resetConversation();
+      await loadHistory();
+    } catch (caught) {
+      setNotice(caught instanceof Error ? caught.message : "분석 기록을 삭제하지 못했습니다.");
     }
   }
 
@@ -500,9 +533,8 @@ export function ChatDecisionWorkspace() {
           method: "POST",
           body: JSON.stringify({
             query,
-            // 결정 분석의 딥리서치도 연결된 대화 세션에 남겨 대화 목록에서
-            // 함께 볼 수 있게 한다.
-            chatSessionId: decision.chatSessionId || undefined,
+            // chatSessionId를 넘기지 않으면 서버가 리서치용 세션을 즉시
+            // 보관 처리해 자유 대화 목록에 나타나지 않는다.
             settings: {
               mode: researchMode === "deep" ? "deep" : "standard",
               maxDurationMs: researchMinutes * 60_000,
@@ -702,6 +734,8 @@ export function ChatDecisionWorkspace() {
     } catch (caught) {
       setNotice(caught instanceof Error ? caught.message : "분석을 완료하지 못했습니다.");
       setPhase("done");
+    } finally {
+      void loadHistory();
     }
   }
 
@@ -722,6 +756,7 @@ export function ChatDecisionWorkspace() {
       });
       setDecision(patched.decision);
       pushAi("최종 결정이 승인되었습니다. 결정 기록은 Memory에 축적됩니다.");
+      void loadHistory();
     } catch (caught) {
       setNotice(caught instanceof Error ? caught.message : "승인하지 못했습니다.");
     } finally {
@@ -853,23 +888,6 @@ export function ChatDecisionWorkspace() {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {mode === "decision" && history.length ? (
-            <select
-              value={decision?.id || ""}
-              onChange={(event) => {
-                if (event.target.value) void openHistoryDecision(event.target.value);
-              }}
-              className="h-10 max-w-[160px] rounded-2xl border border-app-border bg-app-card px-3 text-xs font-semibold text-app-muted sm:max-w-[220px]"
-              aria-label="분석 기록"
-            >
-              <option value="">분석 기록 열기…</option>
-              {history.map((entry) => (
-                <option key={entry.id} value={entry.id}>
-                  {entry.title.slice(0, 40)}
-                </option>
-              ))}
-            </select>
-          ) : null}
           <div className="inline-flex rounded-2xl border border-app-border bg-app-card p-1">
             {(
               [
@@ -970,8 +988,68 @@ export function ChatDecisionWorkspace() {
       ) : mode === "agent" ? (
         <AgentStudio />
       ) : (
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_400px]">
-          <div className="flex h-[calc(100dvh-220px)] min-h-[480px] flex-col rounded-app border border-app-border bg-app-card shadow-soft">
+        // 왼쪽에 결정 분석 대화 목록을 두고, 가운데 채팅은 남는 폭을 사용해
+        // 기존보다 조금 좁아진다. 오른쪽은 실시간 분석 보고서.
+        <div className="grid gap-4 xl:grid-cols-[clamp(220px,15vw,250px)_minmax(0,1fr)_400px]">
+          <SurfaceCard className="flex max-h-[70dvh] min-h-0 flex-col p-4 xl:h-[calc(100dvh-220px)] xl:max-h-none xl:min-h-[480px]">
+            <SectionHeader icon={History} title="분석 대화 목록" />
+
+            <button
+              type="button"
+              onClick={resetConversation}
+              disabled={busy}
+              className="mb-3 flex w-full items-center justify-center gap-2 rounded-app bg-app-primary px-3 py-2.5 text-xs font-semibold text-white transition hover:brightness-105 disabled:opacity-50"
+            >
+              <Plus size={14} />
+              새 분석 대화
+            </button>
+
+            <div className="min-h-0 flex-1 space-y-2 overflow-auto pr-1 app-scrollbar">
+              {history.length === 0 ? (
+                <EmptyState
+                  compact
+                  icon={History}
+                  title="저장된 분석이 없습니다"
+                  description="질문을 입력하면 결정 분석 대화가 이 목록에 저장됩니다."
+                />
+              ) : (
+                history.map((entry) => (
+                  <div
+                    key={entry.id}
+                    className={`group flex items-start gap-2 rounded-2xl border px-3 py-3 transition ${
+                      decision?.id === entry.id
+                        ? "border-app-primary bg-app-hover"
+                        : "border-app-border bg-app-card hover:bg-app-hover"
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => void openHistoryDecision(entry.id)}
+                      className="min-w-0 flex-1 text-left"
+                    >
+                      <p className="truncate text-sm font-semibold text-app-text">{entry.title}</p>
+                      <p className="mt-1 text-xs text-app-muted">
+                        {DECISION_STATUS_LABELS[entry.status] || entry.status}
+                        {" · "}
+                        {new Date(entry.updatedAt).toLocaleDateString("ko-KR")}
+                      </p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void deleteHistoryDecision(entry.id)}
+                      className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-xl text-slate-400 opacity-0 transition hover:bg-app-card hover:text-red-500 group-hover:opacity-100"
+                      aria-label="분석 기록 삭제"
+                      title="분석 기록 삭제"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </SurfaceCard>
+
+          <div className="order-first flex h-[calc(100dvh-220px)] min-h-[480px] flex-col rounded-app border border-app-border bg-app-card shadow-soft xl:order-none">
             <div ref={scrollRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 app-scrollbar sm:p-5">
               <AiBubble>
                 <p className="text-sm font-bold text-app-text">
