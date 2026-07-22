@@ -9,6 +9,7 @@ export const SUPPORTED_FREE_PROVIDERS = [
 ] as const satisfies AIProviderName[];
 
 export const SUPPORTED_PROVIDER_NAMES = [
+  "claude",
   ...SUPPORTED_FREE_PROVIDERS
 ] as const satisfies AIProviderName[];
 

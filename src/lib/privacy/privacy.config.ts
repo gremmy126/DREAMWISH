@@ -38,6 +38,7 @@ function hasConfiguredExternalProvider() {
 
 export function isExternalProvider(providerName: string) {
   return (
+    providerName === "claude" ||
     providerName === "groq" ||
     providerName === "gemini" ||
     providerName === "openrouter" ||

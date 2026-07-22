@@ -194,6 +194,7 @@ export function getAIProviderKeyState(): AIProviderKeyState {
 
 function requiredKeysForProvider(provider: AIProviderName) {
   const requirements: Record<AIProviderName, string[]> = {
+    claude: ["ANTHROPIC_API_KEY", "CLAUDE_API_KEY"],
     groq: ["GROQ_API_KEY"],
     gemini: ["GEMINI_API_KEY", "GOOGLE_API_KEY"],
     openrouter: ["OPENROUTER_API_KEY"],

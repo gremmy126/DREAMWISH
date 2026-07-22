@@ -40,6 +40,7 @@ import {
 
 type ThemeMode = "system" | "light" | "dark";
 type ProviderMode =
+  | "claude"
   | "groq"
   | "gemini"
   | "openrouter"
@@ -97,12 +98,22 @@ const defaultSettings: LocalSettings = {
 };
 
 const providerOptions: ProviderMode[] = [
+  "claude",
   "groq",
   "gemini",
   "openrouter",
   "huggingface",
   "cloudflare"
 ];
+
+const providerDisplayNames: Record<ProviderMode, string> = {
+  claude: "Claude",
+  groq: "Groq",
+  gemini: "Gemini",
+  openrouter: "OpenRouter",
+  huggingface: "Hugging Face",
+  cloudflare: "Cloudflare AI"
+};
 
 const sections = [
   { id: "appearance", label: "Appearance", icon: Palette },
@@ -299,7 +310,7 @@ export function SettingsView() {
                       : "border-app-border bg-app-card hover:bg-app-hover"
                   }`}
                 >
-                  <p className="text-sm font-semibold text-app-text">{provider}</p>
+                  <p className="text-sm font-semibold text-app-text">{providerDisplayNames[provider]}</p>
                   <p className="mt-1 text-xs leading-5 text-app-muted">
                     {t("settings.providerDescription")}
                   </p>

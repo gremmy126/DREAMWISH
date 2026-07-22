@@ -16,7 +16,6 @@ import {
   LibraryBig,
   Loader2,
   Monitor,
-  Palette,
   RotateCcw,
   Send,
   ShieldAlert,
@@ -125,8 +124,6 @@ export function AgentStudio() {
   // 이전 결과물 버전 스택 — '되돌리기'로 언제든 직전 버전으로 복귀한다.
   const [versions, setVersions] = useState<Artifact[]>([]);
   const [device, setDevice] = useState<"desktop" | "tablet" | "mobile">("desktop");
-  // DreamWish 디자인 시스템 모드 — DESIGN.md 계약을 미학 방향으로 사용한다.
-  const [designMode, setDesignMode] = useState(false);
   const [lastSkillId, setLastSkillId] = useState<string | null>(null);
   // 생성 결과 보안 검사 리포트 — critical이면 미리보기를 차단한다.
   const [guard, setGuard] = useState<GuardReport | null>(null);
@@ -213,7 +210,6 @@ export function AgentStudio() {
       body: JSON.stringify({
         ...payload,
         provider: selectedModel || undefined,
-        useDesignSystem: designMode,
         history: historyPayload()
       })
     });
@@ -598,24 +594,6 @@ export function AgentStudio() {
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => setDesignMode((value) => !value)}
-              aria-pressed={designMode}
-              title={
-                designMode
-                  ? "DreamWish 디자인 시스템(DESIGN.md)을 따라 생성합니다"
-                  : "자유 스타일로 생성합니다 — 누르면 DreamWish 스타일로 전환"
-              }
-              className={`flex h-8 items-center gap-1 rounded-xl border px-2.5 text-[11px] font-semibold transition ${
-                designMode
-                  ? "border-app-primary bg-app-primary-soft text-app-primary"
-                  : "border-app-border bg-app-card text-app-muted hover:text-app-primary"
-              }`}
-            >
-              <Palette size={12} />
-              DW 스타일
-            </button>
             {providerOptions.length > 1 ? (
               <select
                 value={selectedModel}

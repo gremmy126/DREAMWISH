@@ -17,7 +17,9 @@ export type AIProviderHealth = {
   modelConfigured: boolean;
 };
 
+// Claude가 연결되어 있으면 기본 공급자로 우선 사용한다.
 const PROVIDER_ORDER: ExternalAIProviderName[] = [
+  "claude",
   "gemini",
   "openrouter",
   "groq",
@@ -26,6 +28,7 @@ const PROVIDER_ORDER: ExternalAIProviderName[] = [
 ];
 
 const PROVIDER_LABELS: Record<ExternalAIProviderName, string> = {
+  claude: "Claude",
   gemini: "Gemini",
   openrouter: "OpenRouter",
   groq: "Groq",
@@ -96,6 +99,15 @@ export function getAIProviderHealth(): AIProviderHealth[] {
 }
 
 export function getProviderRuntimeConfig(provider: ExternalAIProviderName): AIProviderRuntimeConfig {
+  if (provider === "claude") {
+    return {
+      provider,
+      apiKey: env("ANTHROPIC_API_KEY") || env("CLAUDE_API_KEY"),
+      model: env("ANTHROPIC_MODEL") || env("CLAUDE_MODEL") || "claude-sonnet-5",
+      baseUrl: env("ANTHROPIC_BASE_URL") || "https://api.anthropic.com/v1"
+    };
+  }
+
   if (provider === "gemini") {
     return {
       provider,

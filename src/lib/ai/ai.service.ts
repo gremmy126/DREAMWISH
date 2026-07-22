@@ -5,6 +5,7 @@ import {
   type AIProvider,
   type AIProviderName
 } from "./ai-provider";
+import { AnthropicProvider } from "./anthropic.provider";
 import { CloudflareProvider } from "./cloudflare.provider";
 import { getProviderAttemptOrder } from "./config";
 import { AIProviderError } from "./errors";
@@ -24,6 +25,8 @@ export function createAIProvider(providerNameOverride?: AIProviderName): AIProvi
   assertProviderAllowed(providerName);
 
   switch (providerName) {
+    case "claude":
+      return new AnthropicProvider();
     case "groq":
       return new GroqProvider();
     case "gemini":
