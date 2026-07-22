@@ -802,7 +802,7 @@ export function ChatView() {
               startNewChat();
             }}
             className={`w-full rounded-2xl px-3 py-2 text-left text-xs font-semibold ${
-              activeProjectId === null ? "bg-white text-app-primary" : "text-app-muted"
+              activeProjectId === null ? "bg-app-card text-app-primary" : "text-app-muted"
             }`}
           >
             {t("chat.noProject")}
@@ -816,7 +816,7 @@ export function ChatView() {
                 startNewChat();
               }}
               className={`w-full truncate rounded-2xl px-3 py-2 text-left text-xs font-semibold ${
-                activeProjectId === project.id ? "bg-white text-app-primary" : "text-app-muted"
+                activeProjectId === project.id ? "bg-app-card text-app-primary" : "text-app-muted"
               }`}
             >
               {project.name}
@@ -839,7 +839,7 @@ export function ChatView() {
                 className={`group flex items-start gap-2 rounded-2xl border px-3 py-3 transition ${
                   currentSessionId === session.id
                     ? "border-app-primary bg-app-hover"
-                    : "border-app-border bg-white hover:bg-app-hover"
+                    : "border-app-border bg-app-card hover:bg-app-hover"
                 }`}
               >
                 <button
@@ -859,7 +859,7 @@ export function ChatView() {
                 <button
                   type="button"
                   onClick={() => void deleteSession(session.id)}
-                  className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-xl text-slate-400 opacity-0 transition hover:bg-white hover:text-red-500 group-hover:opacity-100"
+                  className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-xl text-slate-400 opacity-0 transition hover:bg-app-card hover:text-red-500 group-hover:opacity-100"
                   aria-label={t("common.delete")}
                   title={t("common.delete")}
                 >
@@ -874,7 +874,7 @@ export function ChatView() {
           <button
             type="button"
             onClick={createProjectFromConversation}
-            className="flex w-full items-center justify-center gap-2 rounded-app border border-app-border bg-white px-3 py-3 text-xs font-semibold text-app-text shadow-soft transition hover:bg-app-hover hover:text-app-primary"
+            className="flex w-full items-center justify-center gap-2 rounded-app border border-app-border bg-app-card px-3 py-3 text-xs font-semibold text-app-text shadow-soft transition hover:bg-app-hover hover:text-app-primary"
           >
             <FolderPlus size={14} />
             {t("chat.createProject")}
@@ -916,7 +916,7 @@ export function ChatView() {
                     <button
                       type="button"
                       onClick={() => setActions((prev) => prev.filter((item) => item.id !== action.id))}
-                      className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-white hover:text-red-500"
+                      className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-app-card hover:text-red-500"
                       aria-label={t("chat.actions.delete")}
                       title={t("chat.actions.delete")}
                     >
@@ -959,7 +959,7 @@ export function ChatView() {
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <div className="inline-flex rounded-2xl border border-app-border bg-white p-1">
+              <div className="inline-flex rounded-2xl border border-app-border bg-app-card p-1">
                 {(["ask", "plan", "agent"] as ChatMode[]).map((mode) => (
                   <button
                     key={mode}
@@ -976,7 +976,7 @@ export function ChatView() {
               <select
                 value={selectedModel}
                 onChange={(event) => setSelectedModel(event.target.value as ChatModel)}
-                className="h-9 rounded-2xl border border-app-border bg-white px-3 text-xs font-semibold text-app-text outline-none"
+                className="h-9 rounded-2xl border border-app-border bg-app-card px-3 text-xs font-semibold text-app-text outline-none"
                 title={t("chat.modelTitle")}
               >
                 {providerOptions.map((provider) => (
@@ -1008,7 +1008,7 @@ export function ChatView() {
                     className={`max-w-[88%] rounded-[22px] px-4 py-3 shadow-soft sm:max-w-[78%] sm:px-5 sm:py-4 ${
                       message.role === "user"
                         ? "bg-app-primary text-white"
-                        : "border border-app-border bg-white text-app-text"
+                        : "border border-app-border bg-app-card text-app-text"
                     }`}
                   >
                     <div className="whitespace-pre-wrap text-sm leading-6 [overflow-wrap:anywhere]">
@@ -1116,7 +1116,7 @@ export function ChatView() {
                 void loadIntegrationApps();
                 setAttachmentMenuOpen((open) => !open);
               }}
-              className="mb-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-app-border bg-white text-app-muted transition hover:bg-app-hover hover:text-app-primary"
+              className="mb-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-app-border bg-app-card text-app-muted transition hover:bg-app-hover hover:text-app-primary"
               aria-label={t("chat.attachmentMenu")}
               title={t("chat.attach")}
             >
@@ -1124,7 +1124,7 @@ export function ChatView() {
             </button>
 
             {attachmentMenuOpen ? (
-              <div className="absolute bottom-[62px] left-3 z-10 w-44 rounded-app border border-app-border bg-white p-2 shadow-app">
+              <div className="absolute bottom-[62px] left-3 z-10 w-44 rounded-app border border-app-border bg-app-card p-2 shadow-app">
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
@@ -1178,7 +1178,7 @@ export function ChatView() {
             <button
               type="button"
               onClick={startVoiceInput}
-              className="mb-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-app-border bg-white text-app-muted transition hover:bg-app-hover hover:text-app-primary"
+              className="mb-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-app-border bg-app-card text-app-muted transition hover:bg-app-hover hover:text-app-primary"
               aria-label={t("chat.voice")}
               title={t("chat.voice")}
             >
@@ -1201,7 +1201,7 @@ export function ChatView() {
 
       {projectModalOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 px-4">
-          <div className="w-full max-w-[420px] rounded-app border border-app-border bg-white p-5 shadow-app">
+          <div className="w-full max-w-[420px] rounded-app border border-app-border bg-app-card p-5 shadow-app">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-base font-semibold text-app-text">{t("chat.createProjectTitle")}</h2>
               <button
@@ -1243,7 +1243,7 @@ function ToolButton({
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex items-center gap-1 rounded-2xl border border-app-border bg-white px-3 py-2 text-xs font-semibold text-app-muted transition hover:bg-app-hover hover:text-app-primary"
+      className="inline-flex items-center gap-1 rounded-2xl border border-app-border bg-app-card px-3 py-2 text-xs font-semibold text-app-muted transition hover:bg-app-hover hover:text-app-primary"
     >
       {children}
     </button>

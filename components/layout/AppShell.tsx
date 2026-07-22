@@ -9,6 +9,7 @@ import { MemoryOsView } from "@/components/Memory/MemoryOsView";
 import { SettingsView } from "@/components/Settings/SettingsView";
 import { TeamView } from "@/components/Team/TeamView";
 import { AuthGate } from "@/components/auth/AuthGate";
+import { DesignTokenOverrides } from "@/components/design/DesignTokenOverrides";
 import { PageTransition } from "@/components/Common/PageTransition";
 import { openCookieSettings } from "@/components/consent/consent";
 import { Sidebar } from "@/components/layout/Sidebar";
@@ -71,6 +72,7 @@ export function AppShell({
 
   return (
     <AuthGate hasServerSession={hasServerSession}>
+      <DesignTokenOverrides />
       <div className="min-h-screen bg-app-bg">
         <Sidebar
           activeView={activeView}

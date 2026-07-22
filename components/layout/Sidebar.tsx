@@ -46,7 +46,7 @@ export function Sidebar({
 }: SidebarProps) {
   return (
     <>
-      <aside className="fixed inset-y-0 left-0 z-30 hidden h-dvh w-[248px] min-h-0 flex-col border-r border-app-border bg-white/88 px-4 py-5 backdrop-blur-xl md:flex">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden h-dvh w-[248px] min-h-0 flex-col border-r border-app-border bg-app-card/90 px-4 py-5 backdrop-blur-xl md:flex">
         <SidebarContent activeView={activeView} onViewChange={onViewChange} />
       </aside>
 
@@ -58,7 +58,7 @@ export function Sidebar({
             className="absolute inset-0 bg-slate-950/35"
             onClick={onMobileClose}
           />
-          <aside className="relative flex h-dvh w-[min(84vw,300px)] min-h-0 flex-col bg-white px-4 py-5 shadow-app">
+          <aside className="relative flex h-dvh w-[min(84vw,300px)] min-h-0 flex-col bg-app-card px-4 py-5 shadow-app">
             <button
               type="button"
               aria-label="메뉴 닫기"
@@ -92,52 +92,64 @@ function SidebarContent({ activeView, onViewChange }: SidebarProps) {
         onClick={() => onViewChange("chat")}
         className="mb-6 flex shrink-0 items-center gap-3 rounded-2xl px-2 py-1 text-left transition hover:bg-app-hover"
       >
-        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-app-primary text-white shadow-soft">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-app-primary text-white">
           <BrainLogo className="h-7 w-7" />
         </div>
         <div>
-          <p className="text-sm font-semibold text-app-text">DREAMWISH</p>
+          <p className="text-sm font-extrabold tracking-tight text-app-text">DreamWish</p>
           <p className="text-xs text-app-muted">{t("sidebar.productSubtitle")}</p>
         </div>
       </button>
 
-      <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1 app-scrollbar">
-        {primaryItems.map((item) => {
-          const Icon = item.icon;
-          const active =
-            activeView === item.id ||
-            (item.id === "memory" && activeView === "files");
+      <nav className="min-h-0 flex-1 overflow-y-auto pr-1 app-scrollbar">
+        <p className="mb-2 px-3 text-[10px] font-extrabold uppercase tracking-widest text-app-muted">
+          Workspace
+        </p>
+        <div className="space-y-0.5">
+          {primaryItems.map((item) => {
+            const Icon = item.icon;
+            const active =
+              activeView === item.id ||
+              (item.id === "memory" && activeView === "files");
 
-          return (
-            <Link
-              key={item.id}
-              href={item.href}
-              onClick={(event) => {
-                event.preventDefault();
-                onViewChange(item.id);
-              }}
-              className={`group flex h-10 w-full items-center gap-3 rounded-2xl px-3 text-sm font-medium transition active:scale-[0.98] ${
-                active
-                  ? "bg-app-hover text-app-primary"
-                  : "text-slate-600 hover:bg-app-hover hover:text-app-primary"
-              }`}
-            >
-              <Icon size={18} strokeWidth={active ? 2 : 1.8} />
-              <span>{getNavLabel(item.id, language)}</span>
-            </Link>
-          );
-        })}
+            return (
+              <Link
+                key={item.id}
+                href={item.href}
+                aria-current={active ? "page" : undefined}
+                onClick={(event) => {
+                  event.preventDefault();
+                  onViewChange(item.id);
+                }}
+                className={`group relative flex h-10 w-full items-center gap-3 rounded-app-md px-3 text-sm transition ${
+                  active
+                    ? "bg-app-primary-soft font-semibold text-app-primary"
+                    : "font-medium text-app-muted hover:bg-app-hover hover:text-app-text"
+                }`}
+              >
+                <span
+                  aria-hidden
+                  className={`absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-app-primary transition-opacity ${
+                    active ? "opacity-100" : "opacity-0"
+                  }`}
+                />
+                <Icon size={18} strokeWidth={active ? 2 : 1.8} />
+                <span>{getNavLabel(item.id, language)}</span>
+              </Link>
+            );
+          })}
+        </div>
       </nav>
 
       <div className="mt-4 shrink-0 space-y-3">
         <UpgradeButton compact />
-        <div className="rounded-app border border-app-border bg-white p-4 shadow-soft">
+        <div className="rounded-app-lg border border-app-border bg-app-card p-4">
           <StorageStatus compact />
         </div>
         <button
           type="button"
           onClick={() => setCompanyOpen(true)}
-          className="flex w-full items-center justify-center gap-2 rounded-app border border-app-border bg-white px-3 py-3 text-xs font-semibold text-app-text shadow-soft transition hover:bg-app-hover hover:text-app-primary"
+          className="flex w-full items-center justify-center gap-2 rounded-app-md border border-app-border bg-app-card px-3 py-2.5 text-xs font-semibold text-app-muted transition hover:bg-app-hover hover:text-app-text"
         >
           <Info size={14} />
           {t("sidebar.company")}
@@ -145,8 +157,8 @@ function SidebarContent({ activeView, onViewChange }: SidebarProps) {
       </div>
 
       {companyOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 px-4">
-          <div className="w-full max-w-[360px] rounded-app border border-app-border bg-white p-5 shadow-app">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4">
+          <div className="w-full max-w-[360px] rounded-app border border-app-border bg-app-card p-5 shadow-overlay">
             <div className="mb-4 flex items-center justify-between gap-3">
               <h2 className="text-base font-semibold text-app-text">{t("sidebar.company")}</h2>
               <button

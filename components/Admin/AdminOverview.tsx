@@ -41,7 +41,7 @@ export function AdminOverview() {
       {error ? <p className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</p> : null}
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {cards.map(({ label, value, icon: Icon }) => (
-          <article key={label} className="rounded-[22px] border border-app-border bg-white p-5 shadow-soft">
+          <article key={label} className="rounded-[22px] border border-app-border bg-app-card p-5 shadow-soft">
             <div className="flex items-center justify-between"><p className="text-xs font-semibold text-app-muted">{label}</p><Icon size={17} className="text-app-primary" /></div>
             <p className="mt-5 text-2xl font-black sm:text-3xl">{value ?? "—"}</p>
           </article>

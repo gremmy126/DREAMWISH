@@ -234,12 +234,12 @@ export function TeamView() {
     <div className="space-y-5 pt-2">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-xl font-extrabold text-app-text sm:text-2xl">Team</h1>
-            <span className="rounded-xl bg-app-hover px-2.5 py-1 text-[10px] font-extrabold text-app-primary">
-              AI Intelligence Hub
-            </span>
-          </div>
+          <p className="text-[10px] font-extrabold uppercase tracking-widest text-app-primary">
+            Team Intelligence
+          </p>
+          <h1 className="mt-0.5 text-xl font-extrabold tracking-tight text-app-text sm:text-2xl">
+            Team
+          </h1>
           <p className="mt-1 text-xs text-app-muted">
             조직의 의견을 수집하고 AI가 의사결정에 반영하도록 도와드립니다.
           </p>
@@ -255,7 +255,7 @@ export function TeamView() {
           <button
             type="button"
             onClick={() => goToSurveyStudio(true)}
-            className="flex h-10 items-center gap-1.5 rounded-2xl border border-app-border bg-white px-3.5 text-xs font-bold text-app-primary transition hover:bg-app-hover"
+            className="flex h-10 items-center gap-1.5 rounded-2xl border border-app-border bg-app-card px-3.5 text-xs font-bold text-app-primary transition hover:bg-app-hover"
           >
             <Wand2 size={14} />
             AI 설문 생성
@@ -263,14 +263,14 @@ export function TeamView() {
           <button
             type="button"
             onClick={() => setMeetingOpen((open) => !open)}
-            className="flex h-10 items-center gap-1.5 rounded-2xl border border-app-border bg-white px-3.5 text-xs font-semibold text-app-text transition hover:bg-app-hover hover:text-app-primary"
+            className="flex h-10 items-center gap-1.5 rounded-2xl border border-app-border bg-app-card px-3.5 text-xs font-semibold text-app-text transition hover:bg-app-hover hover:text-app-primary"
           >
             <CalendarPlus size={14} />새 회의
           </button>
           <button
             type="button"
             onClick={() => setInviteOpen((open) => !open)}
-            className="flex h-10 items-center gap-1.5 rounded-2xl border border-app-border bg-white px-3.5 text-xs font-semibold text-app-text transition hover:bg-app-hover hover:text-app-primary"
+            className="flex h-10 items-center gap-1.5 rounded-2xl border border-app-border bg-app-card px-3.5 text-xs font-semibold text-app-text transition hover:bg-app-hover hover:text-app-primary"
           >
             <UserPlus size={14} />
             팀원 초대
@@ -295,18 +295,18 @@ export function TeamView() {
             value={inviteEmail}
             onChange={(event) => setInviteEmail(event.target.value)}
             placeholder="이메일 (필수)"
-            className="h-10 min-w-[220px] flex-1 rounded-2xl border border-app-border bg-white px-3 text-sm text-app-text outline-none transition focus:border-app-primary"
+            className="h-10 min-w-[220px] flex-1 rounded-2xl border border-app-border bg-app-card px-3 text-sm text-app-text outline-none transition focus:border-app-primary"
           />
           <input
             value={inviteName}
             onChange={(event) => setInviteName(event.target.value)}
             placeholder="이름"
-            className="h-10 w-32 rounded-2xl border border-app-border bg-white px-3 text-sm text-app-text outline-none transition focus:border-app-primary"
+            className="h-10 w-32 rounded-2xl border border-app-border bg-app-card px-3 text-sm text-app-text outline-none transition focus:border-app-primary"
           />
           <select
             value={inviteRole}
             onChange={(event) => setInviteRole(event.target.value as TeamRole)}
-            className="h-10 rounded-2xl border border-app-border bg-white px-3 text-xs font-semibold text-app-text"
+            className="h-10 rounded-2xl border border-app-border bg-app-card px-3 text-xs font-semibold text-app-text"
           >
             <option value="member">Member</option>
             <option value="organization_admin">Admin</option>
@@ -330,12 +330,12 @@ export function TeamView() {
               value={meetingTitle}
               onChange={(event) => setMeetingTitle(event.target.value)}
               placeholder="회의 제목 (예: 제품 전략 회의)"
-              className="h-10 min-w-[240px] flex-1 rounded-2xl border border-app-border bg-white px-3 text-sm text-app-text outline-none transition focus:border-app-primary"
+              className="h-10 min-w-[240px] flex-1 rounded-2xl border border-app-border bg-app-card px-3 text-sm text-app-text outline-none transition focus:border-app-primary"
             />
             <select
               value={meetingDecisionId || ""}
               onChange={(event) => setMeetingDecisionId(event.target.value || null)}
-              className="h-10 rounded-2xl border border-app-border bg-white px-3 text-xs font-semibold text-app-muted"
+              className="h-10 rounded-2xl border border-app-border bg-app-card px-3 text-xs font-semibold text-app-muted"
             >
               <option value="">연결할 결정 없음</option>
               {decisions.map((decision) => (
@@ -350,7 +350,7 @@ export function TeamView() {
             onChange={(event) => setMeetingNotes(event.target.value)}
             rows={4}
             placeholder="회의 노트를 입력하세요. '-'로 시작하는 줄은 액션 아이템으로 인식됩니다."
-            className="w-full rounded-2xl border border-app-border bg-white p-3 text-xs leading-5 text-app-text outline-none transition focus:border-app-primary"
+            className="w-full rounded-2xl border border-app-border bg-app-card p-3 text-xs leading-5 text-app-text outline-none transition focus:border-app-primary"
           />
           <div className="flex justify-end gap-2">
             <button
@@ -392,7 +392,7 @@ export function TeamView() {
                       key={survey.id}
                       type="button"
                       onClick={() => goToSurveyStudio(false)}
-                      className="w-full rounded-2xl border border-app-border bg-white p-3 text-left transition hover:border-app-primary/40"
+                      className="w-full rounded-2xl border border-app-border bg-app-card p-3 text-left transition hover:border-app-primary/40"
                     >
                       <div className="flex items-center justify-between gap-2">
                         <p className="min-w-0 truncate text-xs font-bold text-app-text">
@@ -577,7 +577,7 @@ export function TeamView() {
             {(intelligence?.insightChips || []).map((chip, index) => (
               <span
                 key={index}
-                className="rounded-xl border border-app-border bg-white px-3 py-1.5 text-[10.5px] font-semibold text-app-muted shadow-soft"
+                className="rounded-xl border border-app-border bg-app-card px-3 py-1.5 text-[10.5px] font-semibold text-app-muted shadow-soft"
               >
                 {chip}
               </span>
@@ -599,7 +599,7 @@ export function TeamView() {
               {meetings.length ? (
                 <div className="space-y-2.5">
                   {meetings.slice(0, 4).map((meeting) => (
-                    <div key={meeting.id} className="rounded-2xl border border-app-border bg-white p-3">
+                    <div key={meeting.id} className="rounded-2xl border border-app-border bg-app-card p-3">
                       <div className="flex items-center justify-between gap-2">
                         <p className="min-w-0 truncate text-xs font-bold text-app-text">
                           {meeting.title}
@@ -652,7 +652,7 @@ export function TeamView() {
                 <select
                   value={chatDecisionId || ""}
                   onChange={(event) => setChatDecisionId(event.target.value || null)}
-                  className="h-8 max-w-[190px] rounded-xl border border-app-border bg-white px-2 text-[11px] font-semibold text-app-muted"
+                  className="h-8 max-w-[190px] rounded-xl border border-app-border bg-app-card px-2 text-[11px] font-semibold text-app-muted"
                 >
                   {decisions.map((decision) => (
                     <option key={decision.id} value={decision.id}>
@@ -669,7 +669,7 @@ export function TeamView() {
                       className={`rounded-2xl border p-2.5 ${
                         comment.resolved
                           ? "border-app-border bg-app-soft/50 opacity-70"
-                          : "border-app-border bg-white"
+                          : "border-app-border bg-app-card"
                       }`}
                     >
                       <div className="flex items-center justify-between gap-2">
@@ -699,7 +699,7 @@ export function TeamView() {
                     if (event.key === "Enter") void submitComment();
                   }}
                   placeholder="의견을 남기세요…"
-                  className="h-9 min-w-0 flex-1 rounded-xl border border-app-border bg-white px-3 text-[11px] text-app-text outline-none transition focus:border-app-primary"
+                  className="h-9 min-w-0 flex-1 rounded-xl border border-app-border bg-app-card px-3 text-[11px] text-app-text outline-none transition focus:border-app-primary"
                 />
                 <button
                   type="button"
@@ -724,7 +724,7 @@ export function TeamView() {
                     className={`h-9 rounded-xl px-4 text-xs font-bold transition ${
                       workspaceTab === tab
                         ? "bg-app-primary text-white shadow-soft"
-                        : "border border-app-border bg-white text-app-muted hover:bg-app-hover hover:text-app-primary"
+                        : "border border-app-border bg-app-card text-app-muted hover:bg-app-hover hover:text-app-primary"
                     }`}
                   >
                     {tab}
@@ -766,7 +766,7 @@ export function TeamView() {
                 members.length ? (
                   <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                     {members.map((member, index) => (
-                      <div key={member.id} className="rounded-2xl border border-app-border bg-white p-3.5">
+                      <div key={member.id} className="rounded-2xl border border-app-border bg-app-card p-3.5">
                         <div className="flex items-start gap-3">
                           <span
                             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-extrabold text-white"
@@ -865,7 +865,7 @@ export function TeamView() {
                     <p className="text-[10px] font-extrabold text-[#b45309]">주요 리스크</p>
                     <div className="mt-1.5 flex flex-wrap gap-1.5">
                       {intelligence.report.risks.map((risk) => (
-                        <span key={risk} className="rounded-lg bg-white px-2 py-0.5 text-[10px] font-bold text-[#b45309]">
+                        <span key={risk} className="rounded-lg bg-app-card px-2 py-0.5 text-[10px] font-bold text-[#b45309]">
                           {risk}
                         </span>
                       ))}
@@ -949,7 +949,7 @@ function KpiCard({
   accent?: boolean;
 }) {
   return (
-    <div className="rounded-2xl border border-app-border bg-white p-3.5 shadow-soft">
+    <div className="rounded-2xl border border-app-border bg-app-card p-3.5 shadow-soft">
       <div className="flex items-center gap-2">
         <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-app-hover text-app-primary">
           {icon}
@@ -974,7 +974,7 @@ function InsightTile({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-app-border bg-white p-3.5">
+    <div className="rounded-2xl border border-app-border bg-app-card p-3.5">
       <p className="flex items-center gap-1.5 text-[10.5px] font-extrabold text-app-muted">
         {icon}
         {title}

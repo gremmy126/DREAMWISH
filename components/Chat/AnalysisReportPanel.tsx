@@ -159,7 +159,7 @@ export function AnalysisReportPanel({
   }
 
   return (
-    <aside className="flex h-full min-h-0 flex-col rounded-app border border-app-border bg-white shadow-soft">
+    <aside className="flex h-full min-h-0 flex-col rounded-app border border-app-border bg-app-card shadow-soft">
       <div className="flex items-center justify-between gap-3 border-b border-app-border px-5 py-4">
         <p className="flex items-center gap-2 text-sm font-bold text-app-text">
           <FileBarChart size={16} className="text-app-primary" />
@@ -169,7 +169,7 @@ export function AnalysisReportPanel({
           type="button"
           disabled={!decision}
           onClick={downloadReport}
-          className="flex h-8 items-center gap-1.5 rounded-xl border border-app-border bg-white px-3 text-[11px] font-semibold text-app-muted transition hover:bg-app-hover hover:text-app-primary disabled:opacity-40"
+          className="flex h-8 items-center gap-1.5 rounded-xl border border-app-border bg-app-card px-3 text-[11px] font-semibold text-app-muted transition hover:bg-app-hover hover:text-app-primary disabled:opacity-40"
         >
           <Download size={12} />
           보고서 다운로드
@@ -191,7 +191,7 @@ export function AnalysisReportPanel({
                   {core || "분석이 완료되면 1~2문장의 핵심 결론이 여기에 표시됩니다."}
                 </p>
                 {conclusion || recommendation ? (
-                  <span className="mt-2 inline-block rounded-lg bg-white px-2 py-0.5 text-[10px] font-bold text-app-primary">
+                  <span className="mt-2 inline-block rounded-lg bg-app-card px-2 py-0.5 text-[10px] font-bold text-app-primary">
                     신뢰수준 {CONFIDENCE_LABELS[conclusion?.confidence || recommendation?.confidence || "medium"]}
                   </span>
                 ) : null}
@@ -200,7 +200,7 @@ export function AnalysisReportPanel({
 
             <section>
               <SectionLabel index={2} title="딥리서치 · 시장 전망" />
-              <div className="mt-2 rounded-2xl border border-app-border bg-white p-4">
+              <div className="mt-2 rounded-2xl border border-app-border bg-app-card p-4">
                 {research?.status === "completed" && research.summary ? (
                   <>
                     {summaryFailed ? (
@@ -324,7 +324,7 @@ export function AnalysisReportPanel({
                 )}
               </div>
               {simulation?.ranking.length ? (
-                <div className="mt-2 space-y-1.5 rounded-2xl border border-app-border bg-white p-3">
+                <div className="mt-2 space-y-1.5 rounded-2xl border border-app-border bg-app-card p-3">
                   {simulation.ranking.map((entry, index) => (
                     <div key={entry.id} className="flex items-center gap-2 text-[11px]">
                       <span
@@ -348,7 +348,7 @@ export function AnalysisReportPanel({
 
             <section>
               <SectionLabel index={4} title="조직 의견 요약" icon={Users} />
-              <div className="mt-2 rounded-2xl border border-app-border bg-white p-4">
+              <div className="mt-2 rounded-2xl border border-app-border bg-app-card p-4">
                 {signal ? (
                   <>
                     <p className="text-[11px] font-bold text-app-primary">
@@ -419,7 +419,7 @@ export function AnalysisReportPanel({
             ) : null}
 
             {recommendation ? (
-              <section className="rounded-2xl border border-app-border bg-white p-4">
+              <section className="rounded-2xl border border-app-border bg-app-card p-4">
                 {decision.finalDecision ? (
                   <p className="flex items-start gap-2 text-xs leading-5 text-app-text">
                     <CheckCircle2 size={14} className="mt-0.5 shrink-0 text-app-primary" />

@@ -9,7 +9,7 @@ type SourceCardProps = {
 
 export function SourceCard({ source }: SourceCardProps) {
   return (
-    <article className="rounded-app border border-app-border bg-white p-4 shadow-soft">
+    <article className="rounded-app border border-app-border bg-app-card p-4 shadow-soft">
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-app-hover text-app-primary">

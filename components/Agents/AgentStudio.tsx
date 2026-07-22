@@ -584,7 +584,7 @@ export function AgentStudio() {
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(360px,440px)_minmax(0,1fr)]">
       {/* 채팅 패널 */}
-      <div className="flex h-[calc(100dvh-220px)] min-h-[480px] flex-col rounded-app border border-app-border bg-white shadow-soft">
+      <div className="flex h-[calc(100dvh-220px)] min-h-[480px] flex-col rounded-app border border-app-border bg-app-card shadow-soft">
         <div className="relative flex items-center justify-between gap-2 border-b border-app-border px-4 py-3">
           <div className="flex min-w-0 items-center gap-2.5">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-app-hover text-app-primary">
@@ -622,7 +622,7 @@ export function AgentStudio() {
                 onChange={(event) => setSelectedModel(event.target.value)}
                 title="생성에 사용할 AI 모델"
                 aria-label="생성 모델"
-                className="h-8 max-w-[110px] rounded-xl border border-app-border bg-white px-2 text-[11px] font-semibold text-app-muted outline-none"
+                className="h-8 max-w-[110px] rounded-xl border border-app-border bg-app-card px-2 text-[11px] font-semibold text-app-muted outline-none"
               >
                 {providerOptions.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -647,7 +647,7 @@ export function AgentStudio() {
                 <button
                   type="button"
                   onClick={() => void openFilePicker()}
-                  className="flex h-8 items-center gap-1 rounded-xl border border-app-border bg-white px-2.5 text-[11px] font-semibold text-app-muted transition hover:bg-app-hover hover:text-app-primary"
+                  className="flex h-8 items-center gap-1 rounded-xl border border-app-border bg-app-card px-2.5 text-[11px] font-semibold text-app-muted transition hover:bg-app-hover hover:text-app-primary"
                 >
                   <FolderOpen size={12} />
                   파일 열기
@@ -678,7 +678,7 @@ export function AgentStudio() {
             )}
           </div>
           {folderFiles?.length ? (
-            <div className="absolute right-3 top-14 z-30 max-h-64 w-64 overflow-y-auto rounded-app border border-app-border bg-white p-2 shadow-app app-scrollbar">
+            <div className="absolute right-3 top-14 z-30 max-h-64 w-64 overflow-y-auto rounded-app border border-app-border bg-app-card p-2 shadow-app app-scrollbar">
               <p className="px-2 py-1 text-[10px] font-bold text-app-muted">수정할 파일 선택</p>
               {folderFiles.map((name) => (
                 <button
@@ -699,7 +699,7 @@ export function AgentStudio() {
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-app-primary text-white shadow-soft">
               <Sparkles size={13} />
             </span>
-            <div className="min-w-0 max-w-[88%] rounded-2xl rounded-tl-md border border-app-border bg-white p-3.5 shadow-soft">
+            <div className="min-w-0 max-w-[88%] rounded-2xl rounded-tl-md border border-app-border bg-app-card p-3.5 shadow-soft">
               <p className="text-sm font-bold text-app-text">무엇을 만들어드릴까요?</p>
               <p className="mt-1 text-[11px] leading-[18px] text-app-muted">
                 "웹사이트 만들어줘", "로고 그려줘"처럼 채팅으로 말하면 종류를 알아서
@@ -717,7 +717,7 @@ export function AgentStudio() {
                   type="button"
                   disabled={busy}
                   onClick={() => void send(prompt)}
-                  className="rounded-2xl border border-app-border bg-white px-3 py-2.5 text-left text-[11px] font-semibold text-app-muted shadow-soft transition hover:border-app-primary/50 hover:text-app-primary"
+                  className="rounded-2xl border border-app-border bg-app-card px-3 py-2.5 text-left text-[11px] font-semibold text-app-muted shadow-soft transition hover:border-app-primary/50 hover:text-app-primary"
                 >
                   {prompt}
                 </button>
@@ -731,7 +731,7 @@ export function AgentStudio() {
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-app-primary text-white shadow-soft">
                   <Sparkles size={13} />
                 </span>
-                <div className="min-w-0 max-w-[88%] rounded-2xl rounded-tl-md border border-app-border bg-white p-3.5 shadow-soft">
+                <div className="min-w-0 max-w-[88%] rounded-2xl rounded-tl-md border border-app-border bg-app-card p-3.5 shadow-soft">
                   <p className="whitespace-pre-line text-[12.5px] font-semibold leading-5 text-app-text">
                     {message.text}
                   </p>
@@ -759,7 +759,7 @@ export function AgentStudio() {
         </div>
 
         <div className="border-t border-app-border p-3.5">
-          <div className="flex items-center gap-2 rounded-2xl border border-app-border bg-white px-3 py-2 shadow-soft">
+          <div className="flex items-center gap-2 rounded-2xl border border-app-border bg-app-card px-3 py-2 shadow-soft">
             <input
               value={input}
               onChange={(event) => setInput(event.target.value)}
@@ -783,7 +783,7 @@ export function AgentStudio() {
       </div>
 
       {/* 미리보기 패널 */}
-      <section className="flex h-[calc(100dvh-220px)] min-h-[480px] flex-col rounded-app border border-app-border bg-white shadow-soft">
+      <section className="flex h-[calc(100dvh-220px)] min-h-[480px] flex-col rounded-app border border-app-border bg-app-card shadow-soft">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-app-border px-4 py-3">
           <p className="flex min-w-0 items-center gap-2 text-xs font-bold text-app-text">
             미리보기
@@ -798,7 +798,7 @@ export function AgentStudio() {
               type="button"
               onClick={() => void openLibrary()}
               title="저장한 결과물 보관함 열기"
-              className="flex h-8 items-center gap-1 rounded-xl border border-app-border bg-white px-2.5 text-[11px] font-semibold text-app-muted transition hover:bg-app-hover hover:text-app-primary"
+              className="flex h-8 items-center gap-1 rounded-xl border border-app-border bg-app-card px-2.5 text-[11px] font-semibold text-app-muted transition hover:bg-app-hover hover:text-app-primary"
             >
               <LibraryBig size={12} />
               보관함
@@ -806,7 +806,7 @@ export function AgentStudio() {
             {artifact ? (
             <div className="flex flex-wrap items-center gap-1.5">
               {previewAsPage && !showCode ? (
-                <div className="mr-1 inline-flex rounded-xl border border-app-border bg-white p-0.5">
+                <div className="mr-1 inline-flex rounded-xl border border-app-border bg-app-card p-0.5">
                   {(
                     [
                       { id: "desktop", icon: Monitor, label: "데스크톱" },
@@ -838,7 +838,7 @@ export function AgentStudio() {
                   disabled={busy}
                   onClick={undoArtifact}
                   title="직전 버전으로 되돌리기"
-                  className="flex h-8 items-center gap-1 rounded-xl border border-app-border bg-white px-2.5 text-[11px] font-semibold text-app-muted transition hover:bg-app-hover hover:text-app-primary disabled:opacity-50"
+                  className="flex h-8 items-center gap-1 rounded-xl border border-app-border bg-app-card px-2.5 text-[11px] font-semibold text-app-muted transition hover:bg-app-hover hover:text-app-primary disabled:opacity-50"
                 >
                   <Undo2 size={12} />
                   되돌리기
@@ -850,7 +850,7 @@ export function AgentStudio() {
                   disabled={busy}
                   onClick={() => void redesign()}
                   title="기능은 유지하고 완전히 다른 스타일로 재생성"
-                  className="flex h-8 items-center gap-1 rounded-xl border border-app-border bg-white px-2.5 text-[11px] font-semibold text-app-muted transition hover:bg-app-hover hover:text-app-primary disabled:opacity-50"
+                  className="flex h-8 items-center gap-1 rounded-xl border border-app-border bg-app-card px-2.5 text-[11px] font-semibold text-app-muted transition hover:bg-app-hover hover:text-app-primary disabled:opacity-50"
                 >
                   <Wand2 size={12} />
                   다시 디자인
@@ -862,7 +862,7 @@ export function AgentStudio() {
                   disabled={critiqueBusy || busy}
                   onClick={() => void runCritique()}
                   title="DESIGN.md 기준으로 AI 디자인 평가를 받습니다"
-                  className="flex h-8 items-center gap-1 rounded-xl border border-app-border bg-white px-2.5 text-[11px] font-semibold text-app-muted transition hover:bg-app-hover hover:text-app-primary disabled:opacity-50"
+                  className="flex h-8 items-center gap-1 rounded-xl border border-app-border bg-app-card px-2.5 text-[11px] font-semibold text-app-muted transition hover:bg-app-hover hover:text-app-primary disabled:opacity-50"
                 >
                   {critiqueBusy ? (
                     <Loader2 size={12} className="animate-spin" />
@@ -877,7 +877,7 @@ export function AgentStudio() {
                 disabled={savingCloud}
                 onClick={() => void saveToCloud()}
                 title="내 계정 보관함에 저장 (버전 관리)"
-                className="flex h-8 items-center gap-1 rounded-xl border border-app-border bg-white px-2.5 text-[11px] font-semibold text-app-muted transition hover:bg-app-hover hover:text-app-primary disabled:opacity-50"
+                className="flex h-8 items-center gap-1 rounded-xl border border-app-border bg-app-card px-2.5 text-[11px] font-semibold text-app-muted transition hover:bg-app-hover hover:text-app-primary disabled:opacity-50"
               >
                 {savingCloud ? <Loader2 size={12} className="animate-spin" /> : <CloudUpload size={12} />}
                 저장
@@ -886,7 +886,7 @@ export function AgentStudio() {
                 type="button"
                 onClick={openInNewTab}
                 title="새 탭에서 전체 화면으로 열기"
-                className="flex h-8 items-center gap-1 rounded-xl border border-app-border bg-white px-2.5 text-[11px] font-semibold text-app-muted transition hover:bg-app-hover hover:text-app-primary"
+                className="flex h-8 items-center gap-1 rounded-xl border border-app-border bg-app-card px-2.5 text-[11px] font-semibold text-app-muted transition hover:bg-app-hover hover:text-app-primary"
               >
                 <ExternalLink size={12} />
                 새 탭
@@ -894,7 +894,7 @@ export function AgentStudio() {
               <button
                 type="button"
                 onClick={() => setShowCode((value) => !value)}
-                className="flex h-8 items-center gap-1 rounded-xl border border-app-border bg-white px-2.5 text-[11px] font-semibold text-app-muted transition hover:bg-app-hover hover:text-app-primary"
+                className="flex h-8 items-center gap-1 rounded-xl border border-app-border bg-app-card px-2.5 text-[11px] font-semibold text-app-muted transition hover:bg-app-hover hover:text-app-primary"
               >
                 <Code2 size={12} />
                 {showCode ? "미리보기" : "코드"}
@@ -902,7 +902,7 @@ export function AgentStudio() {
               <button
                 type="button"
                 onClick={() => void navigator.clipboard.writeText(artifact.code)}
-                className="flex h-8 items-center gap-1 rounded-xl border border-app-border bg-white px-2.5 text-[11px] font-semibold text-app-muted transition hover:bg-app-hover hover:text-app-primary"
+                className="flex h-8 items-center gap-1 rounded-xl border border-app-border bg-app-card px-2.5 text-[11px] font-semibold text-app-muted transition hover:bg-app-hover hover:text-app-primary"
               >
                 <Copy size={12} />
                 복사
@@ -910,7 +910,7 @@ export function AgentStudio() {
               <button
                 type="button"
                 onClick={download}
-                className="flex h-8 items-center gap-1 rounded-xl border border-app-border bg-white px-2.5 text-[11px] font-semibold text-app-muted transition hover:bg-app-hover hover:text-app-primary"
+                className="flex h-8 items-center gap-1 rounded-xl border border-app-border bg-app-card px-2.5 text-[11px] font-semibold text-app-muted transition hover:bg-app-hover hover:text-app-primary"
               >
                 <Download size={12} />
                 다운로드
@@ -920,7 +920,7 @@ export function AgentStudio() {
                   type="button"
                   onClick={() => void downloadPng()}
                   title="PNG 이미지로 변환해 다운로드"
-                  className="flex h-8 items-center gap-1 rounded-xl border border-app-border bg-white px-2.5 text-[11px] font-semibold text-app-muted transition hover:bg-app-hover hover:text-app-primary"
+                  className="flex h-8 items-center gap-1 rounded-xl border border-app-border bg-app-card px-2.5 text-[11px] font-semibold text-app-muted transition hover:bg-app-hover hover:text-app-primary"
                 >
                   <ImageDown size={12} />
                   PNG
@@ -1070,7 +1070,7 @@ export function AgentStudio() {
               <img
                 src={svgDataUrl}
                 alt={artifact.fileName}
-                className="max-h-full max-w-full rounded-2xl bg-white shadow-soft"
+                className="max-h-full max-w-full rounded-2xl bg-app-card shadow-soft"
               />
             </div>
           ) : previewAsPage && guard && !guard.safe ? (
@@ -1105,7 +1105,7 @@ export function AgentStudio() {
                   sandbox="allow-scripts"
                   srcDoc={artifact.code}
                   style={device === "desktop" ? undefined : { width: device === "tablet" ? 768 : 390 }}
-                  className={`h-full border-0 bg-white ${
+                  className={`h-full border-0 bg-app-card ${
                     device === "desktop" ? "w-full" : "max-w-full rounded-2xl shadow-app"
                   }`}
                 />

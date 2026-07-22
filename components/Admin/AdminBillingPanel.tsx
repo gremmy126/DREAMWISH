@@ -60,7 +60,7 @@ export function AdminBillingPanel() {
   if (!status) return <button type="button" onClick={() => void load()} className="inline-flex min-h-11 items-center gap-2 rounded-xl border px-4"><RefreshCw size={15} /> 다시 시도</button>;
   return (
     <section className="space-y-5">
-      <div className="rounded-[24px] border border-app-border bg-white p-6 shadow-soft">
+      <div className="rounded-[24px] border border-app-border bg-app-card p-6 shadow-soft">
         <p className="text-xs font-bold uppercase tracking-[0.16em] text-app-primary">Domestic billing</p>
         <h2 className="mt-2 text-xl font-bold">국내 결제 운영</h2>
         <p className="mt-2 text-sm text-app-muted">현재 모드: {status.mode}. 공급자 전환은 새 구독에만 적용되며 자동 폴백은 없습니다.</p>
@@ -72,17 +72,17 @@ export function AdminBillingPanel() {
       </div>
       {status.mode === "sandbox" ? (
         <div className="grid gap-4 lg:grid-cols-2">
-          <div className="rounded-[24px] border border-app-border bg-white p-5 shadow-soft">
+          <div className="rounded-[24px] border border-app-border bg-app-card p-5 shadow-soft">
             <h3 className="mb-3 font-bold">KPN Sandbox</h3>
             {status.providers.portone_kpn_v2.ready ? <PortOneV2Checkout mode="sandbox" onComplete={setMessage} /> : <Missing names={status.providers.portone_kpn_v2.missingVariables} />}
           </div>
-          <div className="rounded-[24px] border border-app-border bg-white p-5 shadow-soft">
+          <div className="rounded-[24px] border border-app-border bg-app-card p-5 shadow-soft">
             <h3 className="mb-3 font-bold">NHN KCP V1 Sandbox</h3>
             {status.providers.portone_kcp_v1.ready ? <PortOneV1BillingCheckout onComplete={setMessage} /> : <Missing names={status.providers.portone_kcp_v1.missingVariables} />}
           </div>
         </div>
       ) : null}
-      <section className="rounded-[24px] border border-app-border bg-white p-5 shadow-soft">
+      <section className="rounded-[24px] border border-app-border bg-app-card p-5 shadow-soft">
         <div>
           <h3 className="font-bold">결제 및 환불</h3>
           <p className="mt-1 text-xs leading-5 text-app-muted">운영 결제만 표시됩니다. 누적 환불 가능액을 서버에서 다시 잠그고 검사한 뒤 처리합니다.</p>
@@ -151,7 +151,7 @@ function PaymentRefundRow({ payment, onDone }: { payment: RefundablePayment; onD
 
 function ProviderCard({ name, status, selected, onSelect }: { name: string; status: Readiness; selected: boolean; onSelect: () => void }) {
   return (
-    <article className="rounded-[24px] border border-app-border bg-white p-5 shadow-soft">
+    <article className="rounded-[24px] border border-app-border bg-app-card p-5 shadow-soft">
       <div className="flex items-center justify-between gap-3">
         <h3 className="font-bold">{name}</h3>
         <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold ${status.ready ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>

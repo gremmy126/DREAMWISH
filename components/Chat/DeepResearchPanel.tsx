@@ -259,7 +259,7 @@ export function DeepResearchDock({
           className={`inline-flex items-center gap-1.5 rounded-2xl px-3 py-2 text-xs font-semibold transition ${
             panelOpen
               ? "bg-app-primary text-white"
-              : "border border-app-border bg-white text-app-muted hover:bg-app-hover hover:text-app-primary"
+              : "border border-app-border bg-app-card text-app-muted hover:bg-app-hover hover:text-app-primary"
           }`}
           aria-expanded={panelOpen}
         >
@@ -275,7 +275,7 @@ export function DeepResearchDock({
       </div>
 
       {panelOpen ? (
-        <div className="rounded-app border border-app-border bg-white p-4 shadow-app">
+        <div className="rounded-app border border-app-border bg-app-card p-4 shadow-app">
           <div className="flex items-center justify-between">
             <p className="text-sm font-semibold text-app-text">심층 조사 설정</p>
             <button
@@ -305,7 +305,7 @@ export function DeepResearchDock({
                 className={`rounded-2xl border px-3 py-2 text-left transition ${
                   mode === option.id
                     ? "border-app-primary bg-app-hover"
-                    : "border-app-border bg-white hover:border-app-primary/50"
+                    : "border-app-border bg-app-card hover:border-app-primary/50"
                 }`}
               >
                 <p className="text-xs font-semibold text-app-text">{option.label}</p>
@@ -330,7 +330,7 @@ export function DeepResearchDock({
                   className={`rounded-xl px-2.5 py-1.5 text-xs font-semibold transition ${
                     minutes === option && !customMinutes
                       ? "bg-app-primary text-white"
-                      : "border border-app-border bg-white text-app-muted"
+                      : "border border-app-border bg-app-card text-app-muted"
                   }`}
                 >
                   {option}분
@@ -341,7 +341,7 @@ export function DeepResearchDock({
                 onChange={(event) => setCustomMinutes(event.target.value)}
                 inputMode="numeric"
                 placeholder="직접 입력(분)"
-                className="w-24 rounded-xl border border-app-border bg-white px-2.5 py-1.5 text-xs text-app-text outline-none focus:border-app-primary"
+                className="w-24 rounded-xl border border-app-border bg-app-card px-2.5 py-1.5 text-xs text-app-text outline-none focus:border-app-primary"
               />
             </div>
           </div>
@@ -366,7 +366,7 @@ export function DeepResearchDock({
               <select
                 value={reportLength}
                 onChange={(event) => setReportLength(event.target.value as typeof reportLength)}
-                className="rounded-xl border border-app-border bg-white px-2 py-1.5 text-xs text-app-text outline-none"
+                className="rounded-xl border border-app-border bg-app-card px-2 py-1.5 text-xs text-app-text outline-none"
               >
                 <option value="short">짧게</option>
                 <option value="medium">보통</option>
@@ -421,7 +421,7 @@ function ResearchJobCard({
   }
 
   return (
-    <div className="rounded-app border border-app-border bg-white p-3.5">
+    <div className="rounded-app border border-app-border bg-app-card p-3.5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
           <Telescope size={14} className="shrink-0 text-app-primary" />
@@ -448,7 +448,7 @@ function ResearchJobCard({
               type="button"
               disabled={memoryBusy || memoryApproved}
               onClick={() => void onApproveMemory(job.id)}
-              className="inline-flex items-center gap-1 rounded-lg border border-app-border bg-white px-2 py-1.5 text-[10px] font-semibold text-app-primary transition hover:bg-app-hover disabled:cursor-default disabled:text-emerald-700 disabled:opacity-100"
+              className="inline-flex items-center gap-1 rounded-lg border border-app-border bg-app-card px-2 py-1.5 text-[10px] font-semibold text-app-primary transition hover:bg-app-hover disabled:cursor-default disabled:text-emerald-700 disabled:opacity-100"
               aria-label={memoryApproved ? "메모리 승인 완료" : "메모리 승인"}
               title={memoryApproved ? "메모리 승인 완료" : "메모리 승인"}
             >
@@ -602,7 +602,7 @@ function IconAction({
       onClick={onClick}
       aria-label={label}
       title={label}
-      className="rounded-lg border border-app-border bg-white p-1.5 text-app-muted transition hover:text-app-primary"
+      className="rounded-lg border border-app-border bg-app-card p-1.5 text-app-muted transition hover:text-app-primary"
     >
       {children}
     </button>
@@ -625,7 +625,7 @@ function NumberField({
         value={value}
         inputMode="numeric"
         onChange={(event) => onChange(event.target.value)}
-        className="rounded-xl border border-app-border bg-white px-2.5 py-1.5 text-xs text-app-text outline-none focus:border-app-primary"
+        className="rounded-xl border border-app-border bg-app-card px-2.5 py-1.5 text-xs text-app-text outline-none focus:border-app-primary"
       />
     </label>
   );

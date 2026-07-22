@@ -27,7 +27,7 @@ export function IconButton({
       className={`flex h-10 w-10 items-center justify-center rounded-2xl border transition ${
         active
           ? "border-app-primary bg-app-hover text-app-primary"
-          : "border-app-border bg-white text-slate-600 hover:bg-app-hover hover:text-app-primary"
+          : "border-app-border bg-app-card text-slate-600 hover:bg-app-hover hover:text-app-primary"
       } ${className}`}
       {...props}
     >

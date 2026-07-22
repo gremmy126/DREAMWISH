@@ -12,7 +12,7 @@ export function SegmentedControl<T extends string>({
   onChange
 }: SegmentedControlProps<T>) {
   return (
-    <div className="inline-flex rounded-2xl border border-app-border bg-white p-1">
+    <div className="inline-flex rounded-2xl border border-app-border bg-app-card p-1">
       {options.map((option) => (
         <button
           key={option}

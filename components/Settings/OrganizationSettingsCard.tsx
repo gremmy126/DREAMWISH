@@ -111,7 +111,7 @@ export function OrganizationSettingsCard() {
           type="button"
           disabled={busy || Boolean(migratedAt)}
           onClick={() => void migrate()}
-          className="flex h-10 items-center gap-1.5 rounded-2xl border border-app-border bg-white px-4 text-xs font-semibold text-app-text transition hover:bg-app-hover hover:text-app-primary disabled:opacity-50"
+          className="flex h-10 items-center gap-1.5 rounded-2xl border border-app-border bg-app-card px-4 text-xs font-semibold text-app-text transition hover:bg-app-hover hover:text-app-primary disabled:opacity-50"
         >
           <Download size={14} />
           {migratedAt ? "비즈니스 데이터 이전 완료" : "비즈니스 데이터를 메모리로 가져오기"}
@@ -136,7 +136,7 @@ function FieldInput({
       <input
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="mt-1.5 h-10 w-full rounded-xl border border-app-border bg-white px-3 text-xs font-semibold text-app-text outline-none transition focus:border-app-primary"
+        className="mt-1.5 h-10 w-full rounded-xl border border-app-border bg-app-card px-3 text-xs font-semibold text-app-text outline-none transition focus:border-app-primary"
       />
     </label>
   );

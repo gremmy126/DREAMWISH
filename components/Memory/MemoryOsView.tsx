@@ -235,13 +235,18 @@ export function MemoryOsView() {
 
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-extrabold text-app-text sm:text-2xl">Memory</h1>
+          <p className="text-[10px] font-extrabold uppercase tracking-widest text-app-primary">
+            Memory OS
+          </p>
+          <h1 className="mt-0.5 text-xl font-extrabold tracking-tight text-app-text sm:text-2xl">
+            Memory
+          </h1>
           <p className="mt-1 text-xs text-app-muted">
             AI와 조직의 모든 지식을 연결하여 더 나은 결정을 만들어보세요.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex h-10 w-72 max-w-full items-center gap-2 rounded-2xl border border-app-border bg-white px-3 shadow-soft">
+          <div className="flex h-10 w-72 max-w-full items-center gap-2 rounded-2xl border border-app-border bg-app-card px-3 shadow-soft">
             <Search size={15} className="shrink-0 text-slate-400" />
             <input
               value={query}
@@ -260,7 +265,7 @@ export function MemoryOsView() {
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="flex h-10 items-center gap-1.5 rounded-2xl border border-app-border bg-white px-3.5 text-xs font-semibold text-app-muted transition hover:bg-app-hover hover:text-app-primary"
+            className="flex h-10 items-center gap-1.5 rounded-2xl border border-app-border bg-app-card px-3.5 text-xs font-semibold text-app-muted transition hover:bg-app-hover hover:text-app-primary"
           >
             <Upload size={14} />
             가져오기
@@ -268,7 +273,7 @@ export function MemoryOsView() {
           <button
             type="button"
             onClick={exportAll}
-            className="flex h-10 items-center gap-1.5 rounded-2xl border border-app-border bg-white px-3.5 text-xs font-semibold text-app-muted transition hover:bg-app-hover hover:text-app-primary"
+            className="flex h-10 items-center gap-1.5 rounded-2xl border border-app-border bg-app-card px-3.5 text-xs font-semibold text-app-muted transition hover:bg-app-hover hover:text-app-primary"
           >
             <Download size={14} />
             내보내기
@@ -326,7 +331,7 @@ export function MemoryOsView() {
                         setTypeFilter(next);
                         void reload({ type: next });
                       }}
-                      className={`w-40 shrink-0 rounded-2xl border bg-white p-3.5 text-left shadow-soft transition hover:-translate-y-0.5 ${
+                      className={`w-40 shrink-0 rounded-2xl border bg-app-card p-3.5 text-left shadow-soft transition hover:-translate-y-0.5 ${
                         typeFilter === entry.type ? "border-app-primary" : "border-app-border"
                       }`}
                     >
@@ -364,7 +369,7 @@ export function MemoryOsView() {
                   </ul>
                 </div>
               ) : null}
-              <div className="rounded-2xl border border-app-border bg-white p-4 shadow-soft">
+              <div className="rounded-2xl border border-app-border bg-app-card p-4 shadow-soft">
                 <p className="text-xs font-extrabold text-app-text">Memory Insight</p>
                 <ul className="mt-1.5 space-y-1 text-[11px] leading-5 text-app-muted">
                   {overview.insights.mostUsed ? (
@@ -412,7 +417,7 @@ export function MemoryOsView() {
               className={`h-8 rounded-xl px-3 text-[11px] font-bold transition ${
                 statusFilter === chip.id
                   ? "bg-app-primary text-white shadow-soft"
-                  : "border border-app-border bg-white text-app-muted hover:bg-app-hover hover:text-app-primary"
+                  : "border border-app-border bg-app-card text-app-muted hover:bg-app-hover hover:text-app-primary"
               }`}
             >
               {chip.label}
@@ -425,7 +430,7 @@ export function MemoryOsView() {
               setTypeFilter(next);
               void reload({ type: next });
             }}
-            className="h-8 rounded-xl border border-app-border bg-white px-2 text-[11px] font-semibold text-app-muted"
+            className="h-8 rounded-xl border border-app-border bg-app-card px-2 text-[11px] font-semibold text-app-muted"
           >
             <option value="">모든 타입</option>
             {MEMORY_OS_TYPES.map((type) => (
@@ -443,7 +448,7 @@ export function MemoryOsView() {
               setSort(next);
               void reload({ sort: next });
             }}
-            className="h-8 rounded-xl border border-app-border bg-white px-2 text-[11px] font-semibold text-app-muted"
+            className="h-8 rounded-xl border border-app-border bg-app-card px-2 text-[11px] font-semibold text-app-muted"
           >
             <option value="latest">정렬: 최신순</option>
             <option value="usage">정렬: 사용순</option>
@@ -507,7 +512,7 @@ export function MemoryOsView() {
                   className={`h-8 w-8 rounded-xl text-[11px] font-bold transition ${
                     page === number
                       ? "bg-app-primary text-white shadow-soft"
-                      : "border border-app-border bg-white text-app-muted hover:bg-app-hover"
+                      : "border border-app-border bg-app-card text-app-muted hover:bg-app-hover"
                   }`}
                 >
                   {number}
@@ -561,7 +566,7 @@ function KpiCard({
   delta: number;
 }) {
   return (
-    <div className="rounded-2xl border border-app-border bg-white p-4 shadow-soft">
+    <div className="rounded-2xl border border-app-border bg-app-card p-4 shadow-soft">
       <div className="flex items-center gap-2">
         <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-app-hover text-app-primary">
           {icon}
@@ -596,7 +601,7 @@ function ViewToggle({
       className={`flex h-8 w-8 items-center justify-center rounded-xl transition ${
         active
           ? "bg-app-primary text-white shadow-soft"
-          : "border border-app-border bg-white text-app-muted hover:bg-app-hover hover:text-app-primary"
+          : "border border-app-border bg-app-card text-app-muted hover:bg-app-hover hover:text-app-primary"
       }`}
     >
       <Icon size={14} />
@@ -654,7 +659,7 @@ function ListView({
   selectedId: string | null;
 }) {
   return (
-    <div className="overflow-hidden rounded-app border border-app-border bg-white shadow-soft">
+    <div className="overflow-hidden rounded-app border border-app-border bg-app-card shadow-soft">
       <div className="hidden grid-cols-[minmax(0,1fr)_88px_120px_76px_84px_92px] gap-3 border-b border-app-border px-4 py-2.5 text-[10px] font-bold text-app-muted lg:grid">
         <span>메모리</span>
         <span>타입</span>
@@ -714,7 +719,7 @@ function ListView({
             <MoreHorizontal size={14} className="text-app-muted" />
           </span>
 
-          <span className="pointer-events-none absolute left-16 top-full z-20 hidden w-72 -translate-y-1 rounded-2xl border border-app-border bg-white p-3 shadow-app group-hover:lg:block">
+          <span className="pointer-events-none absolute left-16 top-full z-20 hidden w-72 -translate-y-1 rounded-2xl border border-app-border bg-app-card p-3 shadow-app group-hover:lg:block">
             <span className="block text-[11px] font-bold text-app-text">{item.title}</span>
             <span className="mt-1 block text-[10.5px] leading-4 text-app-muted">
               {item.description}
@@ -738,7 +743,7 @@ function CardView({ items, onOpen }: { items: ListItem[]; onOpen: (id: string) =
           key={item.id}
           type="button"
           onClick={() => onOpen(item.id)}
-          className="rounded-app border border-app-border bg-white p-4 text-left shadow-soft transition hover:-translate-y-0.5 hover:border-app-primary/40"
+          className="rounded-app border border-app-border bg-app-card p-4 text-left shadow-soft transition hover:-translate-y-0.5 hover:border-app-primary/40"
         >
           <div className="flex items-center justify-between gap-2">
             <TypeChip type={item.type} />
@@ -803,7 +808,7 @@ function TimelineView({ items, onOpen }: { items: ListItem[]; onOpen: (id: strin
                 key={item.id}
                 type="button"
                 onClick={() => onOpen(item.id)}
-                className="relative flex w-full items-center gap-3 rounded-2xl border border-app-border bg-white p-3 text-left shadow-soft transition hover:border-app-primary/40"
+                className="relative flex w-full items-center gap-3 rounded-2xl border border-app-border bg-app-card p-3 text-left shadow-soft transition hover:border-app-primary/40"
               >
                 <span
                   className="absolute -left-[23px] h-3 w-3 rounded-full border-2 border-white"
@@ -845,7 +850,7 @@ function KnowledgeView({
 
   return (
     <div className="grid gap-3 lg:grid-cols-[240px_minmax(0,1fr)]">
-      <div className="max-h-[560px] space-y-1.5 overflow-y-auto rounded-app border border-app-border bg-white p-2.5 shadow-soft app-scrollbar">
+      <div className="max-h-[560px] space-y-1.5 overflow-y-auto rounded-app border border-app-border bg-app-card p-2.5 shadow-soft app-scrollbar">
         <p className="px-1.5 pb-1 text-[10px] font-extrabold text-app-muted">
           메모리를 선택하면 의미적 연결이 펼쳐집니다
         </p>
@@ -869,7 +874,7 @@ function KnowledgeView({
         ))}
       </div>
 
-      <div className="rounded-app border border-app-border bg-white p-5 shadow-soft">
+      <div className="rounded-app border border-app-border bg-app-card p-5 shadow-soft">
         {!detail ? (
           <p className="text-xs text-app-muted">
             좌측에서 메모리를 선택하세요. 노드 그래프 대신, AI가 의미적으로 연결한 메모리가
@@ -889,7 +894,7 @@ function KnowledgeView({
                 <div key={group.label} className="relative pl-5">
                   <span className="absolute left-1.5 top-0 h-full w-px bg-app-border" />
                   <span className="absolute left-0 top-4 h-3 w-3 rounded-full border-2 border-white bg-app-primary" />
-                  <div className="rounded-2xl border border-app-border bg-white p-3.5">
+                  <div className="rounded-2xl border border-app-border bg-app-card p-3.5">
                     <p className="text-[10px] font-extrabold text-app-muted">{group.label}</p>
                     <div className="mt-1.5 space-y-1.5">
                       {entries.map((entry) => (
@@ -934,7 +939,7 @@ function EmptyState({
   onSample: () => Promise<void>;
 }) {
   return (
-    <div className="rounded-app border border-app-border bg-white p-10 text-center shadow-soft">
+    <div className="rounded-app border border-app-border bg-app-card p-10 text-center shadow-soft">
       <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-app-hover text-app-primary">
         <Sparkles size={20} />
       </span>
@@ -956,14 +961,14 @@ function EmptyState({
         <button
           type="button"
           onClick={() => void onSample()}
-          className="h-10 rounded-2xl border border-app-border bg-white px-4 text-xs font-bold text-app-primary transition hover:bg-app-hover"
+          className="h-10 rounded-2xl border border-app-border bg-app-card px-4 text-xs font-bold text-app-primary transition hover:bg-app-hover"
         >
           예시 메모리 만들기
         </button>
         <button
           type="button"
           onClick={onCreate}
-          className="h-10 rounded-2xl border border-app-border bg-white px-4 text-xs font-semibold text-app-muted transition hover:bg-app-hover hover:text-app-primary"
+          className="h-10 rounded-2xl border border-app-border bg-app-card px-4 text-xs font-semibold text-app-muted transition hover:bg-app-hover hover:text-app-primary"
         >
           새 메모리 작성
         </button>
@@ -1014,20 +1019,20 @@ function NewMemoryModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 px-4">
-      <div className="w-full max-w-lg rounded-app border border-app-border bg-white p-5 shadow-app">
+      <div className="w-full max-w-lg rounded-app border border-app-border bg-app-card p-5 shadow-app">
         <p className="text-sm font-extrabold text-app-text">새 메모리</p>
         <div className="mt-3 space-y-2.5">
           <input
             value={title}
             onChange={(event) => setTitle(event.target.value)}
             placeholder="제목"
-            className="h-10 w-full rounded-2xl border border-app-border bg-white px-3 text-sm text-app-text outline-none transition focus:border-app-primary"
+            className="h-10 w-full rounded-2xl border border-app-border bg-app-card px-3 text-sm text-app-text outline-none transition focus:border-app-primary"
           />
           <div className="flex gap-2">
             <select
               value={type}
               onChange={(event) => setType(event.target.value as MemoryOsType)}
-              className="h-10 flex-1 rounded-2xl border border-app-border bg-white px-2 text-xs font-semibold text-app-text"
+              className="h-10 flex-1 rounded-2xl border border-app-border bg-app-card px-2 text-xs font-semibold text-app-text"
             >
               {MEMORY_OS_TYPES.map((candidate) => (
                 <option key={candidate} value={candidate}>
@@ -1039,21 +1044,21 @@ function NewMemoryModal({
               value={project}
               onChange={(event) => setProject(event.target.value)}
               placeholder="프로젝트"
-              className="h-10 flex-1 rounded-2xl border border-app-border bg-white px-3 text-xs text-app-text outline-none transition focus:border-app-primary"
+              className="h-10 flex-1 rounded-2xl border border-app-border bg-app-card px-3 text-xs text-app-text outline-none transition focus:border-app-primary"
             />
           </div>
           <input
             value={tags}
             onChange={(event) => setTags(event.target.value)}
             placeholder="태그 (쉼표 구분)"
-            className="h-10 w-full rounded-2xl border border-app-border bg-white px-3 text-xs text-app-text outline-none transition focus:border-app-primary"
+            className="h-10 w-full rounded-2xl border border-app-border bg-app-card px-3 text-xs text-app-text outline-none transition focus:border-app-primary"
           />
           <textarea
             value={content}
             onChange={(event) => setContent(event.target.value)}
             rows={5}
             placeholder="내용 — 다음 의사결정에 도움이 될 사실, 교훈, 결과를 기록하세요."
-            className="w-full rounded-2xl border border-app-border bg-white p-3 text-xs leading-5 text-app-text outline-none transition focus:border-app-primary"
+            className="w-full rounded-2xl border border-app-border bg-app-card p-3 text-xs leading-5 text-app-text outline-none transition focus:border-app-primary"
           />
         </div>
         {error ? <p className="mt-2 text-xs font-semibold text-red-500">{error}</p> : null}

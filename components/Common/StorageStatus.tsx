@@ -58,7 +58,7 @@ export function StorageStatus({ compact = false }: StorageStatusProps) {
     : null;
 
   return (
-    <div className={compact ? "" : "rounded-app border border-app-border bg-white p-4"}>
+    <div className={compact ? "" : "rounded-app border border-app-border bg-app-card p-4"}>
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <HardDrive size={compact ? 14 : 16} className="text-app-primary" />

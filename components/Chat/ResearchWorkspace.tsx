@@ -180,7 +180,7 @@ export function ResearchWorkspace({ query, sessionId }: { query: string; session
             onPointerDown={startResize}
             aria-label="패널 너비 조절"
             title="드래그하여 너비 조절"
-            className="cursor-col-resize rounded-lg border border-app-border bg-white p-1 text-app-muted"
+            className="cursor-col-resize rounded-lg border border-app-border bg-app-card p-1 text-app-muted"
           >
             <GripVertical size={12} />
           </button>
@@ -204,13 +204,13 @@ export function ResearchWorkspace({ query, sessionId }: { query: string; session
             setMobileOpen(true);
             void loadJobs();
           }}
-          className="inline-flex items-center gap-1.5 rounded-2xl border border-app-border bg-white px-3 py-2 text-xs font-semibold text-app-muted"
+          className="inline-flex items-center gap-1.5 rounded-2xl border border-app-border bg-app-card px-3 py-2 text-xs font-semibold text-app-muted"
         >
           <Telescope size={13} />
           조사 보고서 열기
         </button>
         {mobileOpen ? (
-          <div className="fixed inset-0 z-50 flex flex-col bg-white" role="dialog" aria-label="조사 보고서">
+          <div className="fixed inset-0 z-50 flex flex-col bg-app-card" role="dialog" aria-label="조사 보고서">
             <div className="flex items-center justify-between border-b border-app-border px-4 py-3">
               <p className="text-sm font-semibold text-app-text">조사 보고서</p>
               <button
@@ -307,7 +307,7 @@ function ResearchPanel({
             value={job.id}
             onChange={(event) => onSelect(event.target.value)}
             aria-label="조사 기록 선택"
-            className="min-w-0 flex-1 truncate rounded-xl border border-app-border bg-white px-2 py-1.5 text-xs text-app-text outline-none"
+            className="min-w-0 flex-1 truncate rounded-xl border border-app-border bg-app-card px-2 py-1.5 text-xs text-app-text outline-none"
           >
             {jobs.map((item) => (
               <option key={item.id} value={item.id}>
@@ -507,7 +507,7 @@ function ReportSection({
   onCite: (citationNumber: number) => void;
 }) {
   return (
-    <section className="rounded-2xl border border-app-border bg-white p-4 shadow-sm">
+    <section className="rounded-2xl border border-app-border bg-app-card p-4 shadow-sm">
       <h3 className="flex items-center gap-2 text-xs font-bold text-app-text">
         <span className="h-4 w-1 rounded-full bg-app-primary" aria-hidden="true" />
         {title}
@@ -602,7 +602,7 @@ function TabButton({
       onClick={onClick}
       aria-pressed={active}
       className={`inline-flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
-        active ? "bg-app-primary text-white" : "border border-app-border bg-white text-app-muted"
+        active ? "bg-app-primary text-white" : "border border-app-border bg-app-card text-app-muted"
       }`}
     >
       {children}

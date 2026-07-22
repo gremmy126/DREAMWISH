@@ -44,26 +44,26 @@ export function Topbar({ onMenuOpen }: { onMenuOpen?: () => void } = {}) {
   }
 
   return (
-    <header className="sticky top-0 z-20 flex h-[72px] items-center justify-between gap-2 bg-app-bg/88 px-4 backdrop-blur-xl sm:gap-3 sm:px-6">
+    <header className="sticky top-0 z-20 flex h-16 items-center justify-between gap-2 border-b border-app-border bg-app-bg/90 px-4 backdrop-blur-xl sm:gap-3 sm:px-6">
       <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
         {onMenuOpen ? (
           <button
             type="button"
             onClick={onMenuOpen}
             aria-label="메뉴 열기"
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-app-border bg-white text-slate-500 shadow-soft transition hover:bg-app-hover hover:text-app-primary md:hidden"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-app-md border border-app-border bg-app-card text-app-muted transition hover:bg-app-hover hover:text-app-text md:hidden"
           >
             <Menu size={18} />
           </button>
         ) : null}
-        <div className="flex h-11 w-full max-w-[520px] items-center gap-3 rounded-2xl border border-app-border bg-white px-3 shadow-soft sm:px-4">
-          <Search size={18} className="shrink-0 text-slate-400" />
+        <div className="flex h-10 w-full max-w-[520px] items-center gap-3 rounded-app-md border border-app-border bg-app-card px-3 transition focus-within:border-app-primary sm:px-4">
+          <Search size={17} className="shrink-0 text-app-muted" />
           <input
             aria-label={t("topbar.searchAria")}
             className="min-w-0 flex-1 bg-transparent text-sm text-app-text outline-none placeholder:text-slate-400"
             placeholder={t("topbar.searchPlaceholder")}
           />
-          <span className="hidden items-center gap-1 rounded-xl border border-app-border bg-app-bg px-2 py-1 text-xs font-medium text-slate-500 sm:flex">
+          <span className="hidden items-center gap-1 rounded-app-sm border border-app-border bg-app-bg px-2 py-1 text-xs font-medium text-app-muted sm:flex">
             <Command size={12} />
             K
           </span>
@@ -78,14 +78,14 @@ export function Topbar({ onMenuOpen }: { onMenuOpen?: () => void } = {}) {
           <button
             type="button"
             onClick={() => setProfileOpen((open) => !open)}
-            className="flex h-10 w-10 items-center justify-center rounded-2xl border border-app-border bg-white text-slate-500 shadow-soft transition hover:bg-app-hover hover:text-app-primary"
+            className="flex h-10 w-10 items-center justify-center rounded-app-md border border-app-border bg-app-card text-app-muted transition hover:bg-app-hover hover:text-app-text"
             aria-label={t("topbar.profile")}
             title={t("topbar.profile")}
           >
             <UserRound size={17} />
           </button>
           {profileOpen ? (
-            <div className="absolute right-0 top-12 z-30 w-56 rounded-app border border-app-border bg-white p-2 shadow-app">
+            <div className="absolute right-0 top-12 z-30 w-56 rounded-app-lg border border-app-border bg-app-card p-2 shadow-app">
               <div className="border-b border-app-border px-3 py-2">
                 <p className="text-[11px] font-semibold text-app-muted">{t("topbar.signedIn")}</p>
                 <p className="mt-1 truncate text-xs font-semibold text-app-text">

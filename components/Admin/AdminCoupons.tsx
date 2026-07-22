@@ -128,12 +128,12 @@ export function AdminCoupons() {
     await load();
   }
 
-  const inputClass = "min-h-11 w-full rounded-2xl border border-app-border bg-white px-3 text-xs outline-none focus:border-app-primary";
+  const inputClass = "min-h-11 w-full rounded-2xl border border-app-border bg-app-card px-3 text-xs outline-none focus:border-app-primary";
   const maxQuantity = type === "access_duration" ? 500 : 100;
 
   return (
     <div className="space-y-5">
-      <section className="rounded-[22px] border border-app-border bg-white p-5 shadow-soft">
+      <section className="rounded-[22px] border border-app-border bg-app-card p-5 shadow-soft">
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-bold">쿠폰 생성</h2>
@@ -235,7 +235,7 @@ export function AdminCoupons() {
                 <button
                   type="button"
                   onClick={() => void navigator.clipboard.writeText(issuedCodes.join("\n"))}
-                  className="inline-flex min-h-9 items-center gap-1.5 rounded-xl bg-white px-3 text-[11px] font-bold text-amber-800"
+                  className="inline-flex min-h-9 items-center gap-1.5 rounded-xl bg-app-card px-3 text-[11px] font-bold text-amber-800"
                 >
                   <Copy size={13} />전체 복사
                 </button>
@@ -248,7 +248,7 @@ export function AdminCoupons() {
                 </button>
               </div>
             </div>
-            <div className="app-scrollbar mt-3 max-h-48 overflow-y-auto rounded-xl bg-white p-3">
+            <div className="app-scrollbar mt-3 max-h-48 overflow-y-auto rounded-xl bg-app-card p-3">
               {issuedCodes.map((couponCode) => (
                 <code key={couponCode} className="block py-0.5 font-mono text-xs font-black">{couponCode}</code>
               ))}
@@ -261,7 +261,7 @@ export function AdminCoupons() {
         {error ? <p className="mt-4 rounded-2xl bg-red-50 p-3 text-xs text-red-700">{error}</p> : null}
       </section>
 
-      <section className="rounded-[22px] border border-app-border bg-white p-5 shadow-soft">
+      <section className="rounded-[22px] border border-app-border bg-app-card p-5 shadow-soft">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-bold">발급 쿠폰</h2>
           <button type="button" onClick={() => void load()} className="flex h-11 w-11 items-center justify-center rounded-2xl border border-app-border" aria-label="새로고침"><RefreshCcw size={16} /></button>

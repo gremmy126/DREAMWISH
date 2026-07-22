@@ -99,7 +99,7 @@ export function MemoryOsDetailPanel({
   }
 
   return (
-    <aside className="flex h-full min-h-0 flex-col rounded-app border border-app-border bg-white shadow-app">
+    <aside className="flex h-full min-h-0 flex-col rounded-app border border-app-border bg-app-card shadow-app">
       <div className="border-b border-app-border p-5">
         <div className="flex items-start justify-between gap-3">
           <span
@@ -308,7 +308,7 @@ export function MemoryOsDetailPanel({
                   value={draftContent}
                   onChange={(event) => setDraftContent(event.target.value)}
                   rows={14}
-                  className="w-full rounded-2xl border border-app-border bg-white p-3 text-xs leading-6 text-app-text outline-none transition focus:border-app-primary"
+                  className="w-full rounded-2xl border border-app-border bg-app-card p-3 text-xs leading-6 text-app-text outline-none transition focus:border-app-primary"
                 />
                 <div className="mt-2 flex gap-2">
                   <button
@@ -358,7 +358,7 @@ export function MemoryOsDetailPanel({
                     key={entry.id}
                     type="button"
                     onClick={() => onOpenRelated(entry.id)}
-                    className="flex w-full items-center gap-2.5 rounded-2xl border border-app-border bg-white p-3 text-left transition hover:border-app-primary/40 hover:bg-app-hover/40"
+                    className="flex w-full items-center gap-2.5 rounded-2xl border border-app-border bg-app-card p-3 text-left transition hover:border-app-primary/40 hover:bg-app-hover/40"
                   >
                     <span
                       className="rounded-md px-1.5 py-0.5 text-[9px] font-extrabold"
@@ -387,7 +387,7 @@ export function MemoryOsDetailPanel({
             {[...item.versions].reverse().map((version) => (
               <div
                 key={version.version}
-                className="flex items-center gap-3 rounded-2xl border border-app-border bg-white p-3"
+                className="flex items-center gap-3 rounded-2xl border border-app-border bg-app-card p-3"
               >
                 <History size={13} className="shrink-0 text-app-muted" />
                 <div className="min-w-0 flex-1">

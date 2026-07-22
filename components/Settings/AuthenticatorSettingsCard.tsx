@@ -247,7 +247,7 @@ export function AuthenticatorSettingsCard() {
               type="button"
               onClick={() => void beginEnrollment()}
               disabled={busy !== null}
-              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-app border border-app-border bg-white px-4 text-sm font-semibold text-app-text focus:outline-none focus:ring-4 focus:ring-violet-100 disabled:bg-slate-100"
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-app border border-app-border bg-app-card px-4 text-sm font-semibold text-app-text focus:outline-none focus:ring-4 focus:ring-violet-100 disabled:bg-slate-100"
             >
               <RefreshCw size={16} aria-hidden="true" />
               등록 다시 시작
@@ -257,7 +257,7 @@ export function AuthenticatorSettingsCard() {
 
         {enrollment ? (
           <div className="mt-4 space-y-4">
-            <div className="flex justify-center rounded-2xl bg-white p-4">
+            <div className="flex justify-center rounded-2xl bg-app-card p-4">
               <QRCodeSVG
                 value={enrollment.otpauthUri}
                 size={200}
@@ -268,13 +268,13 @@ export function AuthenticatorSettingsCard() {
             </div>
             <div>
               <p className="text-xs font-semibold text-app-muted">수동 입력 키</p>
-              <code className="mt-2 block break-all rounded-xl bg-white px-3 py-2 text-xs font-semibold text-app-text">
+              <code className="mt-2 block break-all rounded-xl bg-app-card px-3 py-2 text-xs font-semibold text-app-text">
                 {enrollment.manualKey}
               </code>
               <button
                 type="button"
                 onClick={() => void copyManualKey()}
-                className="mt-2 inline-flex h-11 w-full items-center justify-center gap-2 rounded-app border border-app-border bg-white px-4 text-sm font-semibold text-app-text focus:outline-none focus:ring-4 focus:ring-violet-100"
+                className="mt-2 inline-flex h-11 w-full items-center justify-center gap-2 rounded-app border border-app-border bg-app-card px-4 text-sm font-semibold text-app-text focus:outline-none focus:ring-4 focus:ring-violet-100"
               >
                 <Copy size={16} aria-hidden="true" />
                 수동 입력 키 복사
@@ -291,7 +291,7 @@ export function AuthenticatorSettingsCard() {
                 autoComplete="one-time-code"
                 maxLength={6}
                 onChange={(event) => setVerificationCode(event.target.value.replace(/\D/gu, "").slice(0, 6))}
-                className="mt-2 h-11 w-full rounded-app border border-app-border bg-white px-4 text-center text-lg font-semibold tracking-[0.3em] text-app-text outline-none focus:border-app-primary focus:ring-4 focus:ring-violet-100"
+                className="mt-2 h-11 w-full rounded-app border border-app-border bg-app-card px-4 text-center text-lg font-semibold tracking-[0.3em] text-app-text outline-none focus:border-app-primary focus:ring-4 focus:ring-violet-100"
               />
             </label>
             <button
@@ -315,7 +315,7 @@ export function AuthenticatorSettingsCard() {
             <ul className="mt-3 grid gap-2 sm:grid-cols-2" aria-label="일회용 복구 코드">
               {recoveryCodes.map((recoveryCode) => (
                 <li key={recoveryCode}>
-                  <code className="block rounded-lg bg-white px-2 py-2 text-center text-xs font-semibold text-slate-900">
+                  <code className="block rounded-lg bg-app-card px-2 py-2 text-center text-xs font-semibold text-slate-900">
                     {recoveryCode}
                   </code>
                 </li>
@@ -345,14 +345,14 @@ export function AuthenticatorSettingsCard() {
                 autoComplete="one-time-code"
                 maxLength={6}
                 onChange={(event) => setCurrentTotpCode(event.target.value.replace(/\D/gu, "").slice(0, 6))}
-                className="mt-2 h-11 w-full rounded-app border border-app-border bg-white px-4 text-center text-lg font-semibold tracking-[0.3em] text-app-text outline-none focus:border-app-primary focus:ring-4 focus:ring-violet-100"
+                className="mt-2 h-11 w-full rounded-app border border-app-border bg-app-card px-4 text-center text-lg font-semibold tracking-[0.3em] text-app-text outline-none focus:border-app-primary focus:ring-4 focus:ring-violet-100"
               />
             </label>
             <button
               type="button"
               onClick={() => void regenerateCodes()}
               disabled={busy !== null || currentTotpCode.length !== 6}
-              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-app border border-app-border bg-white px-3 text-xs font-semibold text-app-text focus:outline-none focus:ring-4 focus:ring-violet-100 disabled:bg-slate-100 disabled:text-slate-400"
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-app border border-app-border bg-app-card px-3 text-xs font-semibold text-app-text focus:outline-none focus:ring-4 focus:ring-violet-100 disabled:bg-slate-100 disabled:text-slate-400"
             >
               {busy === "regenerate" ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
               복구 코드 다시 만들기
@@ -361,7 +361,7 @@ export function AuthenticatorSettingsCard() {
               type="button"
               onClick={() => void disableAuthenticator()}
               disabled={busy !== null || currentTotpCode.length !== 6}
-              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-app border border-red-200 bg-white px-3 text-xs font-semibold text-red-700 focus:outline-none focus:ring-4 focus:ring-red-100 disabled:bg-slate-100 disabled:text-slate-400"
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-app border border-red-200 bg-app-card px-3 text-xs font-semibold text-red-700 focus:outline-none focus:ring-4 focus:ring-red-100 disabled:bg-slate-100 disabled:text-slate-400"
             >
               {busy === "disable" ? <Loader2 size={15} className="animate-spin" /> : <ShieldOff size={15} />}
               인증기 사용 중지

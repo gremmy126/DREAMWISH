@@ -29,7 +29,7 @@ export function AgentsView() {
           {agentCatalog.map((agent) => (
             <article
               key={agent.name}
-              className="rounded-app border border-app-border bg-white p-4 shadow-soft"
+              className="rounded-app border border-app-border bg-app-card p-4 shadow-soft"
             >
               <p className="text-sm font-semibold text-app-text">{agent.name}</p>
               <p className="mt-2 text-xs leading-5 text-app-muted">{agent.description}</p>
@@ -51,7 +51,7 @@ function Principle({
   text: string;
 }) {
   return (
-    <div className="rounded-app border border-app-border bg-white p-4 shadow-soft">
+    <div className="rounded-app border border-app-border bg-app-card p-4 shadow-soft">
       <Icon size={18} className="mb-3 text-app-primary" />
       <p className="text-sm font-semibold text-app-text">{title}</p>
       <p className="mt-1 text-xs leading-5 text-app-muted">{text}</p>

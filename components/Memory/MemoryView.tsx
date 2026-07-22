@@ -189,7 +189,7 @@ export function MemoryView() {
             <button
               type="button"
               onClick={() => void loadDashboard()}
-              className="inline-flex h-10 items-center gap-2 rounded-2xl border border-app-border bg-white px-3 text-xs font-semibold text-app-text shadow-soft transition hover:bg-app-hover hover:text-app-primary"
+              className="inline-flex h-10 items-center gap-2 rounded-2xl border border-app-border bg-app-card px-3 text-xs font-semibold text-app-text shadow-soft transition hover:bg-app-hover hover:text-app-primary"
             >
               <RefreshCw size={14} />
               {t("memory.refresh")}
@@ -223,7 +223,7 @@ export function MemoryView() {
               className={`rounded-2xl border px-3 py-2 text-xs font-semibold transition ${
                 knowledgeTab === tab.id
                   ? "border-app-primary bg-app-hover text-app-primary"
-                  : "border-app-border bg-white text-app-muted hover:bg-app-hover"
+                  : "border-app-border bg-app-card text-app-muted hover:bg-app-hover"
               }`}
               title={tab.description}
             >
@@ -322,7 +322,7 @@ export function MemoryView() {
                       key={node.id}
                       type="button"
                       onClick={() => setSelectedNodeId(node.id)}
-                      className={`absolute z-10 w-36 rounded-app border bg-white p-3 text-left shadow-soft transition hover:-translate-y-0.5 ${
+                      className={`absolute z-10 w-36 rounded-app border bg-app-card p-3 text-left shadow-soft transition hover:-translate-y-0.5 ${
                         selectedNodeId === node.id ? "border-app-primary ring-2 ring-app-primary/20" : "border-app-border"
                       }`}
                       style={{ left: `${position.x}%`, top: `${position.y}%` }}
@@ -431,7 +431,7 @@ function ApprovedMemoryRow({
             type="button"
             onClick={() => setEditing((value) => !value)}
             disabled={busy}
-            className="rounded-xl border border-app-border bg-white px-2 py-1 text-[11px] font-semibold text-app-muted"
+            className="rounded-xl border border-app-border bg-app-card px-2 py-1 text-[11px] font-semibold text-app-muted"
           >
             {labels.correct}
           </button>
@@ -439,7 +439,7 @@ function ApprovedMemoryRow({
             type="button"
             onClick={onForget}
             disabled={busy}
-            className="rounded-xl border border-red-200 bg-white px-2 py-1 text-[11px] font-semibold text-red-600"
+            className="rounded-xl border border-red-200 bg-app-card px-2 py-1 text-[11px] font-semibold text-red-600"
           >
             {labels.forget}
           </button>
@@ -451,7 +451,7 @@ function ApprovedMemoryRow({
             value={content}
             onChange={(event) => setContent(event.target.value)}
             rows={4}
-            className="w-full resize-y rounded-xl border border-app-border bg-white p-2 text-xs leading-5 outline-none focus:border-app-primary"
+            className="w-full resize-y rounded-xl border border-app-border bg-app-card p-2 text-xs leading-5 outline-none focus:border-app-primary"
           />
           <button
             type="button"

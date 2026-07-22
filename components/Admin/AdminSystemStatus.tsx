@@ -32,7 +32,7 @@ export function AdminSystemStatus() {
   }, []);
 
   return (
-    <section className="rounded-[22px] border border-app-border bg-white p-5 shadow-soft">
+    <section className="rounded-[22px] border border-app-border bg-app-card p-5 shadow-soft">
       <h2 className="text-lg font-bold">시스템 연결 상태</h2>
       <p className="mt-1 text-xs text-app-muted">
         설정 여부와 실제 Worker heartbeat를 구분해 표시합니다. 환경 변수 값과 Worker 식별자는 노출하지 않습니다.

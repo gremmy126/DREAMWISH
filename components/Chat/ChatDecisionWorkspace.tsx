@@ -859,7 +859,7 @@ export function ChatDecisionWorkspace() {
               onChange={(event) => {
                 if (event.target.value) void openHistoryDecision(event.target.value);
               }}
-              className="h-10 max-w-[160px] rounded-2xl border border-app-border bg-white px-3 text-xs font-semibold text-app-muted sm:max-w-[220px]"
+              className="h-10 max-w-[160px] rounded-2xl border border-app-border bg-app-card px-3 text-xs font-semibold text-app-muted sm:max-w-[220px]"
               aria-label="분석 기록"
             >
               <option value="">분석 기록 열기…</option>
@@ -870,7 +870,7 @@ export function ChatDecisionWorkspace() {
               ))}
             </select>
           ) : null}
-          <div className="inline-flex rounded-2xl border border-app-border bg-white p-1">
+          <div className="inline-flex rounded-2xl border border-app-border bg-app-card p-1">
             {(
               [
                 { id: "decision", label: "결정 분석", icon: Sparkles },
@@ -898,7 +898,7 @@ export function ChatDecisionWorkspace() {
             <button
               type="button"
               onClick={resetConversation}
-              className="flex h-10 items-center gap-1.5 rounded-2xl border border-app-border bg-white px-4 text-xs font-semibold text-app-text transition hover:bg-app-hover hover:text-app-primary"
+              className="flex h-10 items-center gap-1.5 rounded-2xl border border-app-border bg-app-card px-4 text-xs font-semibold text-app-text transition hover:bg-app-hover hover:text-app-primary"
             >
               <Plus size={14} />새 대화
             </button>
@@ -914,14 +914,14 @@ export function ChatDecisionWorkspace() {
                 딥리서치 설정
               </button>
               {settingsOpen ? (
-                <div className="absolute right-0 top-12 z-30 w-72 rounded-app border border-app-border bg-white p-4 shadow-app">
+                <div className="absolute right-0 top-12 z-30 w-72 rounded-app border border-app-border bg-app-card p-4 shadow-app">
                   <p className="text-xs font-bold text-app-text">딥리서치 설정</p>
                   <label className="mt-3 block text-[11px] font-semibold text-app-muted">
                     조사 깊이
                     <select
                       value={researchMode}
                       onChange={(event) => setResearchMode(event.target.value as "standard" | "deep")}
-                      className="mt-1 h-9 w-full rounded-xl border border-app-border bg-white px-2 text-xs text-app-text"
+                      className="mt-1 h-9 w-full rounded-xl border border-app-border bg-app-card px-2 text-xs text-app-text"
                     >
                       <option value="standard">일반</option>
                       <option value="deep">심층</option>
@@ -971,7 +971,7 @@ export function ChatDecisionWorkspace() {
         <AgentStudio />
       ) : (
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_400px]">
-          <div className="flex h-[calc(100dvh-220px)] min-h-[480px] flex-col rounded-app border border-app-border bg-white shadow-soft">
+          <div className="flex h-[calc(100dvh-220px)] min-h-[480px] flex-col rounded-app border border-app-border bg-app-card shadow-soft">
             <div ref={scrollRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 app-scrollbar sm:p-5">
               <AiBubble>
                 <p className="text-sm font-bold text-app-text">
@@ -992,7 +992,7 @@ export function ChatDecisionWorkspace() {
                         key={example.title}
                         type="button"
                         onClick={() => void startDecision(example.question)}
-                        className="rounded-app border border-app-border bg-white p-4 text-left shadow-soft transition hover:-translate-y-0.5 hover:border-app-primary/50"
+                        className="rounded-app border border-app-border bg-app-card p-4 text-left shadow-soft transition hover:-translate-y-0.5 hover:border-app-primary/50"
                       >
                         <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-app-hover text-app-primary">
                           <Icon size={16} />
@@ -1020,7 +1020,7 @@ export function ChatDecisionWorkspace() {
                             type="button"
                             disabled={busy}
                             onClick={() => void answerInterview(reply)}
-                            className="rounded-xl border border-app-border bg-white px-3 py-1.5 text-[11px] font-semibold text-app-muted transition hover:border-app-primary hover:text-app-primary"
+                            className="rounded-xl border border-app-border bg-app-card px-3 py-1.5 text-[11px] font-semibold text-app-muted transition hover:border-app-primary hover:text-app-primary"
                           >
                             {reply}
                           </button>
@@ -1112,7 +1112,7 @@ export function ChatDecisionWorkspace() {
                       type="button"
                       disabled={busy}
                       onClick={() => void skipResearchAndContinue()}
-                      className="h-9 rounded-xl border border-app-border bg-white px-4 text-xs font-semibold text-app-muted transition hover:bg-app-hover"
+                      className="h-9 rounded-xl border border-app-border bg-app-card px-4 text-xs font-semibold text-app-muted transition hover:bg-app-hover"
                     >
                       건너뛰고 계속 진행
                     </button>
@@ -1126,7 +1126,7 @@ export function ChatDecisionWorkspace() {
             </div>
 
             <div className="border-t border-app-border p-4">
-              <div className="flex items-center gap-2 rounded-2xl border border-app-border bg-white px-3 py-2 shadow-soft">
+              <div className="flex items-center gap-2 rounded-2xl border border-app-border bg-app-card px-3 py-2 shadow-soft">
                 <input
                   value={input}
                   onChange={(event) => setInput(event.target.value)}
@@ -1176,7 +1176,7 @@ function AiBubble({ children }: { children: React.ReactNode }) {
       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-app-primary text-white shadow-soft">
         <Sparkles size={15} />
       </div>
-      <div className="min-w-0 max-w-[85%] rounded-2xl rounded-tl-md border border-app-border bg-white p-4 shadow-soft">
+      <div className="min-w-0 max-w-[85%] rounded-2xl rounded-tl-md border border-app-border bg-app-card p-4 shadow-soft">
         {children}
       </div>
     </div>

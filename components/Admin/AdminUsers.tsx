@@ -60,7 +60,7 @@ export function AdminUsers() {
   }
 
   return (
-    <section className="rounded-[22px] border border-app-border bg-white p-4 shadow-soft sm:p-5">
+    <section className="rounded-[22px] border border-app-border bg-app-card p-4 shadow-soft sm:p-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div><h2 className="text-lg font-bold">사용자 관리</h2><p className="mt-1 text-xs text-app-muted">계정 상태, 역할, 로그인과 삭제 예약을 제어합니다.</p></div>
         <div className="flex gap-2">

@@ -27,7 +27,7 @@ export function ContextMap({ sources }: ContextMapProps) {
   if (nodes.length === 0) {
     return (
       <div className="relative h-[250px] overflow-hidden rounded-app border border-dashed border-app-border bg-app-bg">
-        <div className="absolute left-1/2 top-1/2 flex h-16 w-16 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-[24px] border border-app-border bg-white text-slate-300 shadow-soft">
+        <div className="absolute left-1/2 top-1/2 flex h-16 w-16 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-[24px] border border-app-border bg-app-card text-slate-300 shadow-soft">
           <Link2 size={22} />
         </div>
         <p className="absolute inset-x-6 bottom-8 text-center text-xs leading-5 text-app-muted">
@@ -81,7 +81,7 @@ export function ContextMap({ sources }: ContextMapProps) {
       {nodes.map((node, index) => (
         <div
           key={node.path}
-          className="absolute flex max-w-[118px] -translate-x-1/2 -translate-y-1/2 items-center gap-2 rounded-2xl border border-app-border bg-white/92 px-3 py-2 shadow-soft backdrop-blur"
+          className="absolute flex max-w-[118px] -translate-x-1/2 -translate-y-1/2 items-center gap-2 rounded-2xl border border-app-border bg-app-card/92 px-3 py-2 shadow-soft backdrop-blur"
           style={{ left: `${node.x}%`, top: `${node.y}%` }}
           title={node.title}
         >

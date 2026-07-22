@@ -259,7 +259,7 @@ export function SettingsView() {
                   onChange={(event) =>
                     setSettings((prev) => ({ ...prev, timezone: event.target.value }))
                   }
-                  className="mt-1.5 h-10 w-full rounded-xl border border-app-border bg-white px-3 text-xs font-semibold text-app-text outline-none"
+                  className="mt-1.5 h-10 w-full rounded-xl border border-app-border bg-app-card px-3 text-xs font-semibold text-app-text outline-none"
                 >
                   <option value="">시스템 시간대 사용 ({systemTimezone()})</option>
                   {COMMON_TIMEZONES.map((zone) => (
@@ -296,7 +296,7 @@ export function SettingsView() {
                   className={`rounded-app border p-4 text-left transition ${
                     settings.provider === provider
                       ? "border-app-primary bg-app-hover"
-                      : "border-app-border bg-white hover:bg-app-hover"
+                      : "border-app-border bg-app-card hover:bg-app-hover"
                   }`}
                 >
                   <p className="text-sm font-semibold text-app-text">{provider}</p>
@@ -522,7 +522,7 @@ function ToggleTile({
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <label className="flex cursor-pointer items-start justify-between gap-3 rounded-app border border-app-border bg-white p-4">
+    <label className="flex cursor-pointer items-start justify-between gap-3 rounded-app border border-app-border bg-app-card p-4">
       <span>
         <span className="block text-sm font-semibold text-app-text">{title}</span>
         <span className="mt-1 block text-xs leading-5 text-app-muted">{description}</span>
@@ -555,7 +555,7 @@ function IconChoice({
       className={`flex h-20 flex-col items-center justify-center gap-2 rounded-app border text-xs font-semibold transition ${
         active
           ? "border-app-primary bg-app-hover text-app-primary"
-          : "border-app-border bg-white text-app-muted hover:bg-app-hover"
+          : "border-app-border bg-app-card text-app-muted hover:bg-app-hover"
       }`}
     >
       <Icon size={18} />

@@ -36,7 +36,7 @@ export function FeatureCatalog() {
         return (
           <article
             key={group.id}
-            className="rounded-app border border-app-border bg-white p-4 shadow-soft"
+            className="rounded-app border border-app-border bg-app-card p-4 shadow-soft"
           >
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>

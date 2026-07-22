@@ -4,6 +4,7 @@ import {
   ChevronDown,
   ChevronRight,
   Loader2,
+  Play,
   Plug,
   Plus,
   Power,
@@ -67,6 +68,17 @@ export function McpServersCard() {
   const [busyServerId, setBusyServerId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [audit, setAudit] = useState<AuditEntry[] | null>(null);
+  // 도구 실행기 — Discovery된 tool을 직접 호출해 본다. 결과는 비신뢰
+  // 데이터로 취급해 텍스트로만 표시하고, HTML 결과물은 보관함 저장을 제안한다.
+  const [runnerTool, setRunnerTool] = useState<{ serverId: string; name: string } | null>(null);
+  const [runnerArgs, setRunnerArgs] = useState("{}");
+  const [runnerBusy, setRunnerBusy] = useState(false);
+  const [runnerResult, setRunnerResult] = useState<{
+    text: string;
+    isError: boolean;
+    html: string | null;
+    saved: boolean;
+  } | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -144,6 +156,105 @@ export function McpServersCard() {
     } finally {
       setBusyServerId(null);
       await refresh();
+    }
+  }
+
+  function openRunner(serverId: string, toolName: string) {
+    if (runnerTool?.serverId === serverId && runnerTool.name === toolName) {
+      setRunnerTool(null);
+      return;
+    }
+    setRunnerTool({ serverId, name: toolName });
+    setRunnerArgs("{}");
+    setRunnerResult(null);
+  }
+
+  async function runTool() {
+    if (!runnerTool || runnerBusy) return;
+    let parsedArgs: Record<string, unknown>;
+    try {
+      parsedArgs = JSON.parse(runnerArgs || "{}") as Record<string, unknown>;
+    } catch {
+      setRunnerResult({ text: "인자가 올바른 JSON이 아닙니다.", isError: true, html: null, saved: false });
+      return;
+    }
+    setRunnerBusy(true);
+    setRunnerResult(null);
+    try {
+      const response = await fetch("/api/mcp/tools/call", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          serverId: runnerTool.serverId,
+          toolName: runnerTool.name,
+          arguments: parsedArgs
+        })
+      });
+      const body = (await response.json().catch(() => ({}))) as {
+        ok?: boolean;
+        result?: {
+          content?: Array<{ type: string; text?: string }>;
+          isError?: boolean;
+        };
+        error?: string;
+      };
+      if (!response.ok || !body.ok || !body.result) {
+        throw new Error(body.error || "호출에 실패했습니다.");
+      }
+      const text = (body.result.content ?? [])
+        .map((part) => (typeof part.text === "string" ? part.text : `[${part.type}]`))
+        .join("\n")
+        .trim();
+      const html = /^\s*(?:<!doctype html|<html)/iu.test(text) ? text : null;
+      setRunnerResult({
+        text: text.slice(0, 4000) || "(빈 결과)",
+        isError: Boolean(body.result.isError),
+        html,
+        saved: false
+      });
+    } catch (error) {
+      setRunnerResult({
+        text: error instanceof Error ? error.message : "호출에 실패했습니다.",
+        isError: true,
+        html: null,
+        saved: false
+      });
+    } finally {
+      setRunnerBusy(false);
+    }
+  }
+
+  // HTML 결과물을 Design Artifact(source: mcp)로 저장 — 보안 검사는 서버에서 수행된다.
+  async function saveRunnerResult() {
+    if (!runnerTool || !runnerResult?.html || runnerBusy) return;
+    setRunnerBusy(true);
+    try {
+      const response = await fetch("/api/design/artifacts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "website",
+          title: `MCP: ${runnerTool.name}`,
+          code: runnerResult.html,
+          source: "mcp",
+          sourceServerId: runnerTool.serverId
+        })
+      });
+      const body = (await response.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      if (!response.ok || !body.ok) throw new Error(body.error || "저장에 실패했습니다.");
+      setRunnerResult((current) => (current ? { ...current, saved: true } : current));
+    } catch (error) {
+      setRunnerResult((current) =>
+        current
+          ? {
+              ...current,
+              text: `${error instanceof Error ? error.message : "저장에 실패했습니다."}\n\n${current.text}`,
+              isError: true
+            }
+          : current
+      );
+    } finally {
+      setRunnerBusy(false);
     }
   }
 
@@ -323,14 +434,99 @@ export function McpServersCard() {
                           protocol {server.capabilities.protocolVersion} ·{" "}
                           {new Date(server.capabilities.discoveredAt).toLocaleString("ko-KR")} 기준
                         </p>
-                        <CapabilityList
-                          title={`Tools (${server.capabilities.tools.length})`}
-                          items={server.capabilities.tools.map((tool) => ({
-                            key: tool.name,
-                            label: tool.name,
-                            description: tool.description
-                          }))}
-                        />
+                        {server.capabilities.tools.length === 0 ? (
+                          <p className="text-[11px] text-app-muted">Tools — 없음</p>
+                        ) : (
+                          <div>
+                            <p className="mb-1 text-[11px] font-bold text-app-text">
+                              Tools ({server.capabilities.tools.length})
+                            </p>
+                            <ul className="space-y-1">
+                              {server.capabilities.tools.map((tool) => {
+                                const runnerOpen =
+                                  runnerTool?.serverId === server.id && runnerTool.name === tool.name;
+                                return (
+                                  <li key={tool.name} className="rounded-app-sm bg-app-soft px-2 py-1.5">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <p className="min-w-0 truncate text-[11px] font-semibold text-app-text">
+                                        {tool.name}
+                                      </p>
+                                      <button
+                                        type="button"
+                                        onClick={() => openRunner(server.id, tool.name)}
+                                        className="shrink-0 rounded-app-sm border border-app-border bg-app-card px-2 py-0.5 text-[10px] font-bold text-app-muted transition hover:text-app-primary"
+                                      >
+                                        {runnerOpen ? "닫기" : "실행"}
+                                      </button>
+                                    </div>
+                                    {tool.description ? (
+                                      <p className="mt-0.5 line-clamp-2 text-[10.5px] leading-4 text-app-muted">
+                                        {tool.description}
+                                      </p>
+                                    ) : null}
+                                    {runnerOpen ? (
+                                      <div className="mt-2 space-y-2 border-t border-app-border pt-2">
+                                        <label className="block">
+                                          <span className="text-[10px] font-bold text-app-muted">
+                                            인자 (JSON)
+                                          </span>
+                                          <textarea
+                                            value={runnerArgs}
+                                            onChange={(event) => setRunnerArgs(event.target.value)}
+                                            rows={3}
+                                            spellCheck={false}
+                                            className="mt-1 w-full rounded-app-sm border border-app-border bg-app-card p-2 font-mono text-[10.5px] text-app-text outline-none"
+                                          />
+                                        </label>
+                                        <div className="flex items-center gap-1.5">
+                                          <button
+                                            type="button"
+                                            disabled={runnerBusy}
+                                            onClick={() => void runTool()}
+                                            className="flex h-7 items-center gap-1 rounded-app-sm bg-app-primary px-2.5 text-[10.5px] font-bold text-white transition hover:opacity-90 disabled:opacity-50"
+                                          >
+                                            {runnerBusy ? (
+                                              <Loader2 size={11} className="animate-spin" />
+                                            ) : (
+                                              <Play size={11} />
+                                            )}
+                                            호출
+                                          </button>
+                                          {runnerResult?.html && !runnerResult.saved ? (
+                                            <button
+                                              type="button"
+                                              disabled={runnerBusy}
+                                              onClick={() => void saveRunnerResult()}
+                                              className="flex h-7 items-center gap-1 rounded-app-sm border border-app-border bg-app-card px-2.5 text-[10.5px] font-bold text-app-muted transition hover:text-app-primary disabled:opacity-50"
+                                            >
+                                              보관함에 저장
+                                            </button>
+                                          ) : null}
+                                          {runnerResult?.saved ? (
+                                            <span className="text-[10.5px] font-bold text-app-success">
+                                              보관함에 저장됨 — AI Agent 보관함에서 미리보기 가능
+                                            </span>
+                                          ) : null}
+                                        </div>
+                                        {runnerResult ? (
+                                          <pre
+                                            className={`max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-app-sm border p-2 text-[10.5px] leading-4 app-scrollbar ${
+                                              runnerResult.isError
+                                                ? "border-app-danger/40 bg-app-danger-soft text-app-danger"
+                                                : "border-app-border bg-app-card text-app-text"
+                                            }`}
+                                          >
+                                            {runnerResult.text}
+                                          </pre>
+                                        ) : null}
+                                      </div>
+                                    ) : null}
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          </div>
+                        )}
                         <CapabilityList
                           title={`Resources (${server.capabilities.resources.length})`}
                           items={server.capabilities.resources.map((resource) => ({

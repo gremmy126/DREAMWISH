@@ -40,7 +40,7 @@ export function MemoryCandidateCard({
   const labels = candidateLabels(language);
 
   return (
-    <article className="rounded-app border border-app-border bg-white p-4">
+    <article className="rounded-app border border-app-border bg-app-card p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold text-app-text">{candidate.title}</p>

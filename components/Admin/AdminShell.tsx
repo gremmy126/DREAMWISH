@@ -60,7 +60,7 @@ export function AdminShell({ account }: { account: { email: string; name: string
 
   return (
     <div className="min-h-[100dvh] bg-app-bg text-app-text">
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[260px] border-r border-app-border bg-white lg:block">
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[260px] border-r border-app-border bg-app-card lg:block">
         <AdminNavigation account={account} section={section} onNavigate={navigate} />
       </aside>
 
@@ -72,7 +72,7 @@ export function AdminShell({ account }: { account: { email: string; name: string
             className="absolute inset-0 bg-slate-950/35"
             onClick={() => setMobileOpen(false)}
           />
-          <aside className="relative h-[100dvh] w-[min(86vw,320px)] bg-white shadow-app">
+          <aside className="relative h-[100dvh] w-[min(86vw,320px)] bg-app-card shadow-app">
             <button
               type="button"
               aria-label="관리자 메뉴 닫기"
@@ -93,22 +93,22 @@ export function AdminShell({ account }: { account: { email: string; name: string
               type="button"
               aria-label="관리자 메뉴 열기"
               onClick={() => setMobileOpen(true)}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-app-border bg-white lg:hidden"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-app-border bg-app-card lg:hidden"
             >
               <Menu size={19} />
             </button>
             <div className="min-w-0">
-              <p className="truncate text-[10px] font-semibold text-app-primary sm:text-xs">
-                DREAMWISH CONTROL CENTER
+              <p className="truncate text-[10px] font-extrabold uppercase tracking-widest text-app-primary">
+                Admin Console
               </p>
-              <h1 className="truncate text-base font-bold sm:text-lg">
+              <h1 className="truncate text-base font-extrabold tracking-tight sm:text-lg">
                 {NAVIGATION.find((item) => item.id === section)?.label}
               </h1>
             </div>
           </div>
           <Link
             href="/"
-            className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-2xl border border-app-border bg-white px-3 text-xs font-bold shadow-soft transition hover:bg-app-hover sm:px-4"
+            className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-2xl border border-app-border bg-app-card px-3 text-xs font-bold shadow-soft transition hover:bg-app-hover sm:px-4"
           >
             <ChevronLeft size={15} />
             <span className="hidden sm:inline">서비스로 돌아가기</span>
@@ -143,12 +143,12 @@ function AdminNavigation({
   return (
     <div className="flex h-full flex-col p-4">
       <div className="flex min-h-[72px] items-center gap-3 px-3">
-        <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-app-primary text-white shadow-soft">
+        <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-app-primary text-white">
           <ShieldCheck size={21} />
         </span>
         <div>
-          <p className="text-sm font-black tracking-tight">DREAMWISH</p>
-          <p className="text-[10px] font-bold text-app-muted">ADMINISTRATION</p>
+          <p className="text-sm font-extrabold tracking-tight">DreamWish</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-app-muted">Admin Console</p>
         </div>
       </div>
       <nav className="app-scrollbar mt-5 flex-1 space-y-1 overflow-y-auto">
@@ -160,8 +160,10 @@ function AdminNavigation({
               type="button"
               key={item.id}
               onClick={() => onNavigate(item.id)}
-              className={`flex min-h-11 w-full items-center gap-3 rounded-2xl px-3 text-left text-sm font-semibold transition ${
-                active ? "bg-app-hover text-app-primary" : "text-slate-600 hover:bg-slate-50"
+              className={`relative flex min-h-11 w-full items-center gap-3 rounded-app-md px-3 text-left text-sm transition ${
+                active
+                  ? "bg-app-primary-soft font-semibold text-app-primary"
+                  : "font-medium text-app-muted hover:bg-app-hover hover:text-app-text"
               }`}
             >
               <Icon size={17} />
