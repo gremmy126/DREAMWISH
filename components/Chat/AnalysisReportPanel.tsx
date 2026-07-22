@@ -20,6 +20,7 @@ import type {
 } from "@/src/lib/decisions/decision.types";
 import type { DecisionEmployeeSignal } from "@/src/lib/surveys/survey.types";
 import type { DecisionConclusion } from "@/src/lib/decisions/decision-conclusion";
+import { stripMarkdownEmphasis } from "@/src/lib/deep-research/research-report";
 
 type AnalysisReportPanelProps = {
   decision: Decision | null;
@@ -145,6 +146,13 @@ export function AnalysisReportPanel({
     }
     if (recommendation) {
       lines.push("## 최종 결론", recommendation.summary, "", recommendation.rationale, "");
+      if (recommendation.switchCondition) {
+        lines.push(`결론이 바뀌는 조건: ${recommendation.switchCondition}`);
+      }
+      if (recommendation.firstAction) {
+        lines.push(`오늘의 첫 행동: ${recommendation.firstAction}`);
+      }
+      lines.push("");
     }
     if (decision.finalDecision) {
       lines.push("## 사람의 최종 승인", decision.finalDecision.choice, decision.finalDecision.decidedAt);
@@ -212,10 +220,12 @@ export function AnalysisReportPanel({
                         </p>
                       </div>
                     ) : null}
-                    <p className="text-xs leading-5 text-app-text">{research.summary}</p>
+                    <p className="whitespace-pre-line text-xs leading-5 text-app-text">
+                      {stripMarkdownEmphasis(research.summary)}
+                    </p>
                     {research.findings ? (
                       <p className="mt-2 whitespace-pre-line text-[11px] leading-5 text-app-muted">
-                        {research.findings.slice(0, 600)}
+                        {stripMarkdownEmphasis(research.findings)}
                       </p>
                     ) : null}
                   </>
@@ -389,12 +399,22 @@ export function AnalysisReportPanel({
                     <CheckCircle2 size={13} />
                     최종 결론
                   </p>
-                  <p className="mt-1.5 text-xs font-semibold leading-5 text-app-text">
-                    {recommendation.summary}
+                  <p className="mt-1.5 whitespace-pre-line text-xs font-semibold leading-5 text-app-text">
+                    {stripMarkdownEmphasis(recommendation.summary)}
                   </p>
-                  <p className="mt-1 text-[11px] leading-5 text-app-muted">
-                    {recommendation.rationale.slice(0, 400)}
+                  <p className="mt-1 whitespace-pre-line text-[11px] leading-5 text-app-muted">
+                    {stripMarkdownEmphasis(recommendation.rationale)}
                   </p>
+                  {recommendation.switchCondition ? (
+                    <p className="mt-2 border-t border-[#bbe7c8] pt-2 text-[11px] leading-5 text-[#3f6212]">
+                      <b>결론이 바뀌는 조건</b> — {recommendation.switchCondition}
+                    </p>
+                  ) : null}
+                  {recommendation.firstAction ? (
+                    <p className="mt-1 text-[11px] leading-5 text-[#3f6212]">
+                      <b>오늘의 첫 행동</b> — {recommendation.firstAction}
+                    </p>
+                  ) : null}
                 </div>
               </section>
             ) : null}

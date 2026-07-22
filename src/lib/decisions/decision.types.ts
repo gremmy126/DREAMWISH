@@ -48,6 +48,10 @@ export type DecisionRecommendation = {
   confidence: "low" | "medium" | "high";
   assumptions: string[];
   counterpoints: string[];
+  /** 이 조건이 깨지면 결론도 바뀐다 — 조건부 권고의 핵심. */
+  switchCondition?: string;
+  /** 오늘 바로 실행할 수 있는 첫 행동. */
+  firstAction?: string;
   updatedAt: string;
 };
 

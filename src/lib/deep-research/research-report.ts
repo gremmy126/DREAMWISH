@@ -13,6 +13,32 @@ const SECTION_PATTERNS: Array<{ key: keyof ResearchReportSections; pattern: RegE
 ];
 
 /**
+ * 여러 줄 텍스트에서 마크다운 강조(**굵게**, `코드`, ### 제목 기호 등)만
+ * 걷어내고 줄 구조는 보존한다. 사용자에게 보이는 본문에 별표가 그대로
+ * 노출되지 않게 하는 최종 방어선이다.
+ */
+export function stripMarkdownEmphasis(value: string): string {
+  return value
+    .split("\n")
+    .map((line) =>
+      line
+        .replace(/!\[([^\]]*)\]\([^)]*\)/gu, "$1")
+        .replace(/\[([^\]]+)\]\([^)]*\)/gu, "$1")
+        .replace(/\*\*([^*\n]+)\*\*/gu, "$1")
+        .replace(/__([^_\n]+)__/gu, "$1")
+        .replace(/~~([^~\n]+)~~/gu, "$1")
+        .replace(/(^|\s)\*([^*\n]+)\*(?=\s|$|[.,!?)])/gu, "$1$2")
+        .replace(/`([^`\n]+)`/gu, "$1")
+        .replace(/^\s*#{1,6}\s+/u, "")
+        .replace(/\*\*/gu, "")
+        .replace(/\s{2,}/gu, " ")
+        .trimEnd()
+    )
+    .join("\n")
+    .trim();
+}
+
+/**
  * Deterministically splits the generated Markdown report into display
  * sections by heading. Missing sections stay empty — never invented.
  */
@@ -31,13 +57,15 @@ export function parseResearchReportSections(markdown: string): ResearchReportSec
     if (!body) continue;
     for (const { key, pattern } of SECTION_PATTERNS) {
       if (pattern.test(heading) && !sections[key]) {
-        sections[key] = body.slice(0, 4000);
+        sections[key] = stripMarkdownEmphasis(body).slice(0, 4000);
         break;
       }
     }
   }
   if (!sections.summary) {
-    sections.summary = markdown.replace(/^#.*$/gmu, "").trim().slice(0, 600);
+    sections.summary = stripMarkdownEmphasis(
+      markdown.replace(/^#.*$/gmu, "").trim()
+    ).slice(0, 600);
   }
   return sections;
 }
