@@ -7,6 +7,48 @@ export const AGENT_BUILD_KINDS = new Set<AgentBuildKind>([
   "image"
 ]);
 
+export const AGENT_KIND_LABELS: Record<AgentBuildKind, string> = {
+  website: "웹사이트",
+  app: "앱",
+  program: "프로그램",
+  image: "이미지"
+};
+
+export const AGENT_DEFAULT_FILENAMES: Record<AgentBuildKind, string> = {
+  website: "website.html",
+  app: "app.html",
+  program: "program.js",
+  image: "image.svg"
+};
+
+// 카테고리 버튼 없이 "웹사이트 만들어줘"처럼 자연어에서 결과물 종류를
+// 추론한다. 명시적 키워드가 없으면 null을 돌려 호출자가 문맥(기존 결과물
+// 수정 등)으로 판단하게 한다.
+export function classifyAgentRequest(message: string): AgentBuildKind | null {
+  const text = message.toLowerCase();
+  if (/(이미지|로고|일러스트|그림|아이콘|배너|썸네일|포스터|그려|image|logo|icon|illustration|svg)/u.test(text)) {
+    return "image";
+  }
+  if (/(웹\s*사이트|홈\s*페이지|랜딩|웹\s*페이지|포트폴리오|블로그|소개\s*페이지|website|landing|homepage)/u.test(text)) {
+    return "website";
+  }
+  if (/(앱|어플|애플리케이션|계산기|투두|할\s*일|게임|타이머|메모장|대시보드|\bapp\b|game)/u.test(text)) {
+    return "app";
+  }
+  if (/(프로그램|스크립트|파이썬|python|node|자바스크립트|javascript|typescript|알고리즘|크롤|파서|\bcode\b|코드\s*(를|로)?\s*(짜|만들|작성)|함수\s*(를)?\s*(짜|만들|작성)|program|script)/u.test(text)) {
+    return "program";
+  }
+  return null;
+}
+
+// 폴더에서 불러온 파일의 확장자로 결과물 종류를 추정한다.
+export function kindFromFileName(fileName: string): AgentBuildKind {
+  const lower = fileName.toLowerCase();
+  if (lower.endsWith(".html") || lower.endsWith(".htm")) return "website";
+  if (lower.endsWith(".svg")) return "image";
+  return "program";
+}
+
 /** Strips markdown fences and pulls out the artifact for the requested kind. */
 export function extractArtifact(raw: string, kind: AgentBuildKind): string {
   let text = raw.trim();

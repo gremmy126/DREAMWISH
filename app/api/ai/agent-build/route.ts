@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   AGENT_BUILD_KINDS,
+  classifyAgentRequest,
   extractArtifact,
   type AgentBuildKind
 } from "@/src/lib/agent/agent-build";
@@ -31,39 +32,44 @@ const SYSTEM_PROMPTS: Record<AgentBuildKind, string> = {
     "Reply with ONLY the SVG markup — no explanation, no markdown fences."
 };
 
+// 채팅 한 문장으로 웹사이트·앱·프로그램·이미지를 생성/수정한다. 종류는
+// 메시지에서 추론하고, 기존 결과물이 있으면 수정 요청으로 처리한다.
 export async function POST(request: Request) {
   try {
     await requireOwnerContext(request);
     const body = (await request.json().catch(() => ({}))) as {
-      kind?: unknown;
-      prompt?: unknown;
+      message?: unknown;
+      refine?: unknown;
       previousCode?: unknown;
-      feedback?: unknown;
+      previousKind?: unknown;
     };
-    const kind = AGENT_BUILD_KINDS.has(body.kind as AgentBuildKind)
-      ? (body.kind as AgentBuildKind)
-      : "website";
-    const prompt = typeof body.prompt === "string" ? body.prompt.trim().slice(0, 4000) : "";
-    const previousCode =
-      typeof body.previousCode === "string" ? body.previousCode.slice(0, 60_000) : "";
-    const feedback = typeof body.feedback === "string" ? body.feedback.trim().slice(0, 2000) : "";
-    if (!prompt && !feedback) {
+    const message = typeof body.message === "string" ? body.message.trim().slice(0, 4000) : "";
+    if (!message) {
       return NextResponse.json(
-        { ok: false, error: "무엇을 만들지 설명해 주세요." },
+        { ok: false, error: "무엇을 만들지 채팅으로 설명해 주세요." },
         { status: 400 }
       );
     }
+    const previousCode =
+      typeof body.previousCode === "string" ? body.previousCode.slice(0, 60_000) : "";
+    const previousKind = AGENT_BUILD_KINDS.has(body.previousKind as AgentBuildKind)
+      ? (body.previousKind as AgentBuildKind)
+      : null;
+    const refine = body.refine === true && Boolean(previousCode) && Boolean(previousKind);
+    const kind: AgentBuildKind = refine
+      ? previousKind!
+      : classifyAgentRequest(message) || "website";
 
     const messages = [
       { role: "system" as const, content: SYSTEM_PROMPTS[kind] },
-      previousCode && feedback
+      refine
         ? {
             role: "user" as const,
             content:
-              `기존 결과물을 수정해 주세요.\n\n원래 요청: ${prompt}\n수정 요청: ${feedback}\n\n` +
-              `기존 코드:\n${previousCode}`
+              `기존 결과물을 아래 요청대로 수정해 완전한 결과물 전체를 다시 출력해 주세요.\n\n` +
+              `수정 요청: ${message}\n\n기존 코드:\n${previousCode}`
           }
-        : { role: "user" as const, content: prompt }
+        : { role: "user" as const, content: message }
     ];
 
     const raw = await chatWithAI(messages);
@@ -74,7 +80,7 @@ export async function POST(request: Request) {
         { status: 502 }
       );
     }
-    return NextResponse.json({ ok: true, kind, code });
+    return NextResponse.json({ ok: true, kind, code, refined: refine });
   } catch (error) {
     const message =
       error instanceof Error && /provider/iu.test(error.message)
