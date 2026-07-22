@@ -1,8 +1,20 @@
 import Link from "next/link";
+import {
+  DEFAULT_DOMESTIC_MONTHLY_AMOUNT_KRW,
+  getDomesticMonthlyAmountKrw
+} from "@/src/lib/billing/billing-config";
 
 // SSR 200 페이지 — 크롤러가 색인할 수 있는 요금 안내. 결제는 로그인 후
 // 설정에서 진행된다. Metadata는 layout.tsx에 있다.
 export default function PricingPage() {
+  // 월 구독 금액의 단일 출처를 그대로 표시한다. 잘못된 설정이어도 SEO 페이지가
+  // 200을 유지하도록 기본값으로 폴백한다.
+  let monthlyKrw = DEFAULT_DOMESTIC_MONTHLY_AMOUNT_KRW;
+  try {
+    monthlyKrw = getDomesticMonthlyAmountKrw();
+  } catch {
+    monthlyKrw = DEFAULT_DOMESTIC_MONTHLY_AMOUNT_KRW;
+  }
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col items-center justify-center px-6 py-16 text-center">
       <h1 className="text-3xl font-extrabold text-app-text">Pricing</h1>
@@ -13,7 +25,7 @@ export default function PricingPage() {
       <div className="mt-8 w-full max-w-sm rounded-app border border-app-border bg-white p-6 text-left shadow-app">
         <p className="text-xs font-bold text-app-primary">DreamWish Pro</p>
         <p className="mt-2 text-3xl font-extrabold text-app-text">
-          ₩15,000<span className="text-sm font-semibold text-app-muted"> / 월</span>
+          ₩{monthlyKrw.toLocaleString("ko-KR")}<span className="text-sm font-semibold text-app-muted"> / 월</span>
         </p>
         <ul className="mt-4 space-y-2 text-xs leading-5 text-app-text">
           <li>✓ AI 의사결정 분석 — 인터뷰·딥리서치·시뮬레이션·최종 결론</li>

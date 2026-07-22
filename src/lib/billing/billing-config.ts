@@ -42,6 +42,22 @@ export function getDomesticBillingConfig() {
   return buildDomesticBillingConfig(process.env);
 }
 
+// Single source for the monthly subscription charge: the live charge, sandbox
+// display, coupon base, and server-side verification all resolve through here.
+// BILLING_DOMESTIC_MONTHLY_AMOUNT_KRW overrides it; the default is KRW 5,000.
+export const DEFAULT_DOMESTIC_MONTHLY_AMOUNT_KRW = 5000;
+
+export function getDomesticMonthlyAmountKrw(): number {
+  const value = Number(process.env.BILLING_DOMESTIC_MONTHLY_AMOUNT_KRW || DEFAULT_DOMESTIC_MONTHLY_AMOUNT_KRW);
+  if (!Number.isSafeInteger(value) || value < 100) {
+    throw new BillingConfigurationError(
+      "BILLING_MONTHLY_AMOUNT_INVALID",
+      "BILLING_DOMESTIC_MONTHLY_AMOUNT_KRW is invalid."
+    );
+  }
+  return value;
+}
+
 export function buildDomesticBillingConfig(env: Record<string, string | undefined>): DomesticBillingConfig {
   const mode = modeSchema.catch("sandbox").parse(env.BILLING_DOMESTIC_MODE);
   // 샌드박스 모드에서는 테스트 키만 넣으면 바로 결제창을 확인할 수 있어야

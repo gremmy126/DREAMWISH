@@ -2,7 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireOwnerContext } from "@/src/lib/auth/owner-context";
-import { getDomesticBillingConfig, requireBillingCapability } from "@/src/lib/billing/billing-config";
+import { getDomesticBillingConfig, getDomesticMonthlyAmountKrw, requireBillingCapability } from "@/src/lib/billing/billing-config";
 import { createBillingMethod, revokeBillingMethod } from "@/src/lib/billing/billing-method.repository";
 import { getDomesticPrimaryProvider } from "@/src/lib/billing/billing-provider.repository";
 import { createProviderPaymentId } from "@/src/lib/billing/payment-id";
@@ -163,7 +163,5 @@ function ownerCustomerId(ownerId: string) {
   return `dw${createHash("sha256").update(ownerId).digest("hex").slice(0, 30)}`;
 }
 function monthlyAmount() {
-  const value = Number(process.env.BILLING_DOMESTIC_MONTHLY_AMOUNT_KRW || 15000);
-  if (!Number.isSafeInteger(value) || value < 100) throw new Error("BILLING_DOMESTIC_MONTHLY_AMOUNT_KRW is invalid.");
-  return value;
+  return getDomesticMonthlyAmountKrw();
 }

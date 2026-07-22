@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireOwnerContext } from "@/src/lib/auth/owner-context";
 import { createProviderPaymentId } from "@/src/lib/billing/payment-id";
 import { applyDomesticBillingPayment } from "@/src/lib/billing/billing.repository";
-import { getDomesticBillingConfig, requireBillingCapability } from "@/src/lib/billing/billing-config";
+import { getDomesticBillingConfig, getDomesticMonthlyAmountKrw, requireBillingCapability } from "@/src/lib/billing/billing-config";
 import { enqueueBillingChargeJob } from "@/src/lib/billing/billing-charge-queue.repository";
 import { appendBillingEvent } from "@/src/lib/billing/billing-event.repository";
 import { getBillingMethodWithReference } from "@/src/lib/billing/billing-method.repository";
@@ -114,9 +114,7 @@ export async function POST(request: Request) {
 }
 
 function monthlyAmount() {
-  const value = Number(process.env.BILLING_DOMESTIC_MONTHLY_AMOUNT_KRW || 15000);
-  if (!Number.isSafeInteger(value) || value < 100) throw new Error("BILLING_DOMESTIC_MONTHLY_AMOUNT_KRW is invalid.");
-  return value;
+  return getDomesticMonthlyAmountKrw();
 }
 
 function pricingFromAttempt(
