@@ -18,7 +18,7 @@ export function PaymentGate({ children }: { children: ReactNode }) {
         <p className="mt-6 text-xs font-bold uppercase tracking-[0.2em] text-violet-600">DREAMWISH PRO</p>
         <h1 className="mt-2 text-2xl font-bold text-slate-950">DreamWish AI를 활성화하세요</h1>
         <p className="mt-3 text-sm leading-6 text-slate-500">
-          AI Chat, 영구 메모리, 자동화, CRM과 연결 앱을 하나의 작업 공간에서 사용할 수 있습니다.
+          AI Chat과 결정 분석, 딥리서치, Memory, Team, AI Agent를 하나의 작업 공간에서 사용할 수 있습니다.
         </p>
         <div className="mx-auto mt-6 max-w-xs">
           <UpgradeButton />
