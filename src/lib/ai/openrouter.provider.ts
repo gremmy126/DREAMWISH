@@ -10,7 +10,8 @@ export class OpenRouterProvider extends OpenAICompatibleProvider {
       apiKey: config.apiKey,
       baseUrl: config.baseUrl || "https://openrouter.ai/api/v1",
       missingKeyMessage: "OpenRouter API key is missing. Set OPENROUTER_API_KEY.",
-      headers: config.headers
+      headers: config.headers,
+      maxOutputTokensCap: 8_000
     });
   }
 }

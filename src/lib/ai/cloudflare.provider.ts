@@ -12,7 +12,8 @@ export class CloudflareProvider extends OpenAICompatibleProvider {
         config.baseUrl ||
         "https://api.cloudflare.com/client/v4/accounts/missing-account-id/ai/v1",
       missingKeyMessage:
-        "Cloudflare AI settings are missing. Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN."
+        "Cloudflare AI settings are missing. Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN.",
+      maxOutputTokensCap: 2_048
     });
   }
 }

@@ -9,7 +9,8 @@ export class HuggingFaceProvider extends OpenAICompatibleProvider {
       model: config.model,
       apiKey: config.apiKey,
       baseUrl: config.baseUrl || "https://router.huggingface.co/v1",
-      missingKeyMessage: "Hugging Face token is missing. Set HF_TOKEN."
+      missingKeyMessage: "Hugging Face token is missing. Set HF_TOKEN.",
+      maxOutputTokensCap: 4_000
     });
   }
 }

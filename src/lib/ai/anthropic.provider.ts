@@ -1,4 +1,4 @@
-import type { AIChatOptions, AIMessage, AIProvider } from "./ai-provider";
+import { clampOutputTokens, type AIChatOptions, type AIMessage, type AIProvider } from "./ai-provider";
 import { getProviderRuntimeConfig } from "./config";
 import { AIProviderError, classifyProviderHttpError } from "./errors";
 
@@ -8,6 +8,7 @@ import { AIProviderError, classifyProviderHttpError } from "./errors";
 
 const ANTHROPIC_VERSION = "2023-06-01";
 const DEFAULT_MAX_TOKENS = 4096;
+const ANTHROPIC_MAX_OUTPUT_TOKENS = 32_000;
 
 type AnthropicResponse = {
   content?: Array<{ type: string; text?: string }>;
@@ -119,7 +120,9 @@ export class AnthropicProvider implements AIProvider {
         },
         body: JSON.stringify({
           model: this.model,
-          max_tokens: options?.maxTokens ?? DEFAULT_MAX_TOKENS,
+          max_tokens:
+            clampOutputTokens(options?.maxTokens, ANTHROPIC_MAX_OUTPUT_TOKENS) ??
+            DEFAULT_MAX_TOKENS,
           ...(system ? { system } : {}),
           messages: turns,
           temperature: options?.temperature ?? 0.2,

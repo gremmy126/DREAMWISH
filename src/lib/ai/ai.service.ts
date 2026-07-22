@@ -75,6 +75,11 @@ export async function chatWithProviderFailover(
       return await factory(providerName).chat(messages, options);
     } catch (error) {
       lastError = error;
+      // 운영자가 어떤 공급자가 왜 실패했는지 서버 로그에서 바로 볼 수 있게 남긴다.
+      console.error(
+        `[ai-failover] ${providerName} failed:`,
+        error instanceof Error ? error.message : error
+      );
     }
   }
   throw createFailoverError(providers, lastError);

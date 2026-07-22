@@ -18,6 +18,21 @@ export interface AIProvider {
   chat(messages: AIMessage[], options?: AIChatOptions): Promise<string>;
 }
 
+/**
+ * 요청된 출력 토큰 수를 공급자별 모델 한도로 잘라낸다. 한도를 넘는 값을
+ * 그대로 보내면 대부분의 API가 400으로 요청 전체를 거부하므로(생성 실패의
+ * 주요 원인), 상한을 넘으면 조용히 한도로 낮춰 호출이 항상 성립하게 한다.
+ */
+export function clampOutputTokens(
+  requested: number | undefined,
+  cap: number
+): number | undefined {
+  if (typeof requested !== "number" || !Number.isFinite(requested) || requested <= 0) {
+    return undefined;
+  }
+  return Math.min(Math.floor(requested), cap);
+}
+
 export type AIProviderName =
   | "claude"
   | "groq"

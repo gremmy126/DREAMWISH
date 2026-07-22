@@ -1,4 +1,4 @@
-import type { AIChatOptions, AIMessage, AIProvider } from "./ai-provider";
+import { clampOutputTokens, type AIChatOptions, type AIMessage, type AIProvider } from "./ai-provider";
 import { AIProviderError, classifyProviderHttpError } from "./errors";
 
 type ChatCompletionChunk = {
@@ -18,6 +18,8 @@ export type OpenAICompatibleOptions = {
   baseUrl: string;
   missingKeyMessage: string;
   headers?: ProviderHeaders;
+  /** 모델이 허용하는 최대 출력 토큰 — 요청값이 넘으면 이 값으로 잘라낸다. */
+  maxOutputTokensCap?: number;
 };
 
 export class OpenAICompatibleProvider implements AIProvider {
@@ -27,6 +29,7 @@ export class OpenAICompatibleProvider implements AIProvider {
   private baseUrl: string;
   private missingKeyMessage: string;
   private headers: ProviderHeaders;
+  private maxOutputTokensCap: number;
 
   constructor(options: OpenAICompatibleOptions) {
     this.name = options.name;
@@ -35,6 +38,7 @@ export class OpenAICompatibleProvider implements AIProvider {
     this.baseUrl = options.baseUrl.replace(/\/$/u, "");
     this.missingKeyMessage = options.missingKeyMessage;
     this.headers = options.headers || {};
+    this.maxOutputTokensCap = options.maxOutputTokensCap ?? 8_000;
   }
 
   async chat(messages: AIMessage[], options?: AIChatOptions): Promise<string> {
@@ -110,7 +114,10 @@ export class OpenAICompatibleProvider implements AIProvider {
           model: this.model,
           messages,
           temperature: options?.temperature ?? 0.2,
-          ...(options?.maxTokens ? { max_tokens: options.maxTokens } : {}),
+          ...(() => {
+            const maxTokens = clampOutputTokens(options?.maxTokens, this.maxOutputTokensCap);
+            return maxTokens ? { max_tokens: maxTokens } : {};
+          })(),
           stream
         })
       });

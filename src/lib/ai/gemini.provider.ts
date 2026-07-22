@@ -1,6 +1,10 @@
-import type { AIChatOptions, AIMessage, AIProvider } from "./ai-provider";
+import { clampOutputTokens, type AIChatOptions, type AIMessage, type AIProvider } from "./ai-provider";
 import { getProviderRuntimeConfig } from "./config";
 import { AIProviderError, classifyProviderHttpError } from "./errors";
+
+// Gemini 2.x Flash 계열의 최대 출력 토큰. 이보다 큰 maxOutputTokens를 보내면
+// 400 INVALID_ARGUMENT로 요청 자체가 거부된다.
+const GEMINI_MAX_OUTPUT_TOKENS = 8_192;
 
 type GeminiGenerateContentResponse = {
   candidates?: Array<{
@@ -56,7 +60,10 @@ export class GeminiProvider implements AIProvider {
             contents,
             generationConfig: {
               temperature: options?.temperature ?? 0.2,
-              ...(options?.maxTokens ? { maxOutputTokens: options.maxTokens } : {})
+              ...(() => {
+                const maxTokens = clampOutputTokens(options?.maxTokens, GEMINI_MAX_OUTPUT_TOKENS);
+                return maxTokens ? { maxOutputTokens: maxTokens } : {};
+              })()
             }
           })
         }

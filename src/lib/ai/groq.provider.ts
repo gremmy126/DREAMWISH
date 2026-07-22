@@ -9,7 +9,8 @@ export class GroqProvider extends OpenAICompatibleProvider {
       model: config.model,
       apiKey: config.apiKey,
       baseUrl: config.baseUrl || "https://api.groq.com/openai/v1",
-      missingKeyMessage: "Groq API key is missing. Set GROQ_API_KEY."
+      missingKeyMessage: "Groq API key is missing. Set GROQ_API_KEY.",
+      maxOutputTokensCap: 8_000
     });
   }
 }

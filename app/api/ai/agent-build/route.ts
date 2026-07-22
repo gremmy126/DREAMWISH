@@ -238,7 +238,11 @@ export async function POST(request: Request) {
     const detail = error instanceof Error ? error.message : "";
     console.error("[agent-build] failed:", detail);
     let message = "생성에 실패했습니다. 잠시 후 다시 시도해 주세요.";
-    if (/timed out|timeout/iu.test(detail)) {
+    if (/All configured AI providers failed/iu.test(detail)) {
+      message =
+        "연결된 모든 AI 공급자 호출이 실패했습니다. 다른 모델을 선택해 다시 시도하거나, " +
+        "설정에서 공급자 API 키와 사용량 한도를 확인해 주세요.";
+    } else if (/timed out|timeout/iu.test(detail)) {
       message =
         "생성 시간이 초과되었습니다. 요청을 두 단계로 나눠(핵심 구조 먼저 → 세부 기능은 수정 요청으로) 시도해 주세요.";
     } else if (/rate|429|quota/iu.test(detail)) {
