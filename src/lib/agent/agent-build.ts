@@ -49,20 +49,36 @@ export function kindFromFileName(fileName: string): AgentBuildKind {
   return "program";
 }
 
-/** Strips markdown fences and pulls out the artifact for the requested kind. */
+/**
+ * Strips markdown fences and pulls out the artifact for the requested kind.
+ * 모델 출력이 토큰 한도로 중간에 잘려도 최대한 복구해 미리보기가 항상
+ * 동작하게 한다 (브라우저는 닫히지 않은 태그를 자동 보정한다).
+ */
 export function extractArtifact(raw: string, kind: AgentBuildKind): string {
   let text = raw.trim();
+  // 닫는 펜스가 잘려 나간 경우까지 처리한다.
   const fence = text.match(/```[a-zA-Z]*\n([\s\S]*?)```/u);
-  if (fence) text = fence[1].trim();
+  if (fence) {
+    text = fence[1].trim();
+  } else {
+    const openFence = text.match(/```[a-zA-Z]*\n([\s\S]*)/u);
+    if (openFence && !text.startsWith("<")) text = openFence[1].trim();
+  }
   if (kind === "image") {
     const svg = text.match(/<svg[\s\S]*<\/svg>/iu);
-    return svg ? svg[0] : "";
+    if (svg) return svg[0];
+    // 잘린 SVG는 닫아서라도 렌더링한다.
+    const openSvg = text.match(/<svg[\s\S]*/iu);
+    return openSvg ? `${openSvg[0]}</svg>` : "";
   }
   if (kind === "website" || kind === "app") {
-    const doc = text.match(/<!doctype html>[\s\S]*/iu) || text.match(/<html[\s\S]*<\/html>/iu);
+    const doc =
+      text.match(/<!doctype html>[\s\S]*/iu) ||
+      text.match(/<html[\s\S]*<\/html>/iu) ||
+      text.match(/<html[\s\S]*/iu);
     if (doc) return doc[0];
     // Some models return only the body — wrap it so the preview still works.
-    if (/<(div|main|section|body|style|script)/iu.test(text)) {
+    if (/<(div|main|section|body|style|script|header|nav)/iu.test(text)) {
       return `<!DOCTYPE html>\n<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head><body>\n${text}\n</body></html>`;
     }
     return "";

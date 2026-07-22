@@ -1,4 +1,4 @@
-import type { AIMessage, AIProvider } from "./ai-provider";
+import type { AIChatOptions, AIMessage, AIProvider } from "./ai-provider";
 import { AIProviderError, classifyProviderHttpError } from "./errors";
 
 type ChatCompletionChunk = {
@@ -37,8 +37,8 @@ export class OpenAICompatibleProvider implements AIProvider {
     this.headers = options.headers || {};
   }
 
-  async chat(messages: AIMessage[]): Promise<string> {
-    const json = (await this.request(messages, false)) as ChatCompletionResponse;
+  async chat(messages: AIMessage[], options?: AIChatOptions): Promise<string> {
+    const json = (await this.request(messages, false, options)) as ChatCompletionResponse;
     const answer = json.choices?.[0]?.message?.content?.trim() || "";
     if (!answer) {
       throw new AIProviderError({
@@ -85,7 +85,7 @@ export class OpenAICompatibleProvider implements AIProvider {
     }
   }
 
-  private async request(messages: AIMessage[], stream: boolean) {
+  private async request(messages: AIMessage[], stream: boolean, options?: AIChatOptions) {
     if (!this.apiKey) {
       throw new AIProviderError({
         code: "PROVIDER_NOT_CONFIGURED",
@@ -94,7 +94,7 @@ export class OpenAICompatibleProvider implements AIProvider {
     }
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 60000);
+    const timeout = setTimeout(() => controller.abort(), options?.timeoutMs ?? 60000);
     let response: Response;
 
     try {
@@ -109,7 +109,8 @@ export class OpenAICompatibleProvider implements AIProvider {
         body: JSON.stringify({
           model: this.model,
           messages,
-          temperature: 0.2,
+          temperature: options?.temperature ?? 0.2,
+          ...(options?.maxTokens ? { max_tokens: options.maxTokens } : {}),
           stream
         })
       });

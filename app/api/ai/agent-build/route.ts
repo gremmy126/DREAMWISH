@@ -9,7 +9,12 @@ import { chatWithAI } from "@/src/lib/ai/ai.service";
 import { parseProviderName } from "@/src/lib/ai/provider-options";
 import { requireOwnerContext } from "@/src/lib/auth/owner-context";
 
-export const maxDuration = 120;
+export const maxDuration = 300;
+
+// 완성형 단일 파일 결과물은 출력이 길고 오래 걸린다: 기본 60초/기본 토큰
+// 한도로는 긴 프롬프트에서 시간 초과·잘림이 발생하므로 넉넉하게 준다.
+const BUILD_AI_OPTIONS = { timeoutMs: 150_000, maxTokens: 16_000, temperature: 0.7 };
+const POLISH_AI_OPTIONS = { timeoutMs: 120_000, maxTokens: 16_000, temperature: 0.7 };
 
 // 미리보기 iframe에서 로드가 허용되는 검증된 오픈소스 CDN만 사용을 허용한다.
 const OPEN_SOURCE_LIBRARIES =
@@ -156,7 +161,7 @@ export async function POST(request: Request) {
             : { role: "user" as const, content: `${contextPrefix}${message}` }
         ];
 
-    const raw = await chatWithAI(messages, provider);
+    const raw = await chatWithAI(messages, provider, BUILD_AI_OPTIONS);
     let code = extractArtifact(raw, kind);
     if (!code) {
       return NextResponse.json(
@@ -177,7 +182,8 @@ export async function POST(request: Request) {
               content: `원래 요청: ${message}\n\n현재 코드:\n${code.slice(0, 60_000)}`
             }
           ],
-          provider
+          provider,
+          POLISH_AI_OPTIONS
         );
         const polishedCode = extractArtifact(polished, kind);
         // 짧게 잘려 나온 결과로 멀쩡한 초안을 덮어쓰지 않는다.
@@ -191,12 +197,19 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ ok: true, kind, code, refined: refine, redesigned: redesign });
   } catch (error) {
-    const message =
-      error instanceof Error && /provider/iu.test(error.message)
-        ? "연결된 AI 공급자가 없습니다. 설정에서 AI 공급자 키를 등록해 주세요."
-        : error instanceof Error
-          ? error.message
-          : "생성에 실패했습니다.";
+    const detail = error instanceof Error ? error.message : "";
+    console.error("[agent-build] failed:", detail);
+    let message = "생성에 실패했습니다. 잠시 후 다시 시도해 주세요.";
+    if (/timed out|timeout/iu.test(detail)) {
+      message =
+        "생성 시간이 초과되었습니다. 요청을 두 단계로 나눠(핵심 구조 먼저 → 세부 기능은 수정 요청으로) 시도해 주세요.";
+    } else if (/rate|429|quota/iu.test(detail)) {
+      message = "AI 공급자 사용량 한도에 걸렸습니다. 잠시 후 다시 시도하거나 다른 모델을 선택해 주세요.";
+    } else if (/not configured|provider/iu.test(detail)) {
+      message = "연결된 AI 공급자가 없습니다. 설정에서 AI 공급자 키를 등록해 주세요.";
+    } else if (detail) {
+      message = detail;
+    }
     return NextResponse.json({ ok: false, error: message }, { status: 502 });
   }
 }

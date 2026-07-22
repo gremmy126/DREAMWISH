@@ -1,5 +1,6 @@
 import { assertProviderAllowed } from "../privacy/privacy.config";
 import {
+  type AIChatOptions,
   type AIMessage,
   type AIProvider,
   type AIProviderName
@@ -36,11 +37,16 @@ export function createAIProvider(providerNameOverride?: AIProviderName): AIProvi
   }
 }
 
-export async function chatWithAI(messages: AIMessage[], providerName?: AIProviderName) {
+export async function chatWithAI(
+  messages: AIMessage[],
+  providerName?: AIProviderName,
+  options?: AIChatOptions
+) {
   return chatWithProviderFailover(
     messages,
     getProviderAttemptOrder(providerName),
-    createAIProvider
+    createAIProvider,
+    options
   );
 }
 
@@ -57,12 +63,13 @@ type ProviderFactory = (provider: AIProviderName) => AIProvider;
 export async function chatWithProviderFailover(
   messages: AIMessage[],
   providers: AIProviderName[],
-  factory: ProviderFactory
+  factory: ProviderFactory,
+  options?: AIChatOptions
 ) {
   let lastError: unknown;
   for (const providerName of providers) {
     try {
-      return await factory(providerName).chat(messages);
+      return await factory(providerName).chat(messages, options);
     } catch (error) {
       lastError = error;
     }

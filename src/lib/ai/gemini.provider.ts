@@ -1,4 +1,4 @@
-import type { AIMessage, AIProvider } from "./ai-provider";
+import type { AIChatOptions, AIMessage, AIProvider } from "./ai-provider";
 import { getProviderRuntimeConfig } from "./config";
 import { AIProviderError, classifyProviderHttpError } from "./errors";
 
@@ -18,7 +18,7 @@ export class GeminiProvider implements AIProvider {
     return getProviderRuntimeConfig("gemini");
   }
 
-  async chat(messages: AIMessage[]): Promise<string> {
+  async chat(messages: AIMessage[], options?: AIChatOptions): Promise<string> {
     const config = this.config;
     if (!config.apiKey) {
       throw new AIProviderError({
@@ -39,7 +39,7 @@ export class GeminiProvider implements AIProvider {
       }));
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 60000);
+    const timeout = setTimeout(() => controller.abort(), options?.timeoutMs ?? 60000);
     let response: Response;
 
     try {
@@ -55,7 +55,8 @@ export class GeminiProvider implements AIProvider {
               : undefined,
             contents,
             generationConfig: {
-              temperature: 0.2
+              temperature: options?.temperature ?? 0.2,
+              ...(options?.maxTokens ? { maxOutputTokens: options.maxTokens } : {})
             }
           })
         }

@@ -532,9 +532,13 @@ export function AgentStudio() {
           )}
 
           {busy ? (
-            <div className="flex items-center gap-2 pl-10 text-[11px] font-semibold text-app-muted">
-              <Loader2 size={13} className="animate-spin text-app-primary" />
-              만드는 중입니다… 잠시만 기다려 주세요.
+            <div className="flex items-start gap-2 pl-10 text-[11px] font-semibold text-app-muted">
+              <Loader2 size={13} className="mt-0.5 shrink-0 animate-spin text-app-primary" />
+              <span>
+                만드는 중입니다… 품질을 위해 초안 생성 후 디자인 다듬기까지 진행해요.
+                <br />
+                복잡한 요청은 2~3분 정도 걸릴 수 있습니다.
+              </span>
             </div>
           ) : null}
         </div>
