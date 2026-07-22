@@ -12,8 +12,8 @@ import { assertSameOriginMutation, CsrfValidationError } from "@/src/lib/securit
 // 즉시 적용되어 이용 기간이 부여된다.
 
 function monthlyBaseAmountKrw() {
-  const value = Number(process.env.BILLING_DOMESTIC_MONTHLY_AMOUNT_KRW || 4900);
-  return Number.isSafeInteger(value) && value >= 100 ? value : 4900;
+  const value = Number(process.env.BILLING_DOMESTIC_MONTHLY_AMOUNT_KRW || 15000);
+  return Number.isSafeInteger(value) && value >= 100 ? value : 15000;
 }
 
 // assertRedeemable / assertCouponCode 의 내부 메시지를 사용자 친화적인

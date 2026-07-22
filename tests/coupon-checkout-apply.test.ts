@@ -64,15 +64,15 @@ test("applying a discount coupon reserves it so checkout can recompute the amoun
 
 test("the discount preview matches the server-side domestic recalculation", async () => {
   await withCouponStore(async ({ service }) => {
-    // percentage 20% of 4900 → 3920
+    // percentage 20% of 15000 → 12000
     assert.equal(
-      service.calculateDomesticCouponAmount(4_900, { type: "percentage_discount", value: 20, currency: "KRW" }),
-      3_920
+      service.calculateDomesticCouponAmount(15_000, { type: "percentage_discount", value: 20, currency: "KRW" }),
+      12_000
     );
-    // fixed 2000 off 4900 → 2900
+    // fixed 2000 off 15000 → 13000
     assert.equal(
-      service.calculateDomesticCouponAmount(4_900, { type: "fixed_discount", value: 2_000, currency: "KRW" }),
-      2_900
+      service.calculateDomesticCouponAmount(15_000, { type: "fixed_discount", value: 2_000, currency: "KRW" }),
+      13_000
     );
   });
 });

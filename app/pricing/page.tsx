@@ -13,7 +13,7 @@ export default function PricingPage() {
       <div className="mt-8 w-full max-w-sm rounded-app border border-app-border bg-white p-6 text-left shadow-app">
         <p className="text-xs font-bold text-app-primary">DreamWish Pro</p>
         <p className="mt-2 text-3xl font-extrabold text-app-text">
-          ₩4,900<span className="text-sm font-semibold text-app-muted"> / 월</span>
+          ₩15,000<span className="text-sm font-semibold text-app-muted"> / 월</span>
         </p>
         <ul className="mt-4 space-y-2 text-xs leading-5 text-app-text">
           <li>✓ AI 의사결정 분석 — 인터뷰·딥리서치·시뮬레이션·최종 결론</li>

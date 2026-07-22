@@ -114,7 +114,7 @@ export async function POST(request: Request) {
 }
 
 function monthlyAmount() {
-  const value = Number(process.env.BILLING_DOMESTIC_MONTHLY_AMOUNT_KRW || 4900);
+  const value = Number(process.env.BILLING_DOMESTIC_MONTHLY_AMOUNT_KRW || 15000);
   if (!Number.isSafeInteger(value) || value < 100) throw new Error("BILLING_DOMESTIC_MONTHLY_AMOUNT_KRW is invalid.");
   return value;
 }
