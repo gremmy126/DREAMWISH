@@ -120,10 +120,14 @@ type AgentGenerationPlan = {
   skillId: string | null;
 };
 
+type GenerationOutcome = { payload: Record<string, unknown>; status: number };
+
 // 채팅 한 문장으로 웹사이트·앱·프로그램·이미지를 생성/수정한다. 준비(인증·
-// 검증·프롬프트 구성)는 즉시 끝내고, 실제 AI 생성은 SSE 스트림으로 응답을
-// 곧바로 열어 하트비트를 보내며 진행한다 → 앞단 프록시가 "응답 시작"을
-// 기다리다 502/504로 끊는 것을 막는다(긴 생성에서 하드 실패 방지).
+// 검증·프롬프트 구성)는 즉시 끝내고, 실제 AI 생성은 클라이언트가
+// `Accept: text/event-stream`을 보낸 경우 SSE 스트림으로 응답을 곧바로 열어
+// 하트비트를 보내며 진행한다 → 앞단 프록시가 "응답 시작"을 기다리다
+// 502/504로 끊는 것을 막는다. Accept가 없는(이전 버전) 클라이언트에는 일반
+// JSON으로 응답해, 배포 전후 버전이 섞여 있어도 항상 동작한다.
 export async function POST(request: Request) {
   let plan: AgentGenerationPlan;
   try {
@@ -137,6 +141,12 @@ export async function POST(request: Request) {
       { ok: false, code: mapped.code, retryable: true, error: mapped.message },
       { status: mapped.status }
     );
+  }
+
+  const wantsStream = (request.headers.get("accept") || "").includes("text/event-stream");
+  if (!wantsStream) {
+    const outcome = await runGeneration(plan);
+    return NextResponse.json(outcome.payload, { status: outcome.status });
   }
 
   const encoder = new TextEncoder();
@@ -153,40 +163,9 @@ export async function POST(request: Request) {
       };
       // 하트비트(SSE 주석)로 연결을 살려 프록시 타임아웃을 막는다.
       const heartbeat = setInterval(() => safeEnqueue(": ping\n\n"), 3000);
-      const sendResult = (payload: unknown) =>
-        safeEnqueue(`event: result\ndata: ${JSON.stringify(payload)}\n\n`);
       try {
-        const raw = await withDeadline(
-          chatWithAI(plan.messages, plan.provider, { ...BUILD_AI_OPTIONS, timeoutMs: MAIN_TIMEOUT_MS }),
-          GENERATION_DEADLINE_MS
-        );
-        const code = extractArtifact(raw, plan.kind);
-        if (!code) {
-          sendResult({
-            ok: false,
-            code: "AGENT_RESPONSE_INVALID",
-            retryable: true,
-            error: "생성 결과를 해석하지 못했습니다. 다시 시도해 주세요."
-          });
-        } else {
-          const guard =
-            plan.kind === "website" || plan.kind === "app"
-              ? inspectGeneratedHtml(code)
-              : { safe: true, findings: [] };
-          sendResult({
-            ok: true,
-            kind: plan.kind,
-            code,
-            refined: plan.refine,
-            redesigned: plan.redesign,
-            skillId: plan.skillId,
-            guard
-          });
-        }
-      } catch (error) {
-        console.error("[agent-build] failed:", error instanceof Error ? error.message : error);
-        const mapped = mapAgentError(error);
-        sendResult({ ok: false, code: mapped.code, retryable: true, error: mapped.message });
+        const outcome = await runGeneration(plan);
+        safeEnqueue(`event: result\ndata: ${JSON.stringify(outcome.payload)}\n\n`);
       } finally {
         clearInterval(heartbeat);
         closed = true;
@@ -209,6 +188,52 @@ export async function POST(request: Request) {
       "X-Accel-Buffering": "no"
     }
   });
+}
+
+// 단일 패스 생성 실행. 성공/실패 모두 JSON 페이로드와 상태 코드로 정리해,
+// 스트리밍(result 이벤트)과 일반 JSON 응답이 같은 결과를 공유한다.
+async function runGeneration(plan: AgentGenerationPlan): Promise<GenerationOutcome> {
+  try {
+    const raw = await withDeadline(
+      chatWithAI(plan.messages, plan.provider, { ...BUILD_AI_OPTIONS, timeoutMs: MAIN_TIMEOUT_MS }),
+      GENERATION_DEADLINE_MS
+    );
+    const code = extractArtifact(raw, plan.kind);
+    if (!code) {
+      return {
+        status: 502,
+        payload: {
+          ok: false,
+          code: "AGENT_RESPONSE_INVALID",
+          retryable: true,
+          error: "생성 결과를 해석하지 못했습니다. 다시 시도해 주세요."
+        }
+      };
+    }
+    const guard =
+      plan.kind === "website" || plan.kind === "app"
+        ? inspectGeneratedHtml(code)
+        : { safe: true, findings: [] };
+    return {
+      status: 200,
+      payload: {
+        ok: true,
+        kind: plan.kind,
+        code,
+        refined: plan.refine,
+        redesigned: plan.redesign,
+        skillId: plan.skillId,
+        guard
+      }
+    };
+  } catch (error) {
+    console.error("[agent-build] failed:", error instanceof Error ? error.message : error);
+    const mapped = mapAgentError(error);
+    return {
+      status: mapped.status,
+      payload: { ok: false, code: mapped.code, retryable: true, error: mapped.message }
+    };
+  }
 }
 
 class AgentInputError extends Error {

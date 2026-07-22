@@ -238,7 +238,9 @@ export function AgentStudio() {
   async function requestBuild(payload: Record<string, unknown>) {
     const response = await fetch("/api/ai/agent-build", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      // Accept 헤더로 스트리밍을 요청한다. 이 헤더가 없는(이전 버전) 클라이언트
+      // 에는 서버가 일반 JSON으로 응답하므로 배포 전후 버전이 섞여도 안전하다.
+      headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
       body: JSON.stringify({
         ...payload,
         provider: selectedModel || undefined,

@@ -41,6 +41,20 @@ test("agent-build maps every failure to a standard code and message", () => {
   assert.match(route, /function mapAgentError/u);
 });
 
+test("agent-build negotiates the response mode so old and new clients both work", () => {
+  const route = fs.readFileSync("app/api/ai/agent-build/route.ts", "utf8");
+  const view = fs.readFileSync("components/Agents/AgentStudio.tsx", "utf8");
+  // 서버: Accept 헤더가 text/event-stream일 때만 스트리밍, 아니면 일반 JSON.
+  // 배포 전후 클라이언트 버전이 섞여 있어도(스큐) 항상 파싱 가능한 응답을 준다.
+  assert.match(route, /request\.headers\.get\("accept"\)/u);
+  assert.match(route, /wantsStream/u);
+  assert.match(route, /NextResponse\.json\(outcome\.payload,\s*\{\s*status:\s*outcome\.status\s*\}\)/u);
+  // 두 모드가 같은 생성 결과를 공유한다.
+  assert.match(route, /function runGeneration/u);
+  // 클라이언트: 스트리밍을 명시적으로 요청한다.
+  assert.match(view, /Accept:\s*"text\/event-stream"/u);
+});
+
 test("the client reads the SSE stream and handles both string and object errors", () => {
   const view = fs.readFileSync("components/Agents/AgentStudio.tsx", "utf8");
   assert.match(view, /readAgentBuildStream/u);
