@@ -21,6 +21,7 @@ import {
 } from "./subscription.repository";
 import { PortOneKpnV2Adapter } from "./portone/kpn-v2.adapter";
 import { PortOneKcpV1Adapter } from "./portone/kcp-v1.adapter";
+import { compactProviderPaymentId } from "./payment-id";
 import { applyDomesticBillingPayment } from "./billing.repository";
 
 export async function runBillingWorkerOnce(input: {
@@ -57,7 +58,7 @@ export async function processClaimedBillingJob(job: BillingChargeJob, workerId: 
       throw safeBillingError("BILLING_METHOD_UNAVAILABLE", "The billing method is unavailable.");
     }
 
-    const paymentId = compactProviderId(`dw${job.id.replace(/-/gu, "")}`);
+    const paymentId = compactProviderPaymentId(`dw${job.id.replace(/-/gu, "")}`);
     let attempt = await createPaymentAttempt({
       ownerId: job.ownerId,
       provider: subscription.provider,
@@ -186,10 +187,6 @@ function normalizeBillingWorkerError(error: unknown) {
     PAYMENT_ATTEMPT_TERMINAL: "The payment attempt cannot be resumed."
   };
   return { code, message: safeMessages[code] || "The payment provider could not complete the charge." };
-}
-
-function compactProviderId(value: string) {
-  return value.replace(/[^A-Za-z0-9]/gu, "").slice(0, 40);
 }
 
 function addMonth(value: string) {

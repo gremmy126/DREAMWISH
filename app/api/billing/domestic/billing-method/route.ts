@@ -5,6 +5,7 @@ import { requireOwnerContext } from "@/src/lib/auth/owner-context";
 import { getDomesticBillingConfig, requireBillingCapability } from "@/src/lib/billing/billing-config";
 import { createBillingMethod, revokeBillingMethod } from "@/src/lib/billing/billing-method.repository";
 import { getDomesticPrimaryProvider } from "@/src/lib/billing/billing-provider.repository";
+import { createProviderPaymentId } from "@/src/lib/billing/payment-id";
 import { createPaymentAttempt, getPaymentAttempt, transitionPaymentAttempt } from "@/src/lib/billing/payment-attempt.repository";
 import { buildKcpBillingKeyRequest, PortOneKcpV1Adapter } from "@/src/lib/billing/portone/kcp-v1.adapter";
 import { PortOneKpnV2Adapter } from "@/src/lib/billing/portone/kpn-v2.adapter";
@@ -134,7 +135,7 @@ export async function POST(request: Request) {
     await transitionPaymentAttempt(attempt.id, "verification_pending");
 
     if (config.mode === "sandbox") {
-      const paymentId = `dwsubtest${randomBytes(14).toString("hex")}`;
+      const paymentId = createProviderPaymentId("dwsubtst");
       await adapter.charge({
         ownerId: owner.uid, paymentId, providerReference: issued.providerReference,
         money: { amount: RECURRING_TEST_AMOUNT, currency: "KRW" },

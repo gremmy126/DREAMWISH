@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 import { requireOwnerContext } from "@/src/lib/auth/owner-context";
 import { getDomesticBillingConfig, requireBillingCapability } from "@/src/lib/billing/billing-config";
+import { createProviderPaymentId } from "@/src/lib/billing/payment-id";
 import { createPaymentAttempt, transitionPaymentAttempt } from "@/src/lib/billing/payment-attempt.repository";
 import { PortOneKpnV2Adapter } from "@/src/lib/billing/portone/kpn-v2.adapter";
 import { assertSameOriginMutation } from "@/src/lib/security/csrf";
@@ -23,7 +24,8 @@ export async function POST(request: Request) {
     }
     requireBillingCapability(config, "kpnGeneral");
     const nonce = randomBytes(16).toString("hex");
-    const paymentId = `dwtest${nonce}`;
+    // MxIssueNO(가맹점 주문번호)는 32바이트 이내여야 한다.
+    const paymentId = createProviderPaymentId("dwtest");
     const attempt = await createPaymentAttempt({
       ownerId: owner.uid,
       provider: "portone_kpn_v2",

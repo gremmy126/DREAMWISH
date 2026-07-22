@@ -1,7 +1,7 @@
-import { randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireOwnerContext } from "@/src/lib/auth/owner-context";
+import { createProviderPaymentId } from "@/src/lib/billing/payment-id";
 import { applyDomesticBillingPayment } from "@/src/lib/billing/billing.repository";
 import { getDomesticBillingConfig, requireBillingCapability } from "@/src/lib/billing/billing-config";
 import { enqueueBillingChargeJob } from "@/src/lib/billing/billing-charge-queue.repository";
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
     if (preparedDiscount) reservedOwnerId = owner.uid;
     const baseAmount = monthlyAmount();
     const computedPricing = buildDomesticSubscriptionPricing(baseAmount, preparedDiscount?.coupon || null);
-    const initialPaymentId = `dwsub${randomBytes(15).toString("hex")}`;
+    const initialPaymentId = createProviderPaymentId("dwsub");
     let attempt = await createPaymentAttempt({
       ownerId: owner.uid, provider: method.provider, environment: "live", purpose: "subscription_charge",
       idempotencyKey: `${owner.uid}:initial:${method.id}:${existing?.id || "first"}`, providerPaymentId: initialPaymentId,

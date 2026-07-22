@@ -56,6 +56,16 @@ export async function getDomesticSubscriptionByOwner(ownerId: string) {
   return rows[0] ? mapSubscription(rows[0]) : null;
 }
 
+// 관리자 대시보드용: 최근 구독을 모아 보여준다(전 소유자 대상).
+export async function listDomesticSubscriptions(limit = 100) {
+  await ensureBillingSchema();
+  const safeLimit = Math.max(1, Math.min(500, Math.trunc(limit)));
+  const rows = await getPostgres()`
+    SELECT * FROM billing_subscriptions ORDER BY created_at DESC LIMIT ${safeLimit}
+  `;
+  return rows.map(mapSubscription);
+}
+
 export async function listActiveSubscriptionProviders() {
   await ensureBillingSchema();
   const rows = await getPostgres()`

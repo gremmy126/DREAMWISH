@@ -11,6 +11,7 @@ import type {
   RefundPaymentInput,
   VerifiedPayment
 } from "../billing-gateway.types";
+import { MAX_PROVIDER_PAYMENT_ID_LENGTH } from "../payment-id";
 
 type PortOnePaymentClient = ReturnType<typeof PortOneClient>;
 
@@ -167,6 +168,11 @@ function parseCustomData(value: unknown): Record<string, unknown> {
 }
 function assertProviderId(value: string) {
   if (!/^[A-Za-z0-9]+$/u.test(value)) throw new Error("Provider IDs must be ASCII alphanumeric.");
+  // KPN(MxIssueNO 등)은 가맹점 주문번호를 최대 32바이트로 제한한다. 초과하면
+  // PG 결제창에서 9104로 실패하므로, 보내기 전에 서버에서 먼저 막는다.
+  if (Buffer.byteLength(value, "utf8") > MAX_PROVIDER_PAYMENT_ID_LENGTH) {
+    throw new Error(`Provider payment IDs must be ${MAX_PROVIDER_PAYMENT_ID_LENGTH} bytes or fewer.`);
+  }
 }
 function required(value: string | undefined, name: string) {
   if (!value) throw new Error(`${name} is required.`);

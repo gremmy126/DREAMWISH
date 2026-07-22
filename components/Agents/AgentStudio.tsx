@@ -221,12 +221,22 @@ export function AgentStudio() {
       redesigned?: boolean;
       skillId?: string | null;
       guard?: GuardReport;
-      error?: string;
+      // 라우트는 error를 문자열로, 미들웨어(인증/결제 차단)는 {code,message}
+      // 객체로 준다. 둘 다 사람이 읽을 수 있게 처리한다.
+      error?: string | { code?: string; message?: string };
     };
     if (!response.ok || !body.ok || !body.code || !body.kind) {
+      const serverMessage =
+        typeof body.error === "string"
+          ? body.error
+          : body.error && typeof body.error === "object"
+            ? body.error.message
+            : "";
+      if (serverMessage) throw new Error(serverMessage);
+      // 서버가 JSON 오류조차 못 준 경우(게이트웨이 타임아웃 등): HTTP 상태를
+      // 함께 알려 원인 파악을 돕는다.
       throw new Error(
-        body.error ||
-          "생성에 실패했습니다. 응답이 지연되었을 수 있어요 — 다른(더 빠른) 모델을 선택하거나 잠시 후 다시 시도해 주세요."
+        `생성에 실패했습니다 (HTTP ${response.status}). 응답이 지연되었을 수 있어요 — 다른(더 빠른) 모델을 선택하거나 잠시 후 다시 시도해 주세요.`
       );
     }
     setGuard(body.guard ?? null);

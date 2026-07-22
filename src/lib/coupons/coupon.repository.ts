@@ -187,6 +187,18 @@ export async function listAccessGrants(userId: string) {
   return (await readDb()).accessGrants.filter((item) => item.userId === userId);
 }
 
+// 관리자 대시보드용: 사용자와 무관하게 최근 발급된 이용권(접근권한)을 모은다.
+export async function listAllAccessGrants(limit = 100): Promise<AccessGrant[]> {
+  const safeLimit = Math.max(1, Math.min(500, Math.trunc(limit)));
+  if (hasPostgresStorage()) {
+    await ensureAdminSchema();
+    const rows = await getPostgres()`SELECT * FROM access_grants ORDER BY created_at DESC LIMIT ${safeLimit}`;
+    return rows.map(mapGrantRow);
+  }
+  // JSON 저장소는 신규 항목을 앞에 넣으므로 앞에서부터 잘라 최신순을 유지한다.
+  return (await readDb()).accessGrants.slice(0, safeLimit);
+}
+
 export async function grantAccess(input: { userId: string; days: number; source?: "admin" | "coupon"; couponId?: string | null }) {
   const days = Math.max(1, Math.min(3650, Math.trunc(input.days)));
   const now = new Date();
