@@ -28,6 +28,9 @@ export type OpenAICompatibleOptions = {
   headers?: ProviderHeaders;
   /** 모델이 허용하는 최대 출력 토큰 — 요청값이 넘으면 이 값으로 잘라낸다. */
   maxOutputTokensCap?: number;
+  maxTokensField?: "max_tokens" | "max_completion_tokens";
+  /** 입력과 요청 출력의 보수적 합계 상한. 공급자 TPM보다 낮게 설정한다. */
+  totalTokenRequestBudget?: number;
 };
 
 export class OpenAICompatibleProvider implements AIProvider {
@@ -38,6 +41,8 @@ export class OpenAICompatibleProvider implements AIProvider {
   private missingKeyMessage: string;
   private headers: ProviderHeaders;
   private maxOutputTokensCap: number;
+  private maxTokensField: "max_tokens" | "max_completion_tokens";
+  private totalTokenRequestBudget?: number;
 
   constructor(options: OpenAICompatibleOptions) {
     this.name = options.name;
@@ -47,6 +52,8 @@ export class OpenAICompatibleProvider implements AIProvider {
     this.missingKeyMessage = options.missingKeyMessage;
     this.headers = options.headers || {};
     this.maxOutputTokensCap = options.maxOutputTokensCap ?? 8_000;
+    this.maxTokensField = options.maxTokensField ?? "max_tokens";
+    this.totalTokenRequestBudget = options.totalTokenRequestBudget;
   }
 
   async chat(messages: AIMessage[], options?: AIChatOptions): Promise<string> {
@@ -122,6 +129,8 @@ export class OpenAICompatibleProvider implements AIProvider {
       });
     }
 
+    const maxTokens = this.resolveMaxTokens(messages, options?.maxTokens);
+
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), options?.timeoutMs ?? 60000);
     let response: Response;
@@ -139,10 +148,7 @@ export class OpenAICompatibleProvider implements AIProvider {
           model: options?.model || this.model,
           messages,
           temperature: options?.temperature ?? 0.2,
-          ...(() => {
-            const maxTokens = clampOutputTokens(options?.maxTokens, this.maxOutputTokensCap);
-            return maxTokens ? { max_tokens: maxTokens } : {};
-          })(),
+          ...(maxTokens ? { [this.maxTokensField]: maxTokens } : {}),
           stream
         })
       });
@@ -171,5 +177,29 @@ export class OpenAICompatibleProvider implements AIProvider {
     }
 
     return stream ? response : response.json();
+  }
+
+  private resolveMaxTokens(messages: AIMessage[], requested?: number) {
+    const clamped = clampOutputTokens(requested, this.maxOutputTokensCap);
+    if (!this.totalTokenRequestBudget) return clamped;
+
+    const requestedOrCap = clamped ?? this.maxOutputTokensCap;
+    const conservativeInputTokens = messages.reduce(
+      (total, message) => total + new TextEncoder().encode(message.content).length + 8,
+      0
+    );
+    const available =
+      this.totalTokenRequestBudget - conservativeInputTokens - 256;
+
+    if (available < 256) {
+      throw new AIProviderError({
+        code: "PROVIDER_RATE_LIMIT",
+        message: `${this.name} prompt exceeds the safe per-request token budget.`,
+        retryable: true,
+        status: 429
+      });
+    }
+
+    return Math.min(requestedOrCap, Math.floor(available));
   }
 }

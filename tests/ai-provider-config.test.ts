@@ -41,6 +41,33 @@ test("public AI catalog exposes configured models without credentials", () => {
   });
 });
 
+test("Gemini display names are normalized to API model identifiers", () => {
+  withEnv({ GEMINI_MODEL: "Gemini 3.1 Pro" }, () => {
+    assert.equal(getProviderRuntimeConfig("gemini").model, "gemini-3.1-pro-preview");
+  });
+});
+
+test("provider defaults use current routable model identifiers", () => {
+  withEnv(
+    {
+      GEMINI_MODEL: undefined,
+      GOOGLE_MODEL: undefined,
+      OPENROUTER_MODEL: undefined,
+      GROQ_MODEL: undefined,
+      CLOUDFLARE_AI_MODEL: undefined
+    },
+    () => {
+      assert.equal(getProviderRuntimeConfig("gemini").model, "gemini-3.5-flash");
+      assert.equal(getProviderRuntimeConfig("openrouter").model, "openrouter/free");
+      assert.equal(getProviderRuntimeConfig("groq").model, "openai/gpt-oss-20b");
+      assert.equal(
+        getProviderRuntimeConfig("cloudflare").model,
+        "@cf/qwen/qwen3-30b-a3b-fp8"
+      );
+    }
+  );
+});
+
 test("AI config returns a clear provider-not-configured error when no external provider is connected", () => {
   withEnv(
     {

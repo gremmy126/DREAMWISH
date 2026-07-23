@@ -22,14 +22,14 @@ const PROVIDER_ORDER: ExternalAIProviderName[] = [
   "claude",
   "gemini",
   "openrouter",
-  "groq"
+  "groq",
 ];
 
 const PROVIDER_LABELS: Record<ExternalAIProviderName, string> = {
   claude: "Claude",
   gemini: "Gemini",
   openrouter: "OpenRouter",
-  groq: "Groq"
+  groq: "Groq",
 };
 
 export function getPublicAIProviderCatalog() {
@@ -39,7 +39,7 @@ export function getPublicAIProviderCatalog() {
       provider,
       label: PROVIDER_LABELS[provider],
       model: config.model,
-      configured: Boolean(config.apiKey && config.model)
+      configured: Boolean(config.apiKey && config.model),
     };
   });
 }
@@ -52,11 +52,16 @@ export function getConfiguredAIProviders(): AIProviderRuntimeConfig[] {
 }
 
 export function getProviderAttemptOrder(
-  requested?: ExternalAIProviderName
+  requested?: ExternalAIProviderName,
 ): ExternalAIProviderName[] {
-  const configured = getConfiguredAIProviders().map((config) => config.provider);
+  const configured = getConfiguredAIProviders().map(
+    (config) => config.provider,
+  );
   if (!requested || !configured.includes(requested)) return configured;
-  return [requested, ...configured.filter((provider) => provider !== requested)];
+  return [
+    requested,
+    ...configured.filter((provider) => provider !== requested),
+  ];
 }
 
 export function getDefaultAIProviderName(): ExternalAIProviderName {
@@ -66,7 +71,7 @@ export function getDefaultAIProviderName(): ExternalAIProviderName {
     if (!config.apiKey) {
       throw new AIProviderError({
         code: "PROVIDER_NOT_CONFIGURED",
-        message: `${explicit} is selected but its API key is not configured.`
+        message: `${explicit} is selected but its API key is not configured.`,
       });
     }
     return explicit;
@@ -77,7 +82,7 @@ export function getDefaultAIProviderName(): ExternalAIProviderName {
     throw new AIProviderError({
       code: "PROVIDER_NOT_CONFIGURED",
       message:
-        "No connected AI provider is configured. Connect Claude, Gemini, OpenRouter, or Groq in Settings > Integrations."
+        "No connected AI provider is configured. Connect Claude, Gemini, OpenRouter, or Groq in Settings > Integrations.",
     });
   }
   return first;
@@ -89,18 +94,20 @@ export function getAIProviderHealth(): AIProviderHealth[] {
     return {
       provider,
       configured: Boolean(config.apiKey),
-      modelConfigured: Boolean(config.model)
+      modelConfigured: Boolean(config.model),
     };
   });
 }
 
-export function getProviderRuntimeConfig(provider: ExternalAIProviderName): AIProviderRuntimeConfig {
+export function getProviderRuntimeConfig(
+  provider: ExternalAIProviderName,
+): AIProviderRuntimeConfig {
   if (provider === "claude") {
     return {
       provider,
       apiKey: env("ANTHROPIC_API_KEY") || env("CLAUDE_API_KEY"),
       model: env("ANTHROPIC_MODEL") || env("CLAUDE_MODEL") || "claude-sonnet-5",
-      baseUrl: env("ANTHROPIC_BASE_URL") || "https://api.anthropic.com/v1"
+      baseUrl: env("ANTHROPIC_BASE_URL") || "https://api.anthropic.com/v1",
     };
   }
 
@@ -108,8 +115,10 @@ export function getProviderRuntimeConfig(provider: ExternalAIProviderName): AIPr
     return {
       provider,
       apiKey: env("GEMINI_API_KEY") || env("GOOGLE_API_KEY"),
-      model: env("GEMINI_MODEL") || env("GOOGLE_MODEL") || "gemini-2.0-flash",
-      baseUrl: "https://generativelanguage.googleapis.com/v1beta"
+      model: normalizeGeminiModel(
+        env("GEMINI_MODEL") || env("GOOGLE_MODEL") || "gemini-3.5-flash",
+      ),
+      baseUrl: "https://generativelanguage.googleapis.com/v1beta",
     };
   }
 
@@ -117,24 +126,57 @@ export function getProviderRuntimeConfig(provider: ExternalAIProviderName): AIPr
     return {
       provider,
       apiKey: env("OPENROUTER_API_KEY"),
-      model: env("OPENROUTER_MODEL") || "meta-llama/llama-3.1-8b-instruct:free",
+      model: env("OPENROUTER_MODEL") || "openrouter/free",
       baseUrl: env("OPENROUTER_BASE_URL") || "https://openrouter.ai/api/v1",
       headers: {
         "HTTP-Referer": getPublicReferer(),
-        "X-Title": "DREAMWISH"
-      }
+        "X-Title": "DREAMWISH",
+      },
+    };
+  }
+
+  if (provider === "groq") {
+    return {
+      provider,
+      apiKey: env("GROQ_API_KEY"),
+      model: env("GROQ_MODEL") || "openai/gpt-oss-20b",
+      baseUrl: "https://api.groq.com/openai/v1",
+    };
+  }
+
+  if (provider === "huggingface") {
+    return {
+      provider,
+      apiKey: env("HF_TOKEN") || env("HUGGINGFACE_API_KEY"),
+      model: env("HF_MODEL") || "google/gemma-2-2b-it:hf-inference",
+      baseUrl: "https://router.huggingface.co/v1",
     };
   }
 
   return {
     provider,
-    apiKey: env("GROQ_API_KEY"),
-    model: env("GROQ_MODEL") || "llama-3.1-8b-instant",
-    baseUrl: "https://api.groq.com/openai/v1"
+    apiKey: env("CLOUDFLARE_API_TOKEN") || env("CLOUDFLARE_API_KEY"),
+    model: env("CLOUDFLARE_AI_MODEL") || "@cf/qwen/qwen3-30b-a3b-fp8",
+    baseUrl: env("CLOUDFLARE_ACCOUNT_ID")
+      ? `https://api.cloudflare.com/client/v4/accounts/${env("CLOUDFLARE_ACCOUNT_ID")}/ai/v1`
+      : undefined,
   };
 }
 
-export function parseExternalProvider(value: unknown): ExternalAIProviderName | undefined {
+function normalizeGeminiModel(value: string) {
+  const model = value.trim().replace(/^models\//iu, "");
+  const aliases: Record<string, string> = {
+    "gemini 3.1 pro": "gemini-3.1-pro-preview",
+    "gemini 3.5 flash": "gemini-3.5-flash",
+    "gemini 3.1 flash-lite": "gemini-3.1-flash-lite",
+    "gemini 3 flash": "gemini-3-flash-preview",
+  };
+  return aliases[model.toLowerCase()] || model;
+}
+
+export function parseExternalProvider(
+  value: unknown,
+): ExternalAIProviderName | undefined {
   if (typeof value !== "string") return undefined;
   const normalized = value.toLowerCase();
   return PROVIDER_ORDER.find((provider) => provider === normalized);
